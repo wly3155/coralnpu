@@ -216,7 +216,12 @@ class UncachedFetch(p: Parameters) extends FetchUnit(p) {
   val ctrl = Module(new FetchControl(p))
   ctrl.io.csr <> io.csr
   ctrl.io.branch := branch
-  ctrl.io.iflush := MakeValid(io.iflush.valid, io.iflush.pcNext)
+  val debug_iflush = if (p.useDebugModule) { Seq(
+    io.debug_pc.get.valid -> MakeValid(io.debug_pc.get.bits),
+  ) } else { Seq() }
+  ctrl.io.iflush := MuxCase(MakeInvalid(UInt(p.fetchAddrBits.W)), Seq(
+    io.iflush.valid -> MakeValid(io.iflush.pcNext),
+  ) ++ debug_iflush)
   ctrl.io.linkPort := io.linkPort
   // TODO(derekjchow): Maybe do something with back pressure?
   io.iflush.ready := true.B
@@ -231,7 +236,7 @@ class UncachedFetch(p: Parameters) extends FetchUnit(p) {
       new FetchInstruction(p), p.fetchInstrSlots, window))
   instructionBuffer.io.feedIn <> ctrl.io.bufferRequest
   io.inst.lanes <> instructionBuffer.io.out.take(4)
-  instructionBuffer.io.flush := io.iflush.valid || branch.valid
+  instructionBuffer.io.flush := io.iflush.valid || branch.valid || io.debug_pc.map(_.valid).getOrElse(false.B)
   ctrl.io.bufferSpaces := instructionBuffer.io.nSpace
 
   val pc = RegInit(0.U(p.fetchAddrBits.W))

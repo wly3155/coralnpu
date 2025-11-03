@@ -35,6 +35,9 @@ async def setup_dut(dut):
     for i in range(4): # 4 external device ports
         getattr(dut, f"io_external_devices_ports_{i}_d_valid").value = 0
 
+    getattr(dut, f"io_external_ports_5").value = 0 # DM req valid
+    getattr(dut, f"io_external_ports_11").value = 0 # DM rsp ready
+
     # Start the main clock
     clock = Clock(dut.io_clk_i, 10, "ns")
     cocotb.start_soon(clock.start())
@@ -358,10 +361,10 @@ async def test_program_execution_via_spi(dut):
     clock = await setup_dut(dut)
 
     spi_master = SPIMaster(
-        clk=dut.io_external_ports_5,
-        csb=dut.io_external_ports_6,
-        mosi=dut.io_external_ports_7,
-        miso=dut.io_external_ports_8,
+        clk=dut.io_external_ports_14,
+        csb=dut.io_external_ports_15,
+        mosi=dut.io_external_ports_16,
+        miso=dut.io_external_ports_17,
         main_clk=dut.io_clk_i,
         log=dut._log
     )
@@ -488,10 +491,10 @@ async def test_ddr_access_via_spi(dut):
     clock = await setup_dut(dut)
 
     spi_master = SPIMaster(
-        clk=dut.io_external_ports_5,
-        csb=dut.io_external_ports_6,
-        mosi=dut.io_external_ports_7,
-        miso=dut.io_external_ports_8,
+        clk=dut.io_external_ports_14,
+        csb=dut.io_external_ports_15,
+        mosi=dut.io_external_ports_16,
+        miso=dut.io_external_ports_17,
         main_clk=dut.io_clk_i,
         log=dut._log
     )

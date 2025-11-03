@@ -50,7 +50,12 @@ module chip_nexus
      input logic c0_sys_clk_n,
      output logic ddr_cal_complete_o,
      output ddr_ui_clk,
-     output ddr_ui_clk_sync_rst
+     output ddr_ui_clk_sync_rst,
+     input tck_i,
+     input tms_i,
+     input trst_ni,
+     input td_i,
+     output td_o
     );
 
   logic clk;
@@ -293,6 +298,32 @@ module chip_nexus
                .rst_no(rst_n),
                .locked_o(locked));
 
+  logic dm_req_valid, dm_req_ready;
+  dm::dmi_req_t dm_req;
+  logic dm_rsp_valid, dm_rsp_ready;
+  dm::dmi_resp_t dm_rsp;
+  logic dmi_rst_n;
+
+  dmi_jtag #(.IdcodeValue(32'h04f5484d)) i_jtag (
+    .clk_i(clk),
+    .rst_ni(rst_n),
+    .testmode_i(1'b0),
+    .test_rst_ni(1'b1),
+    .dmi_rst_no(dmi_rst_n),
+    .dmi_req_o(dm_req),
+    .dmi_req_valid_o(dm_req_valid),
+    .dmi_req_ready_i(dm_req_ready),
+    .dmi_resp_i(dm_rsp),
+    .dmi_resp_ready_o(dm_rsp_ready),
+    .dmi_resp_valid_i(dm_rsp_valid),
+    .tck_i(tck_i),
+    .tms_i(tms_i),
+    .trst_ni(trst_ni),
+    .td_i(td_i),
+    .td_o(td_o),
+    .tdo_oe_o(/*tdo_oe_o*/)
+  );
+
   coralnpu_soc i_coralnpu_soc (
     .clk_i(clk),
     .rst_ni(rst_n),
@@ -359,7 +390,16 @@ module chip_nexus
     .io_ddr_mem_axi_r_bits_data(c0_ddr4_s_axi_rdata),
     .io_ddr_mem_axi_r_bits_id(c0_ddr4_s_axi_rid),
     .io_ddr_mem_axi_r_bits_resp(c0_ddr4_s_axi_rresp),
-    .io_ddr_mem_axi_r_bits_last(c0_ddr4_s_axi_rlast)
+    .io_ddr_mem_axi_r_bits_last(c0_ddr4_s_axi_rlast),
+    .io_dm_req_valid(dm_req_valid),
+    .io_dm_req_ready(dm_req_ready),
+    .io_dm_req_bits_address(dm_req.addr),
+    .io_dm_req_bits_data(dm_req.data),
+    .io_dm_req_bits_op(dm_req.op),
+    .io_dm_rsp_ready(dm_rsp_ready),
+    .io_dm_rsp_valid(dm_rsp_valid),
+    .io_dm_rsp_bits_data(dm_rsp.data),
+    .io_dm_rsp_bits_op(dm_rsp.resp)
   );
 
 endmodule

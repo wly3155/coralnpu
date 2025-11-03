@@ -37,6 +37,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     val irq = Input(Bool())
     // Debug data interface
     val debug = new DebugIO(p)
+    val dm = Option.when(p.useDebugModule)(new DebugModuleIO(p))
     // String logging interface
     val slog = new SLogIO(p)
     val te = Input(Bool())
@@ -65,8 +66,30 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
       dontTouch(dm.get.io)
       val dmEnable = RegInit(false.B)
       dmEnable := true.B
-      dm.get.io.ext.req <> GateDecoupled(csr.io.debug.get.req, dmEnable)
-      csr.io.debug.get.rsp <> GateDecoupled(dm.get.io.ext.rsp, dmEnable)
+      val dmReqArbiter = Module(new CoralNPURRArbiter(new DebugModuleReqIO(p), 2))
+      dmReqArbiter.io.in(0) <> GateDecoupled(io.dm.get.req, dmEnable)
+      dmReqArbiter.io.in(1) <> GateDecoupled(csr.io.debug.get.req, dmEnable)
+
+      // Queue source ID of the request to route the response later.
+      val inflight = Module(new Queue(UInt(1.W), 1))
+
+      dm.get.io.ext.req.bits := dmReqArbiter.io.out.bits
+      dm.get.io.ext.req.valid := dmReqArbiter.io.out.valid && inflight.io.enq.ready
+      dmReqArbiter.io.out.ready := dm.get.io.ext.req.ready && inflight.io.enq.ready
+
+      inflight.io.enq.bits := dmReqArbiter.io.chosen
+      inflight.io.enq.valid := dmReqArbiter.io.out.valid && dm.get.io.ext.req.ready
+
+      val rspId = inflight.io.deq.bits
+      inflight.io.deq.ready := dm.get.io.ext.rsp.fire
+
+      csr.io.debug.get.rsp.bits := dm.get.io.ext.rsp.bits
+      io.dm.get.rsp.bits := dm.get.io.ext.rsp.bits
+
+      csr.io.debug.get.rsp.valid := dm.get.io.ext.rsp.valid && inflight.io.deq.valid && (rspId === 1.U)
+      io.dm.get.rsp.valid := dm.get.io.ext.rsp.valid && inflight.io.deq.valid && (rspId === 0.U)
+
+      dm.get.io.ext.rsp.ready := inflight.io.deq.valid && Mux(rspId === 1.U, csr.io.debug.get.rsp.ready, io.dm.get.rsp.ready)
     }
 
     val core_reset = Mux(io.te, (!io.aresetn.asBool).asAsyncReset, (csr.io.reset || dm.map(_.io.ndmreset).getOrElse(false.B)).asAsyncReset)
@@ -109,6 +132,10 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
       }
     }
 
+    // TCMs are arbitrated between the core ({i|d}bus), the AXI slave interface,
+    // and optionally the debug module.
+    val tcmPortCount = 2 + Option.when(p.useDebugModule)(1).getOrElse(0)
+
     // Build ITCM and connect to ibus
     val itcmSizeBytes: Int = 1024 * p.itcmSizeKBytes
     val itcmSubEntryWidth = 8
@@ -123,7 +150,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     itcm.io.wdata := itcmWrapper.io.sram.writeData
     itcm.io.wmask := itcmWrapper.io.sram.mask
     itcmWrapper.io.sram.readData := itcm.io.rdata
-    val itcmArbiter = Module(new FabricArbiter(p))
+    val itcmArbiter = Module(new FabricArbiter(p, tcmPortCount))
     itcmArbiter.io.port <> itcmWrapper.io.fabric
     itcmArbiter.io.source(0).readDataAddr := MakeValid(
         core.io.ibus.valid, core.io.ibus.addr)
@@ -154,7 +181,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     dtcm.io.wdata := dtcmWrapper.io.sram.writeData
     dtcm.io.wmask := dtcmWrapper.io.sram.mask
     dtcmWrapper.io.sram.readData := dtcm.io.rdata
-    val dtcmArbiter = Module(new FabricArbiter(p))
+    val dtcmArbiter = Module(new FabricArbiter(p, tcmPortCount))
     dtcmArbiter.io.port <> dtcmWrapper.io.fabric
     dtcmArbiter.io.source(0).readDataAddr := MakeValid(
         core.io.dbus.valid && !core.io.dbus.write, core.io.dbus.addr)
@@ -168,11 +195,16 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     // Connect TCMs and CSR into fabric
     val fabricMux = Module(new FabricMux(p, memoryRegions))
     fabricMux.io.ports(0) <> itcmArbiter.io.source(1)
-    fabricMux.io.periBusy(0) := itcmArbiter.io.fabricBusy
+    fabricMux.io.periBusy(0) := itcmArbiter.io.fabricBusy(1)
     fabricMux.io.ports(1) <> dtcmArbiter.io.source(1)
-    fabricMux.io.periBusy(1) := dtcmArbiter.io.fabricBusy
+    fabricMux.io.periBusy(1) := dtcmArbiter.io.fabricBusy(1)
     fabricMux.io.ports(2) <> csr.io.fabric
     fabricMux.io.periBusy(2) := false.B
+
+    if (p.useDebugModule) {
+      itcmArbiter.io.source(2) <> dm.get.io.itcm
+      dtcmArbiter.io.source(2) <> dm.get.io.dtcm
+    }
 
     // Create AXI Slave interface and connect internal fabric to AXI
     val axiSlave = Module(new AxiSlave(p))

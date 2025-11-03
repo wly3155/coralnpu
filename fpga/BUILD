@@ -135,6 +135,8 @@ fusesoc_build(
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
+        "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi.core",
+        "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi_sv.core",
     ],
     flags = [
         "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,

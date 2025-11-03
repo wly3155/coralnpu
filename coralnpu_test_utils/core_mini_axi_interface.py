@@ -62,6 +62,7 @@ class DmCmdType:
 # See RISC-V Debug Specification v0.13.2
 class DmAddress:
   DATA0       = 0x04
+  DATA1       = 0x05
   DMCONTROL   = 0x10
   DMSTATUS    = 0x11
   HARTINFO    = 0x12
@@ -215,6 +216,19 @@ class CoreMiniAxiInterface:
 
   async def write_csr(self, addr, data):
     await self.write_word(self.csr_base_addr + addr, data)
+
+  def _get_aamsize(self, size_bytes: int) -> int:
+    # aamsize: 0=byte, 1=half-word, 2=word (corresponding to size_bytes 1, 2, 4)
+    aamsize = 0
+    if size_bytes == 1:
+        aamsize = 0
+    elif size_bytes == 2:
+        aamsize = 1
+    elif size_bytes == 4:
+        aamsize = 2
+    else:
+        assert False, f"Unsupported memory access size: {size_bytes} bytes"
+    return aamsize
 
   async def slave_awagent(self, timeout=4096):
     self.axi_slave_write_addr.clear_valid()
@@ -490,6 +504,51 @@ class CoreMiniAxiInterface:
     rsp["op"] = (await self.read_csr(DebugCsrAddr.RSP_OP)).view(np.uint32)[0]
     await self.write_csr(DebugCsrAddr.STATUS, 0)  # Acknowledge response.
     return rsp
+
+  async def dm_read_mem(self, addr, size_bytes, expected_op=DmRspOp.SUCCESS):
+    # Set data1 to the target address for memory access
+    rsp = await self.dm_write(DmAddress.DATA1, addr)
+    assert rsp["op"] == DmRspOp.SUCCESS
+
+    # Construct the memory access command
+    aamsize = self._get_aamsize(size_bytes)
+    command = (DmCmdType.ACCESS_MEMORY << 24) | \
+              (aamsize << 20) | \
+              (1 << 17)
+    rsp = await self.dm_write(DmAddress.COMMAND, command)
+    assert rsp["op"] == expected_op
+    if rsp["op"] != DmRspOp.SUCCESS:
+        return 0
+
+    data = await self.dm_read(DmAddress.DATA0)
+    status = await self.dm_read(DmAddress.ABSTRACTCS)
+    cmderr = (status >> 8) & 0b111
+    assert (cmderr == 0)
+    return data
+
+  async def dm_write_mem(self, addr, data, size_bytes, expected_op=DmRspOp.SUCCESS):
+    # Set data1 to the target address for memory access
+    rsp = await self.dm_write(DmAddress.DATA1, addr)
+    assert rsp["op"] == DmRspOp.SUCCESS
+
+    # Set data0 to the value to write
+    rsp = await self.dm_write(DmAddress.DATA0, data)
+    assert rsp["op"] == DmRspOp.SUCCESS
+
+    # Construct the memory access command
+    aamsize = self._get_aamsize(size_bytes)
+    command = (DmCmdType.ACCESS_MEMORY << 24) | \
+              ((aamsize & 0b111) << 20) | \
+              (1 << 16) | \
+              (1 << 17)
+    rsp = await self.dm_write(DmAddress.COMMAND, command)
+    assert rsp["op"] == expected_op
+    if rsp["op"] != DmRspOp.SUCCESS:
+        return
+
+    status = await self.dm_read(DmAddress.ABSTRACTCS)
+    cmderr = (status >> 8) & 0b111
+    assert (cmderr == 0)
 
   async def dm_read_reg(self, addr, expected_op=DmRspOp.SUCCESS):
     command = ((DmCmdType.ACCESS_REGISTER << 24) & 0xFF) | (((2 << 20) | (1 << 17) | (addr)) & 0xFFFFFF)

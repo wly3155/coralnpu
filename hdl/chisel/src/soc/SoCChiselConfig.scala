@@ -13,6 +13,7 @@ case object Out extends PortDirection
 sealed trait PortType
 case object Clk extends PortType
 case object Bool extends PortType
+case class Logic(width: Int) extends PortType
 
 /**
  * Defines a non-TileLink port to be exposed at the subsystem boundary.
@@ -42,7 +43,8 @@ case class CoreTlulParameters(
   enableFetchL0: Boolean,
   fetchDataBits: Int,
   enableFloat: Boolean,
-  memoryRegions: Seq[MemoryRegion]
+  memoryRegions: Seq[MemoryRegion],
+  enableDebug: Boolean,
 ) extends ModuleParameters
 
 /** Parameters for the Spi2TLUL module. */
@@ -104,7 +106,8 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         enableFetchL0 = false,
         fetchDataBits = 128,
         enableFloat = true,
-        memoryRegions = memoryRegions
+        memoryRegions = memoryRegions,
+        enableDebug = true,
       ),
       hostConnections = Map("io.tl_host" -> "coralnpu_core"),
       deviceConnections = Map("io.tl_device" -> "coralnpu_device"),
@@ -113,7 +116,16 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         ExternalPort("fault",  Bool, Out, "io.fault"),
         ExternalPort("wfi",    Bool, Out, "io.wfi"),
         ExternalPort("irq",    Bool, In,  "io.irq"),
-        ExternalPort("te",     Bool, In,  "io.te")
+        ExternalPort("te",     Bool, In,  "io.te"),
+        ExternalPort("dm_req_valid", Bool, In, "io.dm.req.valid"),
+        ExternalPort("dm_req_ready", Bool, Out, "io.dm.req.ready"),
+        ExternalPort("dm_req_bits_address", Logic(32), In, "io.dm.req.bits.address"),
+        ExternalPort("dm_req_bits_data", Logic(32), In, "io.dm.req.bits.data"),
+        ExternalPort("dm_req_bits_op", Logic(2), In, "io.dm.req.bits.op"),
+        ExternalPort("dm_rsp_valid", Bool, Out, "io.dm.rsp.valid"),
+        ExternalPort("dm_rsp_ready", Bool, In, "io.dm.rsp.ready"),
+        ExternalPort("dm_rsp_bits_data", Logic(32), Out, "io.dm.rsp.bits.data"),
+        ExternalPort("dm_rsp_bits_op", Logic(2), Out, "io.dm.rsp.bits.op"),
       )
     ),
     ChiselModuleConfig(

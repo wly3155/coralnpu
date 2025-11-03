@@ -54,6 +54,7 @@ class BranchState(p: Parameters) extends Bundle {
   val fwd = Bool()
   val op = BruOp()
   val target = UInt(p.programCounterBits.W)
+  val originalTarget = UInt(p.programCounterBits.W)
   val linkValid = Bool()
   val linkAddr = UInt(5.W)
   val linkData = UInt(p.programCounterBits.W)
@@ -67,6 +68,7 @@ object BranchState {
     result.fwd := false.B
     result.op := BruOp.JAL
     result.target := 0.U
+    result.originalTarget := 0.U
     result.linkValid := false.B
     result.linkAddr := 0.U
     result.linkData := 0.U
@@ -93,6 +95,9 @@ class Bru(p: Parameters, first: Boolean) extends Module {
     val rs2 = Input(new RegfileReadDataIO)
     val rd  = Valid(Flipped(new RegfileWriteDataIO))
     val taken = new BranchTakenIO(p)
+    val actually_taken = Output(Bool())
+    val real_target = Output(UInt(p.programCounterBits.W))
+    val pc = Output(UInt(p.programCounterBits.W))
     val target = Flipped(new RegfileBranchTargetIO)
     val interlock = Option.when(first)(Output(Bool()))
 
@@ -118,6 +123,7 @@ class Bru(p: Parameters, first: Boolean) extends Module {
   nextState.linkData := pc4De
   nextState.pcEx := pcDe
   nextState.inst := io.req.bits.inst
+  nextState.originalTarget := io.req.bits.target
 
   val mtvec = if (first) { Cat(io.csr.get.out.mtvec(31,2), 0.U(2.W)) } else { 0.U(32.W )}
   val pipeline0Target = if (first) {
@@ -180,6 +186,18 @@ class Bru(p: Parameters, first: Boolean) extends Module {
     ))
   } else { false.B }
 
+  val isTaken = MuxLookup(op, pipeline0Taken)(Seq(
+    BruOp.JAL    -> true.B,
+    BruOp.JALR   -> true.B,
+    BruOp.BEQ    -> eq,
+    BruOp.BNE    -> neq,
+    BruOp.BLT    -> lt,
+    BruOp.BGE    -> ge,
+    BruOp.BLTU   -> ltu,
+    BruOp.BGEU   -> geu,
+    BruOp.FAULT  -> true.B,
+  ))
+
   io.taken.valid := stateReg.valid && MuxLookup(op, pipeline0Taken)(Seq(
     BruOp.JAL    -> (true.B =/= stateReg.bits.fwd),
     BruOp.JALR   -> (true.B =/= stateReg.bits.fwd),
@@ -191,6 +209,13 @@ class Bru(p: Parameters, first: Boolean) extends Module {
     BruOp.BGEU   -> (geu =/= stateReg.bits.fwd),
     BruOp.FAULT  -> true.B,
   ))
+  io.actually_taken := stateReg.valid && isTaken
+  io.real_target := Mux(stateReg.bits.fwd,
+                        Mux(stateReg.bits.op === BruOp.JALR,
+                            io.target.data & "xFFFFFFFE".U,
+                            stateReg.bits.originalTarget),
+                        stateReg.bits.target)
+  io.pc := stateReg.bits.pcEx
 
   io.taken.value := stateReg.bits.target
 

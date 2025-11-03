@@ -26,6 +26,15 @@ create_generated_clock -name clk_aon [get_pin i_clkgen/i_clkgen/pll/CLKOUT4]
 # Reset
 set_property -dict { PACKAGE_PIN AR19 IOSTANDARD LVCMOS18 } [get_ports { rst_ni }];
 
+# JTAG
+# 500 kHz clock constraint
+create_clock -period 2000.00 -name jtag_tck_i -waveform {0 1000} [get_ports {tck_i}]
+set_property -dict { PACKAGE_PIN BE18 IOSTANDARD LVCMOS18 PULLTYPE PULLDOWN } [get_ports {tms_i}]
+set_property -dict { PACKAGE_PIN BE17 IOSTANDARD LVCMOS18 PULLTYPE PULLDOWN } [get_ports {td_o}]
+set_property -dict { PACKAGE_PIN BB19 IOSTANDARD LVCMOS18 PULLTYPE PULLDOWN } [get_ports {td_i}]
+set_property -dict { PACKAGE_PIN AW18 IOSTANDARD LVCMOS18 PULLTYPE PULLDOWN } [get_ports {tck_i}]
+set_property -dict { PACKAGE_PIN BC19 IOSTANDARD LVCMOS18 } [get_ports {trst_ni}]
+
 # SPI
 create_clock -period 83.333 -name spi_clk_i -waveform {0 41.667} [get_ports spi_clk_i]
 set_property -dict { PACKAGE_PIN AV19 IOSTANDARD LVCMOS18 } [get_ports { spi_clk_i }];
@@ -55,7 +64,8 @@ set_property -dict { PACKAGE_PIN K36 DRIVE 8 IOSTANDARD LVCMOS12 } [get_ports { 
 set_clock_groups -asynchronous \
   -group [get_clocks -include_generated_clocks sys_clk_pin] \
   -group [get_clocks -include_generated_clocks c0_sys_clk_p] \
-  -group [get_clocks spi_clk_i]
+  -group [get_clocks spi_clk_i] \
+  -group [get_clocks jtag_tck_i]
 
 # SPI Probe Outputs (PMOD3)
 set_property -dict { PACKAGE_PIN AU40 IOSTANDARD LVCMOS18 } [get_ports { spi_clk_probe_o }];

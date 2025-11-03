@@ -105,7 +105,19 @@ module coralnpu_soc
      input  [255:0] io_ddr_mem_axi_r_bits_data,
      input  [0:0]  io_ddr_mem_axi_r_bits_id,
      input  [1:0]  io_ddr_mem_axi_r_bits_resp,
-     input         io_ddr_mem_axi_r_bits_last);
+     input         io_ddr_mem_axi_r_bits_last,
+     // RV-DM request
+     input io_dm_req_valid,
+     input [31:0] io_dm_req_bits_address,
+     input [31:0] io_dm_req_bits_data,
+     input [1:0] io_dm_req_bits_op,
+     output io_dm_req_ready,
+     // RV-DM response
+     input io_dm_rsp_ready,
+     output io_dm_rsp_valid,
+     output [31:0] io_dm_rsp_bits_data,
+     output [1:0] io_dm_rsp_bits_op
+     );
 
   import tlul_pkg::*;
   import top_pkg::*;
@@ -380,10 +392,22 @@ module coralnpu_soc
     .io_external_ports_2(),               // wfi (unused)
     .io_external_ports_3(1'b0),           // irq (tied off)
     .io_external_ports_4(1'b0),           // te (tied off)
-    .io_external_ports_5(spi_clk_i),      // spi_clk
-    .io_external_ports_6(spi_csb_i),      // spi_csb
-    .io_external_ports_7(spi_mosi_i),     // spi_mosi
-    .io_external_ports_8(spi_miso_o),      // spi_miso
+
+    .io_external_ports_5(io_dm_req_valid),
+    .io_external_ports_6(io_dm_req_ready),
+    .io_external_ports_7(io_dm_req_bits_address),
+    .io_external_ports_8(io_dm_req_bits_data),
+    .io_external_ports_9(io_dm_req_bits_op),
+
+    .io_external_ports_10(io_dm_rsp_valid),
+    .io_external_ports_11(io_dm_rsp_ready),
+    .io_external_ports_12(io_dm_rsp_bits_data),
+    .io_external_ports_13(io_dm_rsp_bits_op),
+
+    .io_external_ports_14(spi_clk_i),      // spi_clk
+    .io_external_ports_15(spi_csb_i),      // spi_csb
+    .io_external_ports_16(spi_mosi_i),     // spi_mosi
+    .io_external_ports_17(spi_miso_o),      // spi_miso
 
     .io_async_ports_devices_clocks_0(ddr_clk_i),
     .io_async_ports_devices_resets_0(ddr_rst),

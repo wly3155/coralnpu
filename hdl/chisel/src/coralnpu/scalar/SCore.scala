@@ -89,6 +89,7 @@ class SCore(p: Parameters) extends Module {
   if (p.useDebugModule) {
     dispatch.io.single_step.get := csr.io.dm.get.single_step || csr.io.dm.get.dcsr_step
     dispatch.io.debug_mode.get := csr.io.dm.get.debug_mode
+    fetch.io.debug_pc.get := csr.io.dm.get.debug_pc
   }
 
   val alu = Seq.fill(p.instructionLanes)(Alu(p))
@@ -213,13 +214,20 @@ class SCore(p: Parameters) extends Module {
     dmRs1.data := io.dm.get.csr_rs1
     csr.io.rs1 := Mux(RegNext(dispatch.io.csr.valid, false.B), regfile.io.readData(0), dmRs1)
     io.dm.get.csr_rd := MakeValid(csr.io.rd.valid, csr.io.rd.bits.data)
-    csr.io.dm.get.next_pc := MuxCase(dispatch.io.inst(0).bits.addr, Seq(
-      dispatch.io.inst(0).valid -> dispatch.io.inst(0).bits.addr,
-      fetch.io.branch(0).valid -> fetch.io.branch(0).value,
-      dispatch.io.bru(0).valid -> dispatch.io.bru(0).bits.target,
-    ))
+    val bruTaken = bru(0).io.actually_taken
+    val realTarget = bru(0).io.real_target
+    // In single-step mode, we break *before* the instruction at `dispatch.io.inst(0).bits.addr`
+    // executes. Therefore, `nextInstPC` should point to this address so that upon resumption,
+    // this instruction is executed.
+    val nextInstPC = Mux(bruTaken, realTarget, dispatch.io.inst(0).bits.addr)
+
+    csr.io.dm.get.current_pc := dispatch.io.inst(0).bits.addr
+    csr.io.dm.get.next_pc := nextInstPC
+
+    val stepTriggered = (!csr.io.dm.get.debug_mode && csr.io.dm.get.dcsr_step && dispatch.io.inst(0).fire)
+    val stepTriggeredReg = RegNext(stepTriggered, false.B)
     csr.io.dm.get.debug_req := io.dm.get.debug_req || /* Request from external debugger */
-                               (!csr.io.dm.get.debug_mode && csr.io.dm.get.dcsr_step && dispatch.io.inst(0).fire) /* Single-step via CSR */
+                               stepTriggeredReg /* Single-step via CSR */
     csr.io.dm.get.resume_req := io.dm.get.resume_req
     io.dm.get.debug_mode := csr.io.dm.get.debug_mode
   } else {

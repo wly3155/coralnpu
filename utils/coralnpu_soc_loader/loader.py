@@ -17,7 +17,7 @@ import logging
 import time
 
 from elftools.elf.elffile import ELFFile
-from spi_driver import SPIDriver
+from coralnpu_hw.utils.coralnpu_soc_loader.spi_driver import SPIDriver
 from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatus
 
 def write_line_via_spi(driver: SPIDriver, address: int, data: int):

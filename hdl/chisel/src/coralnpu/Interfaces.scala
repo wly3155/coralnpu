@@ -72,6 +72,7 @@ class FetchIO(p: Parameters) extends Bundle {
 abstract class FetchUnit(p: Parameters) extends Module {
   val io = IO(new Bundle {
     val csr = new CsrInIO(p)
+    val debug_pc = Option.when(p.useDebugModule)(Flipped(Valid(UInt(p.fetchAddrBits.W))))
     val ibus = new IBusIO(p)
     val inst = new FetchIO(p)
     val branch = Flipped(Vec(p.instructionLanes, new BranchTakenIO(p)))
