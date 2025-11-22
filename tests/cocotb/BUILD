@@ -24,6 +24,7 @@ load(
     "VCS_TEST_ARGS",
     "VERILATOR_BUILD_ARGS",
 )
+load("//tests/cocotb:wfi_targets.bzl", "get_wfi_slot_targets")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -73,6 +74,14 @@ verilator_cocotb_model(
     cflags = VERILATOR_BUILD_ARGS,
     hdl_toplevel = "RvvCoreMiniHighmemAxi",
     verilog_source = "//hdl/chisel/src/coralnpu:RvvCoreMiniHighmemAxi.sv",
+)
+
+verilator_cocotb_model(
+    name = "rvv_core_mini_itcm512kb_dtcm512kb_axi_model",
+    trace = False,
+    cflags = VERILATOR_BUILD_ARGS,
+    hdl_toplevel = "RvvCoreMini_ITCM512KB_DTCM512KBAxi",
+    verilog_source = "//hdl/chisel/src/coralnpu:RvvCoreMini_ITCM512KB_DTCM512KBAxi.sv",
 )
 
 # BEGIN_TESTCASES_FOR_core_mini_axi_sim_cocotb
@@ -283,6 +292,14 @@ RVV_ARITHMETIC_TESTCASES = [
 ]
 # END_TESTCASES_FOR_rvv_arithmetic_cocotb_test
 
+# BEGIN_TESTCASES_FOR_highmem_test
+HIGHMEM_TESTCASES = [
+    "core_mini_axi_run_wfi_in_all_slots_highmem",
+    "core_mini_rvv_matmul_test",
+    "core_mini_axi_basic_write_read_memory",
+]
+# END_TESTCASES_FOR_highmem_test
+
 cocotb_test_suite(
     name = "core_mini_axi_debug_cocotb",
     simulators = [
@@ -369,33 +386,80 @@ coralnpu_v2_binary(
     semihosting = True,
 )
 
-coralnpu_v2_binary(
-    name = "wfi_slot_0",
-    srcs = [
-        "wfi_slot_0.c",
-    ],
+# Generate WFI targets for each slot (for elf generation)
+template_rule(
+    coralnpu_v2_binary,
+    get_wfi_slot_targets(),
 )
 
-coralnpu_v2_binary(
-    name = "wfi_slot_1",
-    srcs = [
-        "wfi_slot_1.c",
+
+cocotb_test_suite(
+    name = "rvv_highmem_tests",
+    simulators = [
+        "verilator",
     ],
+    testcases = HIGHMEM_TESTCASES,
+    testcases_vname = "HIGHMEM_TESTCASES",
+    tests_kwargs = {
+        "hdl_toplevel": "RvvCoreMiniHighmemAxi",
+        "waves": False,
+        "seed": "42",
+        "test_module": ["rvv_highmem_sim.py"],
+        "deps": [
+            "//coralnpu_test_utils:core_mini_axi_sim_interface",
+            "//coralnpu_test_utils:sim_test_fixture",
+            requirement("tqdm"),
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [
+            ":wfi_slot_0_highmem.elf",
+            ":wfi_slot_1_highmem.elf",
+            ":wfi_slot_2_highmem.elf",
+            ":wfi_slot_3_highmem.elf",
+            "//tests/cocotb/rvv/ml_ops:rvv_matmul_assembly_highmem.elf",
+            "//tests/cocotb/rvv/ml_ops:rvv_matmul_highmem.elf",
+        ],
+        "size": "large",
+    },
+    verilator_model = ":rvv_core_mini_highmem_axi_model",
 )
 
-coralnpu_v2_binary(
-    name = "wfi_slot_2",
-    srcs = [
-        "wfi_slot_2.c",
+cocotb_test_suite(
+    name = "rvv_itcm512kb_dtcm512kb_tests",
+    simulators = [
+        "verilator",
     ],
+    testcases = [
+        "core_mini_axi_run_wfi_in_all_slots_itcm512kb_dtcm512kb",
+        "core_mini_rvv_matmul_test",
+        "core_mini_axi_basic_write_read_memory",
+    ],
+    testcases_vname = "ITCM512KB_DTCM512KB_TESTCASES",
+    tests_kwargs = {
+        "hdl_toplevel": "RvvCoreMini_ITCM512KB_DTCM512KBAxi",
+        "waves": False,
+        "seed": "42",
+        "test_module": ["rvv_itcm512kb_dtcm512kb_sim.py"],
+        "deps": [
+            "//coralnpu_test_utils:core_mini_axi_sim_interface",
+            "//coralnpu_test_utils:sim_test_fixture",
+            requirement("tqdm"),
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [
+            ":wfi_slot_0_itcm512kb_dtcm512kb.elf",
+            ":wfi_slot_1_itcm512kb_dtcm512kb.elf",
+            ":wfi_slot_2_itcm512kb_dtcm512kb.elf",
+            ":wfi_slot_3_itcm512kb_dtcm512kb.elf",
+            "//tests/cocotb/rvv/ml_ops:rvv_matmul_assembly_itcm512kb_dtcm512kb.elf",
+            "//tests/cocotb/rvv/ml_ops:rvv_matmul_itcm512kb_dtcm512kb.elf",
+        ],
+        "size": "large",
+    },
+    verilator_model = ":rvv_core_mini_itcm512kb_dtcm512kb_axi_model",
 )
 
-coralnpu_v2_binary(
-    name = "wfi_slot_3",
-    srcs = [
-        "wfi_slot_3.c",
-    ],
-)
+
 
 coralnpu_v2_binary(
     name = "finish_txn_before_halt",

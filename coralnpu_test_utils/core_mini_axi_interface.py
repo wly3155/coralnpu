@@ -121,12 +121,29 @@ def clear_validio(dut, prefix):
     set_x(s)
 
 
+# This class simulates a memory-mapped AXI interface. Programs compiled with
+# the `coralnpu_v2_binary` rule will have access to TCM (Tightly-Coupled Memory)
+# and simulated external memory (`EXTMEM`).
+#
+# The `EXTMEM` block is located at `0x20000000`.
+#
+# TCM sizes can be customized by setting `itcm_size_kbytes` or
+# `dtcm_size_kbytes` in the `coralnpu_v2_binary` rule.
+#
+# For example:
+#
+# coralnpu_v2_binary(
+#     name = "my_test.elf",
+#     srcs = ["my_test.c"],
+#     itcm_size_kbytes = 1024,
+#     dtcm_size_kbytes = 1024,
+# )
 class CoreMiniAxiInterface:
   def __init__(self,
                dut,
                clock_ns=1.25,
                csr_base_addr=0x30000,
-               base_addr = 0x20000000,
+               ext_mem_base_addr = 0x20000000,
                ext_mem_size=(4 * 1024 * 1024),
                **kwargs):
     self.dut = dut
@@ -143,7 +160,7 @@ class CoreMiniAxiInterface:
     self.clock_ns = clock_ns
     self.clock = Clock(dut.io_aclk, clock_ns, unit="ns")
     self.csr_base_addr = csr_base_addr
-    self.memory_base_addr = base_addr
+    self.memory_base_addr = ext_mem_base_addr
     self.memory = np.zeros([ext_mem_size], dtype=np.uint8)
     self.master_arfifo = Queue()
     self.master_awfifo = Queue()
