@@ -56,7 +56,6 @@ class Lsu(p: Parameters) extends Module {
     // RVV config state
     val rvvState = Option.when(p.enableRvv)(Input(Valid(new RvvConfigState(p))))
 
-    val storeCount = Output(UInt(2.W))
     val queueCapacity = Output(UInt(3.W))
     val active = Output(Bool())
     val storeComplete = Output(Valid(UInt(32.W)))
@@ -814,7 +813,6 @@ object FlushCmd {
 class LsuV2(p: Parameters) extends Lsu(p) {
   // Tie-offs
   io.vldst := 0.U
-  io.storeCount := 0.U
 
   val opQueue = Module(new CircularBufferMulti(new LsuUOp(p), p.instructionLanes, 4))
   opQueue.io.flush := false.B

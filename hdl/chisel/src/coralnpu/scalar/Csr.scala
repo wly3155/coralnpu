@@ -146,9 +146,7 @@ class Tdata1 extends Bundle {
 }
 
 class CsrCounters(p: Parameters) extends Bundle {
-  val rfwriteCount = UInt(3.W)
-  val storeCount = UInt(2.W)
-  val branchCount = UInt(1.W)
+  val nRetired = UInt(log2Ceil(p.instructionLanes + 1).W)
 }
 
 class CsrBruIO(p: Parameters) extends Bundle {
@@ -203,7 +201,7 @@ class Csr(p: Parameters) extends Module {
       val dcsr_step = Output(Bool())
       val next_pc = Input(UInt(32.W))
     })
-    val trace = Option.when(p.useRetirementBuffer)(Output(new CsrTraceIO(p)))
+    val trace = Output(new CsrTraceIO(p))
   })
 
   def LegalizeTdata1(wdata: UInt): Tdata1 = {
@@ -492,13 +490,8 @@ class Csr(p: Parameters) extends Module {
   val minstret_th = Mux(minstrethEn, wdata, minstret(63,32))
   val minstret_tl = Mux(minstretEn, wdata, minstret(31,0))
   val minstret_t = Cat(minstret_th, minstret_tl)
-  val minstretThisCycle = io.counters.rfwriteCount +
-    io.counters.storeCount +
-    io.counters.branchCount
-  minstret := MuxCase(minstret, Seq(
-    req.valid -> minstret_t,
-    (minstretThisCycle =/= 0.U) -> (minstret + minstretThisCycle),
-  ))
+  val minstretThisCycle = io.counters.nRetired
+  minstret := Mux(req.valid, minstret_t, minstret) + minstretThisCycle
 
   if (p.useDebugModule) {
     val trigger_enabled = tdata1.get.isTrigger6
@@ -586,11 +579,9 @@ class Csr(p: Parameters) extends Module {
   io.rd.bits.addr  := req.bits.addr
   io.rd.bits.data  := rdata
 
-  if (p.useRetirementBuffer) {
-    io.trace.get.valid := req.valid && !(req.bits.op.isOneOf(CsrOp.CSRRS, CsrOp.CSRRC) && req.bits.rs1 === 0.U)
-    io.trace.get.addr := req.bits.index
-    io.trace.get.data := wdata
-  }
+  io.trace.valid := req.valid && !(req.bits.op.isOneOf(CsrOp.CSRRS, CsrOp.CSRRC) && req.bits.rs1 === 0.U)
+  io.trace.addr := req.bits.index
+  io.trace.data := wdata
 
   // Assertions.
   assert(!(req.valid && !io.rs1.valid))
