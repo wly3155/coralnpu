@@ -882,6 +882,7 @@ class LsuV2(p: Parameters) extends Lsu(p) {
 
   // ==========================================================================
   // Transaction update
+  val faultReg = RegInit(MakeInvalid(new FaultInfo(p)))
 
   // First stage of load update: Update results based on bus read
   val loadUpdatedSlot = slot.loadUpdate(
@@ -907,13 +908,13 @@ class LsuV2(p: Parameters) extends Lsu(p) {
   val (opSize, alignedAddress) = LsuOp.opSize(slot.op, targetAddress.bits)
 
   // ibus data path
-  io.ibus.valid := loadUpdatedSlot.activeTransaction() && itcm && !slot.store
+  io.ibus.valid := loadUpdatedSlot.activeTransaction() && itcm && !slot.store && !faultReg.valid
   io.ibus.addr := targetLineAddr
 
   // dbus data path
   io.dbus.valid := dtcm && Mux(slot.store,
                                slot.activeTransaction(),
-                               loadUpdatedSlot.activeTransaction())
+                               loadUpdatedSlot.activeTransaction()) && !faultReg.valid
   io.dbus.write := slot.store
   io.dbus.pc := slot.pc
   io.dbus.addr := targetLineAddr
@@ -925,7 +926,7 @@ class LsuV2(p: Parameters) extends Lsu(p) {
   // ebus data path
   io.ebus.dbus.valid := (external || peri) && Mux(slot.store,
                                                   slot.activeTransaction(),
-                                                  loadUpdatedSlot.activeTransaction())
+                                                  loadUpdatedSlot.activeTransaction()) && !faultReg.valid
   io.ebus.dbus.write := slot.store
   io.ebus.dbus.addr := alignedAddress
   io.ebus.dbus.adrx := targetLineAddr
@@ -956,7 +957,8 @@ class LsuV2(p: Parameters) extends Lsu(p) {
   ibusFault.bits.addr := targetLineAddr
   ibusFault.bits.epc := slot.pc
 
-  io.fault := MuxCase(MakeInvalid(new FaultInfo(p)), Seq(
+  io.fault := faultReg
+  faultReg := MuxCase(MakeInvalid(new FaultInfo(p)), Seq(
       io.ebus.fault.valid -> io.ebus.fault,
       ibusFault.valid -> ibusFault,
   ))
@@ -975,7 +977,7 @@ class LsuV2(p: Parameters) extends Lsu(p) {
 
   // Scalar writeback
   // Write back on error. io.fault.valid will mask
-  io.rd.valid := (io.fault.valid || slot.shouldWriteback()) &&
+  io.rd.valid := (faultReg.valid || slot.shouldWriteback()) &&
       slot.op.isOneOf(LsuOp.LB, LsuOp.LBU, LsuOp.LH, LsuOp.LHU, LsuOp.LW)
   io.rd.bits.data := slot.scalarLoadResult()
   io.rd.bits.addr := slot.rd
@@ -1016,7 +1018,7 @@ class LsuV2(p: Parameters) extends Lsu(p) {
   // Slot update
   val slotNext = MuxCase(slot, Seq(
     // Move to inactive if error.
-    io.fault.valid -> LsuSlot.inactive(p, 16),
+    faultReg.valid -> LsuSlot.inactive(p, 16),
     // When inactive, dequeue if possible
     (slot.slotIdle() && (opQueue.io.nEnqueued > 0.U)) -> nextSlot,
     // Vector update.
