@@ -19,9 +19,7 @@ import chisel3.util._
 import common._
 
 class PredecodeOutput(p: Parameters) extends Bundle {
-    val addr = UInt(p.fetchAddrBits.W)
-    val inst = Vec(p.fetchInstrSlots, UInt(p.instructionBits.W))
-    val startIdx = UInt(3.W)
+    val insts = Vec(p.fetchInstrSlots, new FetchInstruction(p))
     val count = UInt(4.W)
     val nextPc = UInt(p.instructionBits.W)
 }
@@ -101,63 +99,60 @@ class FetchControl(p: Parameters) extends Module {
       MakeValid(valid, target)
     }
 
-    def Predecode(fetchResponse: FetchResponse): (PredecodeOutput, Vec[Bool]) = {
-      val insts = (0 until p.fetchInstrSlots).map(i => fetchResponse.inst(i))
+    def Predecode(fetchResponse: FetchResponse): PredecodeOutput = {
       val addr = fetchResponse.addr
       val lsb = log2Ceil(p.fetchDataBits / 8)
       assert((p.fetchDataBits == 128 && lsb == 4) || (p.fetchDataBits == 256 && lsb == 5))
       val baseAddr = addr(p.fetchAddrBits - 1, lsb)
       val startElem = addr(lsb - 1, lsb - log2Ceil(p.fetchInstrSlots))
-      val addrs = (0 until p.fetchInstrSlots).map(i => Cat(baseAddr, i.U((lsb - 2).W), 0.U(2.W)))
 
-      val branchTargets = (addrs zip insts).map {
-          case (addr, inst) => {
-            val jump = PredictJump(addr, inst)
-            jump
-          }
-      }
+      val insts = ShiftVectorRight(fetchResponse.inst, startElem)
+      val addrs = VecInit.tabulate(p.fetchInstrSlots)(i =>
+          addr + (i * 4).U
+      )
 
-      val jumped = Wire(Vec(p.fetchInstrSlots, Bool()))
-      for (i <- 0 until p.fetchInstrSlots) {
-        val validInst = i.U >= startElem
-        jumped(i) := validInst && branchTargets(i).valid
-      }
+      val branchTargets = VecInit.tabulate(p.fetchInstrSlots)(i =>
+          PredictJump(addrs(i), insts(i))
+      )
 
-      val lastInstIdx = MuxCase(p.fetchInstrSlots.U, (0 until p.fetchInstrSlots).map(i => jumped(i) -> i.U))
-      val nextFetchPc = MuxCase(Cat(baseAddr + 1.U, 0.U(lsb.W)),
-          (0 until p.fetchInstrSlots).map(i => jumped(i) -> branchTargets(i).bits))
+      val validsIn = VecInit.tabulate(p.fetchInstrSlots)(i =>
+          i.U < p.fetchInstrSlots.U - startElem
+      )
+      val jumped = VecInit.tabulate(p.fetchInstrSlots)(i =>
+          validsIn(i) && branchTargets(i).valid
+      )
+      val firstJumpOH = VecInit(PriorityEncoderOH(jumped))
 
-      val startElemW = Wire(UInt(log2Ceil(p.fetchInstrSlots).W))
-      startElemW := startElem
-      val result = Wire(new PredecodeOutput(p))
-      result.addr := Cat(baseAddr, 0.U(lsb.W))
-      result.inst := insts
-      result.startIdx := startElemW
-      result.count := Mux(lastInstIdx === p.fetchInstrSlots.U,
-                          lastInstIdx - startElem,
-                          lastInstIdx + 1.U - startElem)
-      result.nextPc := nextFetchPc
+      // Have we jumped before the instruction i
+      val hasJumpedBefore = VecInit(jumped.scan(false.B)(_||_).take(p.fetchInstrSlots))
 
-      (result, jumped)
+      val validsOut = VecInit.tabulate(p.fetchInstrSlots)(i =>
+          validsIn(i) && !hasJumpedBefore(i)
+      )
+
+      val nextFetchPc = MuxUpTo1H(Cat(baseAddr + 1.U, 0.U(lsb.W)),
+          (0 until p.fetchInstrSlots).map(i => firstJumpOH(i) -> branchTargets(i).bits))
+
+      val result = MakeWireBundle[PredecodeOutput](
+          new PredecodeOutput(p),
+          _.insts -> VecInit.tabulate(p.fetchInstrSlots)(i =>
+              MakeWireBundle[FetchInstruction](
+                  new FetchInstruction(p),
+                  _.addr -> addrs(i),
+                  _.inst -> insts(i),
+                  _.brchFwd -> jumped(i),
+              )
+          ),
+          _.count -> validsOut.count(x => x),
+          _.nextPc -> nextFetchPc,
+      )
+
+      result
     }
 
-    val (predecode, jumped) = Predecode(io.fetchData.bits)
-    var predecodeValids = (0 until p.fetchInstrSlots).map(i =>
-        i.U >= predecode.startIdx && i.U < (predecode.startIdx +& predecode.count)
-    )
-    for (i <- 0 until p.fetchInstrSlots) {
-        val selectHot = PrioritySelect(predecodeValids)
-        io.bufferRequest.bits(i).addr :=
-          MuxCase(0.U(p.fetchAddrBits.W),
-                  (0 until p.fetchInstrSlots).map(x => selectHot(x) -> (predecode.addr + (4 * x).U)))
-        io.bufferRequest.bits(i).inst :=
-          MuxCase(0.U(p.instructionBits.W),
-                  (0 until p.fetchInstrSlots).map(x => selectHot(x) -> predecode.inst(x)))
-        io.bufferRequest.bits(i).brchFwd :=
-          MuxCase(false.B,
-                  (0 until p.fetchInstrSlots).map(x => selectHot(x) -> jumped(x)))
-        predecodeValids = VecInit((predecodeValids zip selectHot).map({case (p, s) => p && !s}))
-    }
+    val predecode = Predecode(io.fetchData.bits)
+
+    io.bufferRequest.bits := predecode.insts
 
     val pastBranchOrFlush = RegInit(false.B)
     val currentBranchOrFlush = io.iflush.valid || io.branch.valid

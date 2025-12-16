@@ -31,14 +31,6 @@ object DecoupledVectorIO {
   def apply[T <: Data](gen: T, n: Int): DecoupledVectorIO[T] = new DecoupledVectorIO(gen, n)
 }
 
-//TODO: Consider removing this here and in UnchachedFetch?
-object PrioritySelect {
-  def apply(in: Seq[Bool]): Vec[Bool] = {
-    val seenValid = in.scan(false.B)(_ || _).take(in.length)
-    VecInit((in zip seenValid).map({case (x, seen) => x && !seen}))
-  }
-}
-
 // Note any instruction will be available to dequeu one full cycle follong enqueuing.
 // This must be accounted for when using the instruction buffer as there is no backpressure.
 class InstructionBuffer[T <: Data](val gen: T,
