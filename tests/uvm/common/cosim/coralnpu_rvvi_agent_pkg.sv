@@ -79,6 +79,13 @@ package coralnpu_rvvi_agent_pkg;
             `uvm_info(get_type_name(),
                       $sformatf("Instruction retired on channel %0d, PC: 0x%h",
                                 i, rvvi_vif.pc_rdata[0][i]), UVM_HIGH)
+
+            if (rvvi_vif.trap[0][i]) begin
+               `uvm_info(get_type_name(),
+                         $sformatf("Trap detected on channel %0d, PC: 0x%h",
+                                   i, rvvi_vif.pc_rdata[0][i]), UVM_MEDIUM)
+            end
+
             any_instruction_retired = 1'b1;
           end
         end
