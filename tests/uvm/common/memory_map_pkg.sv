@@ -22,12 +22,25 @@ package memory_map_pkg;
   localparam logic [31:0] ITCM_START_ADDR = 32'h0000_0000;
   localparam logic [31:0] ITCM_LENGTH     = 32'h0000_2000;
 
+  function automatic bit is_in_itcm(input logic [31:0] addr);
+    return (addr >= ITCM_START_ADDR) && (addr < (ITCM_START_ADDR + ITCM_LENGTH));
+  endfunction
+
   // Data Tightly Coupled Memory (DTCM)
   localparam logic [31:0] DTCM_START_ADDR = 32'h0001_0000;
   localparam logic [31:0] DTCM_LENGTH     = 32'h0000_8000;
 
+  function automatic bit is_in_dtcm(input logic [31:0] addr);
+    return (addr >= DTCM_START_ADDR) && (addr < (DTCM_START_ADDR + DTCM_LENGTH));
+  endfunction
+
   // Control and Status Registers (CSR)
   localparam logic [31:0] CSR_START_ADDR  = 32'h0003_0000;
   localparam logic [31:0] CSR_LENGTH      = 32'h0001_0000;
+
+  function automatic bit is_in_csr(input logic [31:0] addr);
+    return (addr >= CSR_START_ADDR) && (addr < (CSR_START_ADDR + CSR_LENGTH));
+  endfunction
+
 
 endpackage : memory_map_pkg

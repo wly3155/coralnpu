@@ -30,9 +30,6 @@ package coralnpu_axi_slave_agent_pkg;
     `uvm_component_utils(coralnpu_axi_slave_model)
     virtual coralnpu_axi_slave_if.TB_SLAVE_MODEL vif;
 
-    // Simple memory model for DTCM
-    protected byte dtcm_mem[int];
-
     function new(string name = "coralnpu_axi_slave_model",
                  uvm_component parent = null);
       super.new(name, parent);
@@ -63,11 +60,8 @@ package coralnpu_axi_slave_agent_pkg;
     endtask
 
     // Slave agent: Handles AXI write transactions.
-    //              - Checks for write attempts to read-only ITCM region
-    //                and responds with AXI_SLVERR.
-    //              - For valid write addresses in the DTCM region, data is
-    //                stored in the internal `dtcm_mem` model.
-    //              - Responds with AXI_OKAY for valid writes.
+    //              - Internal Addrs (ITCM/DTCM): Error (Should stay internal) -> AXI_SLVERR
+    //              - External Addrs: Error (No external memory exists) -> AXI_DECERR
     protected virtual task handle_writes();
       logic [IDWIDTH-1:0] current_bid;
       axi_resp_e resp;
@@ -80,38 +74,35 @@ package coralnpu_axi_slave_agent_pkg;
                   $sformatf("Slave Rcvd AW: Addr=0x%h ID=%0d",
                             vif.tb_slave_cb.awaddr, current_bid), UVM_HIGH)
 
-        // Memory protection logic
-        if (vif.tb_slave_cb.awaddr inside
-            {[ITCM_START_ADDR : (ITCM_START_ADDR + ITCM_LENGTH - 1)]}) begin
+        // Address Decoding / Filtering
+        if (is_in_itcm(vif.tb_slave_cb.awaddr) || is_in_dtcm(vif.tb_slave_cb.awaddr)) begin
+          `uvm_error(get_type_name(),
+                     $sformatf("Internal Write Address leaked to External Bus: 0x%h",
+                               vif.tb_slave_cb.awaddr))
           resp = AXI_SLVERR;
-          `uvm_info(get_type_name(),
-                       $sformatf("Write to Read-Only ITCM region: 0x%h",
-                                 vif.tb_slave_cb.awaddr), UVM_MEDIUM)
         end else begin
-          resp = AXI_OKAY;
+          `uvm_info(get_type_name(),
+                    $sformatf("External Write Address (Unmapped): 0x%h",
+                              vif.tb_slave_cb.awaddr), UVM_HIGH)
+          resp = AXI_DECERR;
         end
 
         vif.tb_slave_cb.awready <= 1'b1;
         @(vif.tb_slave_cb);
         vif.tb_slave_cb.awready <= 1'b0;
 
+        // Handle Write Data (Sink it)
         vif.tb_slave_cb.wready <= 1'b0;
         @(vif.tb_slave_cb iff vif.tb_slave_cb.wvalid);
 
-        // Write to DTCM memory model
-        if (resp == AXI_OKAY &&
-            vif.tb_slave_cb.awaddr inside
-            {[DTCM_START_ADDR : (DTCM_START_ADDR + DTCM_LENGTH - 1)]}) begin
-          for (int i = 0; i < (vif.DWIDTH / 8); i++) begin
-            if (vif.tb_slave_cb.wstrb[i]) begin
-              dtcm_mem[vif.tb_slave_cb.awaddr + i] =
-                  vif.tb_slave_cb.wdata[i*8 +: 8];
-            end
-          end
-        end
-
+        // Consume all write beats until WLAST
         vif.tb_slave_cb.wready <= 1'b1;
-        @(vif.tb_slave_cb);
+        // Wait for a valid last beat.
+        do begin
+          @(vif.tb_slave_cb);
+        end while (!(vif.tb_slave_cb.wvalid && vif.tb_slave_cb.wlast));
+
+        // Handshake happened at this cycle.
         vif.tb_slave_cb.wready <= 1'b0;
 
         // Send write response
@@ -121,8 +112,7 @@ package coralnpu_axi_slave_agent_pkg;
         vif.tb_slave_cb.bid    <= current_bid;
 
         do @(vif.tb_slave_cb); while (!vif.tb_slave_cb.bready);
-
-        @(vif.tb_slave_cb);
+        // Handshake happened at this cycle.
         vif.tb_slave_cb.bvalid <= 1'b0;
         `uvm_info(get_type_name(),
                   $sformatf("Slave Sent BResp %s ID=%0d",
@@ -131,50 +121,60 @@ package coralnpu_axi_slave_agent_pkg;
     endtask
 
     // Slave agent: Handles AXI read transactions.
-    //              - For valid read addresses in the DTCM region, data is
-    //                retrieved from the internal `dtcm_mem` model.
-    //              - For other regions, returns zero data.
-    //              - Responds with AXI_OKAY for all read transactions.
+    //              - Internal Addrs (ITCM/DTCM): Error (Should stay internal) -> AXI_SLVERR
+    //              - External Addrs: Error (No external memory exists) -> AXI_DECERR
     protected virtual task handle_reads();
       logic [IDWIDTH-1:0] current_rid;
-      logic [DWIDTH-1:0] read_data;
+      logic [7:0] current_len;
+      axi_resp_e r_resp_val;
+
       forever begin
         // Wait for read address
         vif.tb_slave_cb.arready <= 1'b0;
         @(vif.tb_slave_cb iff vif.tb_slave_cb.arvalid);
         current_rid = vif.tb_slave_cb.arid;
-        `uvm_info(get_type_name(),
-                  $sformatf("Slave Rcvd AR: Addr=0x%h ID=%0d",
-                            vif.tb_slave_cb.araddr, current_rid), UVM_HIGH)
+        current_len = vif.tb_slave_cb.arlen;
+
+        if (is_in_itcm(vif.tb_slave_cb.araddr) || is_in_dtcm(vif.tb_slave_cb.araddr)) begin
+          `uvm_error(get_type_name(),
+                     $sformatf("Internal Read Address leaked to External Bus: 0x%h",
+                               vif.tb_slave_cb.araddr))
+          r_resp_val = AXI_SLVERR;
+        end else begin
+          `uvm_info(get_type_name(),
+                    $sformatf("External Read Address (Unmapped): 0x%h",
+                              vif.tb_slave_cb.araddr), UVM_HIGH)
+          r_resp_val = AXI_DECERR;
+        end
+
         vif.tb_slave_cb.arready <= 1'b1;
         @(vif.tb_slave_cb);
         vif.tb_slave_cb.arready <= 1'b0;
 
-        // Read from DTCM memory model
-        read_data = 'X;
-        if (vif.tb_slave_cb.araddr inside
-            {[DTCM_START_ADDR : (DTCM_START_ADDR + DTCM_LENGTH - 1)]}) begin
-          for (int i = 0; i < (vif.DWIDTH / 8); i++) begin
-            if (dtcm_mem.exists(vif.tb_slave_cb.araddr + i)) begin
-              read_data[i*8 +: 8] = dtcm_mem[vif.tb_slave_cb.araddr + i];
-            end
-          end
+        // Send Read Response (Burst)
+        // Even for error responses, we must respect ARLEN and provide the
+        // requested number of data transfers to avoid protocol violations.
+        for (int i = 0; i <= current_len; i++) begin
+            vif.tb_slave_cb.rvalid <= 1'b1;
+            vif.tb_slave_cb.rresp  <= r_resp_val;
+            vif.tb_slave_cb.rdata  <= 'x;
+            vif.tb_slave_cb.rid    <= current_rid;
+
+            if (i == current_len)
+                vif.tb_slave_cb.rlast <= 1'b1;
+            else
+                vif.tb_slave_cb.rlast <= 1'b0;
+
+            do @(vif.tb_slave_cb); while (!vif.tb_slave_cb.rready);
         end
 
-        @(vif.tb_slave_cb);
-        vif.tb_slave_cb.rvalid <= 1'b1;
-        vif.tb_slave_cb.rresp  <= AXI_OKAY;
-        vif.tb_slave_cb.rdata  <= read_data;
-        vif.tb_slave_cb.rid    <= current_rid;
-        vif.tb_slave_cb.rlast  <= 1'b1;
-
-        do @(vif.tb_slave_cb); while (!vif.tb_slave_cb.rready);
-
-        @(vif.tb_slave_cb);
+        // Handshake for last beat finished.
         vif.tb_slave_cb.rvalid <= 1'b0;
         vif.tb_slave_cb.rlast  <= 1'b0;
+
         `uvm_info(get_type_name(),
-                  $sformatf("Slave Sent RData OKAY ID=%0d", current_rid),
+                  $sformatf("Slave Sent RData %s ID=%0d Len=%0d",
+                            r_resp_val.name(), current_rid, current_len),
                   UVM_HIGH)
       end
     endtask
