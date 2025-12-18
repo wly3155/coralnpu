@@ -109,12 +109,12 @@ cocotb_test_suite(
         "vcs",
     ],
     testcases = [
-        ("test_dwconv8to8stride1", "small"),
-        ("test_dwconv8to8stride2", "small"),
+        ("test_dwconv8to8stride1", "medium"),
+        ("test_dwconv8to8stride2", "medium"),
         "test_dwconv32to32stride1",
         "test_dwconv32to32stride2",
-        "test_dwconv64to64stride1",
-        "test_dwconv64to64stride2",
+        ("test_dwconv64to64stride1", "large"),
+        ("test_dwconv64to64stride2", "large"),
         "test_dwconv16to32stride2",
         # Benchmarks are skipped.
     ],
