@@ -35,6 +35,7 @@ RUN ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime && \
         python-is-python3 \
         python3 \
         python3-pip \
+        python3-setuptools \
         srecord \
         sudo \
         tzdata \
