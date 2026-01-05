@@ -213,9 +213,9 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
-                emul_vs2    = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -238,8 +238,8 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -259,8 +259,8 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end              
             endcase
           end
@@ -278,19 +278,19 @@ module rvv_backend_decode_unit_ari
                 emul_vs1    = EMUL1;
               end
               LMUL1: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL2;
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL2: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL4;
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL4: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL8;
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase 
           end
@@ -308,10 +308,10 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 if (inst_vm=='b0)
-                  emul_vs2  = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                  emul_vs2  = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -331,7 +331,7 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                 emul_vs1    = EMUL1;
               end
             endcase
@@ -358,33 +358,33 @@ module rvv_backend_decode_unit_ari
               LMUL1: begin
                 case(csr_sew)
                   SEW8: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                     emul_vs1    = EMUL2;
                   end
                   SEW16,
                   SEW32: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
-                    emul_vs1    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs1    = EMUL_e'({1'b0, csr_lmul});
                   end
                 endcase
               end
               LMUL2: begin                  
                 case(csr_sew)
                   SEW8: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                     emul_vs1    = EMUL4;
                   end
                   SEW16: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
-                    emul_vs1    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs1    = EMUL_e'({1'b0, csr_lmul});
                   end
                   SEW32: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                     emul_vs1    = EMUL1;
                   end
                 endcase
@@ -392,18 +392,18 @@ module rvv_backend_decode_unit_ari
               LMUL4: begin
                 case(csr_sew)
                   SEW8: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                     emul_vs1    = EMUL8;
                   end
                   SEW16: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
-                    emul_vs1    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs1    = EMUL_e'({1'b0, csr_lmul});
                   end
                   SEW32: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                     emul_vs1    = EMUL2;
                   end
                 endcase
@@ -411,13 +411,13 @@ module rvv_backend_decode_unit_ari
               LMUL8: begin
                 case(csr_sew)
                   SEW16: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
-                    emul_vs1    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs1    = EMUL_e'({1'b0, csr_lmul});
                   end
                   SEW32: begin
-                    emul_vd     = {1'b0, csr_lmul};
-                    emul_vs2    = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                    emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                     emul_vs1    = EMUL4;
                   end
                 endcase
@@ -465,8 +465,8 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -488,7 +488,7 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -507,7 +507,7 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -524,15 +524,15 @@ module rvv_backend_decode_unit_ari
                 emul_vs2    = EMUL1;
               end
               LMUL1: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL2;
               end
               LMUL2: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL4;
               end
               LMUL4: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL8;
               end
             endcase
@@ -551,7 +551,7 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -568,9 +568,9 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 if (inst_vm=='b0)
-                  emul_vs2  = {1'b0, csr_lmul};
+                  emul_vs2  = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -606,8 +606,8 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -631,7 +631,7 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -648,15 +648,15 @@ module rvv_backend_decode_unit_ari
                 emul_vs2    = EMUL1;
               end
               LMUL1: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL2;
               end
               LMUL2: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL4;
               end
               LMUL4: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 emul_vs2    = EMUL8;
               end
             endcase
@@ -674,9 +674,9 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
                 if (inst_vm=='b0)
-                  emul_vs2  = {1'b0, csr_lmul};
+                  emul_vs2  = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -728,18 +728,18 @@ module rvv_backend_decode_unit_ari
               end
               LMUL1: begin
                 emul_vd     = EMUL2;
-                emul_vs2    = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL2: begin
                 emul_vd     = EMUL4;
-                emul_vs2    = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL4: begin
                 emul_vd     = EMUL8;
-                emul_vs2    = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -759,17 +759,17 @@ module rvv_backend_decode_unit_ari
               LMUL1: begin
                 emul_vd     = EMUL2;
                 emul_vs2    = EMUL2;
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL2: begin
                 emul_vd     = EMUL4;
                 emul_vs2    = EMUL4;
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL4: begin
                 emul_vd     = EMUL8;
                 emul_vs2    = EMUL8;
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -785,15 +785,15 @@ module rvv_backend_decode_unit_ari
                     emul_vs2    = EMUL1;
                   end
                   LMUL2: begin
-                    emul_vd     = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
                     emul_vs2    = EMUL1;
                   end
                   LMUL4: begin
-                    emul_vd     = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
                     emul_vs2    = EMUL2;
                   end
                   LMUL8: begin
-                    emul_vd     = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
                     emul_vs2    = EMUL4;
                   end
                 endcase
@@ -807,11 +807,11 @@ module rvv_backend_decode_unit_ari
                   end
                   LMUL2,
                   LMUL4: begin
-                    emul_vd     = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
                     emul_vs2    = EMUL1;
                   end
                   LMUL8: begin
-                    emul_vd     = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
                     emul_vs2    = EMUL2;
                   end
                 endcase
@@ -847,9 +847,9 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
-                emul_vs2    = {1'b0, csr_lmul};
-                emul_vs1    = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
+                emul_vs1    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -875,7 +875,7 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                 emul_vs1    = EMUL1;
               end
             endcase
@@ -924,7 +924,7 @@ module rvv_backend_decode_unit_ari
                   LMUL2,
                   LMUL4,
                   LMUL8: begin
-                    emul_vd     = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
                     emul_vs2    = EMUL1;
                   end
                 endcase
@@ -939,7 +939,7 @@ module rvv_backend_decode_unit_ari
                   LMUL2,
                   LMUL4,
                   LMUL8: begin
-                    emul_vd     = {1'b0, csr_lmul};
+                    emul_vd     = EMUL_e'({1'b0, csr_lmul});
                   end
                 endcase
               end
@@ -957,8 +957,8 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                 emul_vs1    = EMUL1;
               end
             endcase
@@ -988,15 +988,15 @@ module rvv_backend_decode_unit_ari
               end
               LMUL1: begin
                 emul_vd     = EMUL2;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL2: begin
                 emul_vd     = EMUL4;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL4: begin
                 emul_vd     = EMUL8;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -1054,8 +1054,8 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -1069,15 +1069,15 @@ module rvv_backend_decode_unit_ari
               end
               LMUL1: begin
                 emul_vd     = EMUL2;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL2: begin
                 emul_vd     = EMUL4;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
               LMUL4: begin
                 emul_vd     = EMUL8;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
@@ -1103,7 +1103,7 @@ module rvv_backend_decode_unit_ari
               LMUL4,
               LMUL8: begin
                 emul_vd     = EMUL1;
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
                 emul_vs1    = EMUL1;
               end
             endcase
@@ -1127,8 +1127,8 @@ module rvv_backend_decode_unit_ari
               LMUL2,
               LMUL4,
               LMUL8: begin
-                emul_vd     = {1'b0, csr_lmul};
-                emul_vs2    = {1'b0, csr_lmul};
+                emul_vd     = EMUL_e'({1'b0, csr_lmul});
+                emul_vs2    = EMUL_e'({1'b0, csr_lmul});
               end
             endcase
           end
