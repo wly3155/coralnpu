@@ -124,6 +124,7 @@ module rvv_backend_decode_unit_ari
   logic   [`NUM_DE_UOP-1:0]                           first_uop_valid;    
   logic   [`NUM_DE_UOP-1:0]                           last_uop_valid;     
   logic   [`NUM_DE_UOP-1:0][`UOP_INDEX_WIDTH-2:0]     seg_field_index;    
+  logic   [`NUM_DE_UOP-1:0]                           pshrob_valid;
 
   // use for for-loop 
   genvar                                          j;
@@ -4508,7 +4509,7 @@ module rvv_backend_decode_unit_ari
                 OPIVV,
                 OPIVX,
                 OPIVI: begin
-                  vs3_valid[i] = uop_index_current[i][`UOP_INDEX_WIDTH-1:0] == uop_index_max;
+                  vs3_valid[i] = last_uop_valid[i];
                 end
               endcase
             end
@@ -4517,7 +4518,7 @@ module rvv_backend_decode_unit_ari
               case(inst_funct3)
                 OPIVV,
                 OPIVX: begin
-                  vs3_valid[i] = uop_index_current[i][`UOP_INDEX_WIDTH-1:0] == uop_index_max;
+                  vs3_valid[i] = last_uop_valid[i];
                 end
               endcase
             end
@@ -4526,7 +4527,7 @@ module rvv_backend_decode_unit_ari
               case(inst_funct3)
                 OPIVX,
                 OPIVI: begin
-                  vs3_valid[i] = uop_index_current[i][`UOP_INDEX_WIDTH-1:0] == uop_index_max;
+                  vs3_valid[i] = last_uop_valid[i];
                 end
               endcase
             end
@@ -5311,6 +5312,13 @@ module rvv_backend_decode_unit_ari
     end
   end
 
+  // pshrob_valid decide on whether this uop is pushed into ROB.
+  always_comb begin
+    for(int i=0;i<`NUM_DE_UOP;i++) begin: PSHROB_VLD
+      pshrob_valid[i] = ((uop_exe_unit[i]==CMP)||(uop_exe_unit[i]==RDT)) ? last_uop_valid[i] : 'b1;
+    end
+  end
+
   // assign result to output
   generate
     for(j=0;j<`NUM_DE_UOP;j++) begin: ASSIGN_RES
@@ -5348,6 +5356,7 @@ module rvv_backend_decode_unit_ari
       assign uop[j].first_uop_valid     = first_uop_valid[j];   
       assign uop[j].last_uop_valid      = last_uop_valid[j];    
       assign uop[j].seg_field_index     = seg_field_index[j];   
+      assign uop[j].pshrob_valid        = pshrob_valid[j];
     end
   endgenerate
 

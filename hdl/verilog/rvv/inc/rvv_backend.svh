@@ -370,12 +370,13 @@ typedef struct packed {
   logic                               first_uop_valid;    // one instruction may be split to many uops, this signal is used to specify the first uop in those uops of one instruction.
   logic                               last_uop_valid;     // one instruction may be split to many uops, this signal is used to specify the last uop in those uops of one instruction.
   logic   [`UOP_INDEX_WIDTH-2:0]      seg_field_index;    // used for calculate v0_start in DP stage for segment ld/st
+  logic                               pshrob_valid;       // wheather this uop is pushed into ROB.
 } UOP_QUEUE_t;    
 
 // specify whether the current byte belongs to 'prestart' or 'body-inactive' or 'body-active' or 'tail'
 typedef enum logic [1:0] {
-  NOT_CHANGE = 2'b00,         // the byte is not changed, which may belong to 'prestart' or superfluous element in widening/narrowing uop
-  TAIL       = 2'b01,         // tail byte
+  NOT_CHANGE    = 2'b00,      // the byte is not changed, which may belong to 'prestart' or superfluous element in widening/narrowing uop
+  TAIL          = 2'b01,      // tail byte
   BODY_INACTIVE = 2'b10,      // body-inactive byte
   BODY_ACTIVE   = 2'b11       // body-active byte
 } BYTE_TYPE_e;

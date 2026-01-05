@@ -263,8 +263,8 @@ module rvv_backend_dispatch
 // Control handshae mechanism for uop_queue <-> dispath, dispatch <-> rs and dispatch <-> rob
     generate
         for (i=0; i<`NUM_DP_UOP; i++) begin : gen_uop_ctrl
-            assign uop_ctrl[i].uop_exe_unit   = uop_uop2dp[i].uop_exe_unit;
-            assign uop_ctrl[i].last_uop_valid = uop_uop2dp[i].last_uop_valid;
+            assign uop_ctrl[i].uop_exe_unit = uop_uop2dp[i].uop_exe_unit;
+            assign uop_ctrl[i].pshrob_valid = uop_uop2dp[i].pshrob_valid;
         end
     endgenerate
 
@@ -311,9 +311,9 @@ module rvv_backend_dispatch
 
             rvv_backend_dispatch_opr_byte_type #(
             ) u_opr_byte_type (
-                .operand_byte_type  (uop_operand_byte_type[i]),
-                .uop_info           (uop_info[i]),
-                .v0_enable          (uop_operand[i].v0)
+                .operand_byte_type (uop_operand_byte_type[i]),
+                .uop_info          (uop_info[i]),
+                .v0_data           (uop_operand[i].v0)
             );
         end
     endgenerate
@@ -325,7 +325,8 @@ module rvv_backend_dispatch
             if (i==0)
               assign rob_address[0] = uop_index_rob2dp;
             else begin 
-              assign rob_address[i] = (uop_uop2dp[i].uop_exe_unit==RDT||uop_uop2dp[i].uop_exe_unit==CMP)&(!uop_uop2dp[i].first_uop_valid) ? rob_address[i-1] : rob_address[i-1]+1'b1;
+              //assign rob_address[i] = (uop_uop2dp[i].uop_exe_unit==RDT||uop_uop2dp[i].uop_exe_unit==CMP)&(!uop_uop2dp[i].first_uop_valid) ? rob_address[i-1] : rob_address[i-1]+1'b1;
+              assign rob_address[i] = rob_address[i-1] + (`ROB_DEPTH_WIDTH)'(uop_uop2dp[i-1].pshrob_valid);
             end
 
           // ALU RS

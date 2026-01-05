@@ -2709,20 +2709,20 @@ function void rvs_transaction::asm_string_gen();
   // Inst name
   case(inst_type)
     LD, ST: begin
-      inst = this.lsu_inst.name();
+      if(inst_type == LD) begin
+        inst = "vl";
+      end
+      if(inst_type == ST) begin
+        inst = "vs";
+      end
       case(lsu_mop)
         LSU_US   : begin
           case(lsu_umop)
             MASK: begin
-              inst = this.lsu_inst.name();
+              inst = $sformatf("%sm", inst);
             end
             WHOLE_REG: begin
-              if(inst_type == LD) begin
-                inst = $sformatf("vl%0dre%0d", lsu_nf+1, lsu_eew);
-              end
-              if(inst_type == ST) begin
-                inst = $sformatf("vs%0dre%0d", lsu_nf+1, lsu_eew);
-              end
+              inst = $sformatf("%s%0dre%0d", inst, lsu_nf+1, lsu_eew);
             end
             default: begin
               if(this.lsu_nf == NF1) begin
@@ -2740,12 +2740,18 @@ function void rvs_transaction::asm_string_gen();
             inst = $sformatf("%sseg%0de%0d", inst, lsu_nf+1, lsu_eew);
           end
         end
-        LSU_UI, 
+        LSU_UI: begin
+          if(this.lsu_nf == NF1) begin
+            inst = $sformatf("%suxei%0d", inst, lsu_eew);
+          end else begin
+            inst = $sformatf("%suxseg%0dei%0d", inst, lsu_nf+1, lsu_eew);
+          end
+        end       
         LSU_OI: begin
           if(this.lsu_nf == NF1) begin
-            inst = $sformatf("%sei%0d", inst, lsu_eew);
+            inst = $sformatf("%soxei%0d", inst, lsu_eew);
           end else begin
-            inst = $sformatf("%sseg%0dei%0d", inst, lsu_nf+1, lsu_eew);
+            inst = $sformatf("%soxseg%0dei%0d", inst, lsu_nf+1, lsu_eew);
           end
         end      
       endcase

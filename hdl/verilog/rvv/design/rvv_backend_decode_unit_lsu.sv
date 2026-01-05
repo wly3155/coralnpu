@@ -115,6 +115,7 @@ module rvv_backend_decode_unit_lsu
   logic   [`NUM_DE_UOP-1:0]                           first_uop_valid;    
   logic   [`NUM_DE_UOP-1:0]                           last_uop_valid;     
   logic   [`NUM_DE_UOP-1:0][`UOP_INDEX_WIDTH-2:0]     seg_field_index;
+  logic   [`NUM_DE_UOP-1:0]                           pshrob_valid;
 
   // use for for-loop 
   genvar                                          j;
@@ -3289,23 +3290,47 @@ module rvv_backend_decode_unit_lsu
   // update vector_csr and vstart
   always_comb begin
     for(int i=0;i<`NUM_DE_UOP;i++) begin: GET_UOP_VCSR
-      // initial 
+      // initial
       vector_csr[i] = vector_csr_lsu;
 
       // update vstart of every uop
       if(funct6_lsu.lsu_funct6.lsu_is_seg!=IS_SEGMENT) begin
-        case(eew_max)
-          EEW8: begin
-            vector_csr[i].vstart  = {uop_index_current[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLENB)){1'b0}}}<csr_vstart ? csr_vstart : 
-                                        {uop_index_current[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLENB)){1'b0}}};
+        case({eew_vd,eew_vs2})
+          // index load with eew_vd<eew_vs2
+          {EEW8 ,EEW16}: begin
+            vector_csr[i].vstart  = {1'b0,uop_index[i][`UOP_INDEX_WIDTH-1:1],{($clog2(`VLENB)){1'b0}}}<csr_vstart ? 
+                                      csr_vstart : 
+                                      {1'b0,uop_index[i][`UOP_INDEX_WIDTH-1:1],{($clog2(`VLENB)){1'b0}}};
           end
-          EEW16: begin
-            vector_csr[i].vstart  = {1'b0,uop_index_current[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`HWORD_WIDTH)){1'b0}}}<csr_vstart ? csr_vstart : 
-                                        {1'b0,uop_index_current[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`HWORD_WIDTH)){1'b0}}};
+          {EEW16,EEW32}: begin
+            vector_csr[i].vstart  = {2'b0,uop_index[i][`UOP_INDEX_WIDTH-1:1],{($clog2(`VLEN/`HWORD_WIDTH)){1'b0}}}<csr_vstart ? 
+                                      csr_vstart : 
+                                      {2'b0,uop_index[i][`UOP_INDEX_WIDTH-1:1],{($clog2(`VLEN/`HWORD_WIDTH)){1'b0}}};
           end
-          EEW32: begin
-            vector_csr[i].vstart  = {2'b0,uop_index_current[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`WORD_WIDTH)){1'b0}}}<csr_vstart ? csr_vstart : 
-                                        {2'b0,uop_index_current[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`WORD_WIDTH)){1'b0}}};
+          {EEW8 ,EEW32}: begin
+            vector_csr[i].vstart  = {2'b0,uop_index[i][`UOP_INDEX_WIDTH-1:2],{($clog2(`VLENB)){1'b0}}}<csr_vstart ? 
+                                      csr_vstart : 
+                                      {2'b0,uop_index[i][`UOP_INDEX_WIDTH-1:2],{($clog2(`VLENB)){1'b0}}};
+          end
+          // other situations
+          default: begin
+            case(eew_max)
+              EEW8: begin
+                vector_csr[i].vstart  = {uop_index[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLENB)){1'b0}}}<csr_vstart ? 
+                                          csr_vstart : 
+                                          {uop_index[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLENB)){1'b0}}};
+              end
+              EEW16: begin
+                vector_csr[i].vstart  = {1'b0,uop_index[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`HWORD_WIDTH)){1'b0}}}<csr_vstart ? 
+                                          csr_vstart : 
+                                          {1'b0,uop_index[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`HWORD_WIDTH)){1'b0}}};
+              end
+              EEW32: begin
+                vector_csr[i].vstart  = {2'b0,uop_index[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`WORD_WIDTH)){1'b0}}}<csr_vstart ? 
+                                          csr_vstart : 
+                                          {2'b0,uop_index[i][`UOP_INDEX_WIDTH-1:0],{($clog2(`VLEN/`WORD_WIDTH)){1'b0}}};
+              end
+            endcase
           end
         endcase
       end
@@ -3802,15 +3827,15 @@ module rvv_backend_decode_unit_lsu
     end
   end
 
-  // update segment_index valid
+  // segment_index indicates the uop's index for the same field in segment.
   always_comb begin
     for(int i=0;i<`NUM_DE_UOP;i++) begin: GET_SEG_INDEX
       // default
-      if (inst_nf==NF2)
+      if(inst_nf==NF2)
         seg_field_index[i] = {1'b0,uop_index_current[i][2:1]};
-      else if (inst_nf==NF3)
+      else if(inst_nf==NF3)
         seg_field_index[i] = (uop_index_current[i]>=4'd3) ? 'd1 : 'b0;
-      else if (inst_nf==NF4)
+      else if(inst_nf==NF4)
         seg_field_index[i] = {2'b0,uop_index_current[i][2]};
       else
         seg_field_index[i] = 'b0;
@@ -3836,6 +3861,35 @@ module rvv_backend_decode_unit_lsu
             end
           endcase
         end
+      endcase
+    end
+  end
+  
+  // pshrob_valid decide on whether this uop is pushed into ROB.
+  always_comb begin
+    for(int i=0;i<`NUM_DE_UOP;i++) begin: PSHROB_VLD
+      // EEW_vs2>EEW_vd for index load/store
+      case({eew_vs2,eew_vd})
+        // 2:1
+        {EEW16,EEW8},
+        {EEW32,EEW16}: begin
+          case(emul_vs2)
+            EMUL2,
+            EMUL4,
+            EMUL8:   pshrob_valid[i] = uop_index_current[i][0];
+            default: pshrob_valid[i] = 'b1;
+          endcase
+        end
+        // 4:1
+        {EEW32,EEW8}: begin   
+          case(emul_vs2)
+            EMUL2: pshrob_valid[i] = uop_index_current[i][0];
+            EMUL4,
+            EMUL8: pshrob_valid[i] = uop_index_current[i][1:0]==2'b11;
+            default: pshrob_valid[i] = 'b1;
+          endcase
+        end
+        default: pshrob_valid[i] = 'b1;
       endcase
     end
   end
@@ -3877,6 +3931,7 @@ module rvv_backend_decode_unit_lsu
       assign uop[j].first_uop_valid     = first_uop_valid[j];   
       assign uop[j].last_uop_valid      = last_uop_valid[j];    
       assign uop[j].seg_field_index     = seg_field_index[j];   
+      assign uop[j].pshrob_valid        = pshrob_valid[j];   
     end
   endgenerate
 
