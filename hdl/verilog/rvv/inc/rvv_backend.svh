@@ -169,9 +169,9 @@ typedef enum logic [2:0] {
   parameter VASUB           =   6'b001_011;
   parameter VSLIDE1UP       =   6'b001_110;
   parameter VSLIDE1DOWN     =   6'b001_111;
-  parameter VWXUNARY0       =   6'b010_000;     // it could be vcpop.m, vfirst.m and vmv. They can be distinguished by vs1 field(inst_encoding[19:15]).
-  parameter VXUNARY0        =   6'b010_010;     // it could be vzext.vf2, vzext.vf4, vsext.vf2, vsext.vf4. They can be distinguished by vs1 field(inst_encoding[19:15]).
-  parameter VMUNARY0        =   6'b010_100;     // it could be vmsbf, vmsof, vmsif, viota, vid. They can be distinguished by vs1 field(inst_encoding[19:15]).
+  parameter VWRXUNARY0      =   6'b010_000;
+  parameter VXUNARY0        =   6'b010_010;
+  parameter VMUNARY0        =   6'b010_100;
   parameter VCOMPRESS       =   6'b010_111;
   parameter VMANDN          =   6'b011_000;
   parameter VMAND           =   6'b011_001;
@@ -294,14 +294,14 @@ typedef enum logic [2:0] {
 
 // Effective MUL enum
 typedef enum logic [3:0] {
-  EMUL1,
-  EMUL2,
+  EMUL1=0,
+  EMUL2=1,
+  EMUL4=2,
+  EMUL8=3,
   EMUL3,
-  EMUL4,
   EMUL5,
   EMUL6,
   EMUL7,
-  EMUL8,
   EMUL_NONE     // it means this is not supported 
 } EMUL_e;
 
@@ -369,7 +369,7 @@ typedef struct packed {
   logic   [`UOP_INDEX_WIDTH-1:0]      uop_index;          // used for calculate v0_start in DP stage
   logic                               first_uop_valid;    // one instruction may be split to many uops, this signal is used to specify the first uop in those uops of one instruction.
   logic                               last_uop_valid;     // one instruction may be split to many uops, this signal is used to specify the last uop in those uops of one instruction.
-  logic   [`UOP_INDEX_WIDTH-2:0]      seg_field_index;    // used for calculate v0_start in DP stage for segment ld/st
+  logic   [$clog2(`EMUL_MAX)-1:0]     seg_field_index;    // used for calculate v0_start in DP stage for segment ld/st
   logic                               pshrob_valid;       // wheather this uop is pushed into ROB.
 } UOP_QUEUE_t;    
 
