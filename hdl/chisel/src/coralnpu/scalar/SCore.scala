@@ -70,6 +70,7 @@ class SCore(p: Parameters) extends Module {
   })
   dispatch.io.retirement_buffer_nSpace := rob_io.nSpace
   dispatch.io.retirement_buffer_empty := rob_io.empty
+  dispatch.io.retirement_buffer_trap_pending := rob_io.trapPending
   if (p.enableRvv) {
     rob_io.writeAddrVector.get := dispatch.io.rvvRdMark.get
     (0 until p.instructionLanes).foreach(i => {

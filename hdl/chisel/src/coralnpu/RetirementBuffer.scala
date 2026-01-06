@@ -31,6 +31,7 @@ class RetirementBufferIO(p: Parameters) extends Bundle {
   val nSpace = Output(UInt(32.W))
   val nRetired = Output(UInt(log2Ceil(p.retirementBufferSize + 1).W))
   val empty = Output(Bool())
+  val trapPending = Output(Bool())
   val debug = Output(new RetirementBufferDebugIO(p))
 }
 
@@ -113,7 +114,6 @@ class RetirementBuffer(p: Parameters, mini: Boolean = false) extends Module {
 
   val instsWithWriteFired = PopCount(io.inst.map(_.fire))
   instBuffer.io.enqValid := instsWithWriteFired +& (decodeFaultValid || noFire0Fault)
-  instBuffer.io.flush := false.B
   io.nSpace := instBuffer.io.nSpace
 
   for (i <- 0 until p.instructionLanes) {
@@ -185,13 +185,28 @@ class RetirementBuffer(p: Parameters, mini: Boolean = false) extends Module {
         scalarWriteIdxMap.reduce(_|_) -> sdata,
       )), resultBuffer(i).bits.result)
     }
-    resultUpdate(i).bits.trap := Mux(updated, faultingInstr, resultBuffer(i).bits.trap)
+    resultUpdate(i).bits.trap := resultBuffer(i).bits.trap || faultingInstr || (i.U < instBuffer.io.nEnqueued && instBuffer.io.dataOut(i).trap)
   }
 
-  val deqReady = Cto(VecInit(resultUpdate.map(_.valid)).asUInt)
+  val hasTrap = resultUpdate.map(x => x.valid && x.bits.trap).reduce(_||_)
+  val trapDetected = VecInit(resultUpdate.map(x => x.valid && x.bits.trap))
+  val firstTrapIdx = PriorityEncoder(trapDetected)
+  val countValid = Cto(VecInit(resultUpdate.map(_.valid)).asUInt)
+
+  val limit = firstTrapIdx + 1.U
+  val trapReadyToRetire = hasTrap && (limit <= countValid)
+  val deqReady = Mux(trapReadyToRetire, limit, countValid)
+
   instBuffer.io.deqReady := deqReady
-  resultBuffer := ShiftVectorRight(resultUpdate, deqReady)
+
+  val trapRetired = trapReadyToRetire
+  instBuffer.io.flush := trapRetired
+
+  resultBuffer := Mux(trapRetired,
+                      VecInit(Seq.fill(bufferSize)(MakeInvalid(new InstructionUpdate))),
+                      ShiftVectorRight(resultUpdate, deqReady))
   io.nRetired := deqReady
+  io.trapPending := RegNext(hasTrap && !trapRetired, false.B)
 
   for (i <- 0 until bufferSize) {
     val valid = (i.U < instBuffer.io.deqReady)
