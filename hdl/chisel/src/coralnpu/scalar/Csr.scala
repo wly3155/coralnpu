@@ -14,7 +14,7 @@
 
 package coralnpu
 
-import common.{MuxUpTo1H}
+import common.{MakeInvalid, MakeValid, MuxUpTo1H}
 import chisel3._
 import chisel3.util._
 import coralnpu.float.{CsrFloatIO}
@@ -39,6 +39,9 @@ object Csr {
 }
 
 object CsrAddress extends ChiselEnum {
+  // Per spec, this is not allocated. We use this internally to
+  // represent an invalid address.
+  val RESERVED  = Value(0x000.U(12.W))
   val FFLAGS    = Value(0x001.U(12.W))
   val FRM       = Value(0x002.U(12.W))
   val FCSR      = Value(0x003.U(12.W))
@@ -214,8 +217,9 @@ class Csr(p: Parameters) extends Module {
     newWdata
   }
 
-  // Control registers.
-  val req = Pipe(io.req)
+  // Control registers. CsrAddress.RESERVED is used for invalid values.
+  val req = RegInit(MakeInvalid(new CsrCmd))
+  req := MakeValid(io.req.valid, io.req.bits, bitsWhenInvalid=req.bits)
 
   // Pipeline Control.
   val halted = RegInit(false.B)
