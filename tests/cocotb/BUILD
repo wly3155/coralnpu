@@ -89,7 +89,7 @@ CORE_MINI_AXI_SIM_TESTCASES = [
     "core_mini_axi_exceptions_test",
     "core_mini_axi_coralnpu_isa_test",
     ("core_mini_axi_rand_instr_test", "large"),
-    ("core_mini_axi_burst_types_test", "medium"),
+    ("core_mini_axi_burst_types_test", "large"),
     "core_mini_axi_float_csr_test",
     "unreachable_prefetch_fault",
     "core_mini_axi_frm_test",
@@ -106,7 +106,7 @@ RVV_CORE_MINI_AXI_SIM_TESTCASES = [
     "core_mini_axi_finish_txn_before_halt_test",
     ("core_mini_axi_riscv_tests", "medium"),
     ("core_mini_axi_riscv_dv", "medium"),
-    ("core_mini_axi_csr_test", "medium"),
+    ("core_mini_axi_csr_test", "large"),
     ("core_mini_axi_exceptions_test", "medium"),
     "core_mini_axi_coralnpu_isa_test",
     ("core_mini_axi_rand_instr_test", "large"),
@@ -279,7 +279,7 @@ RVV_ARITHMETIC_TESTCASES = [
     "vnclipu_test",
     "vnsra_test",
     "vnsrl_test",
-    "binary_op_vx",
+    ("binary_op_vx", "large"),
 ]
 # END_TESTCASES_FOR_rvv_arithmetic_cocotb_test
 
