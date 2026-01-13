@@ -48,6 +48,9 @@ typedef struct packed {
   logic [`VTYPE_VTA_WIDTH-1:0]  ta;        // 0:tail undisturbed, 1:tail agnostic
   RVVXRM                        xrm;       
   logic [`VCSR_VXSAT_WIDTH-1:0] xsat;   // rvv dont need this bit, but output this to rvs
+`ifdef ZVE32F_ON
+  logic [2:0]                   frm;       // rounding mode for floating-point
+`endif  // ZVE32F_ON
   RVVSEW                        sew;
   RVVLMUL                       lmul;
   RVVLMUL                       lmul_orig;

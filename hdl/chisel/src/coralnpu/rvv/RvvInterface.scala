@@ -105,6 +105,7 @@ class RvvCsrIO(p: Parameters) extends Bundle {
   val vstart = Output(UInt(log2Ceil(p.rvvVlen).W))
   val vxrm = Output(UInt(2.W))
   val vxsat = Output(Bool())
+  val frm = Input(UInt(3.W))
   val vstart_write = Input(Valid(UInt(log2Ceil(p.rvvVlen).W)))
   val vxrm_write = Input(Valid(UInt(2.W)))
   val vxsat_write = Input(Valid(Bool()))

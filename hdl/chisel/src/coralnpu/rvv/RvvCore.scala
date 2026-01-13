@@ -32,6 +32,7 @@ object GenerateCoreShimSource {
         |    input logic [VSTART_LEN:0] vstart,
         |    input logic [1:0] vxrm,
         |    input logic vxsat,
+        |    input logic [2:0] frm,
         |""".stripMargin.replaceAll("VSTART_LEN", (log2Ceil(vlen) - 1).toString)
 
     // Add instruction interface inputs
@@ -258,6 +259,7 @@ object GenerateCoreShimSource {
         |      .vstart(vstart),
         |      .vxrm(vxrm),
         |      .vxsat(vxsat),
+        |      .frm(frm),
         |      .inst_valid(inst_valid),
         |      .inst_data(inst_data),
         |      .inst_ready(inst_ready),
@@ -355,6 +357,7 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
     val vstart = Input(UInt(log2Ceil(p.rvvVlen).W))
     val vxrm = Input(UInt(2.W))
     val vxsat = Input(UInt(1.W))
+    val frm = Input(UInt(3.W))
 
     val inst = Vec(p.instructionLanes,
         Flipped(Decoupled(new RvvCompressedInstruction)))
@@ -480,6 +483,7 @@ class RvvCoreShim(p: Parameters) extends Module {
       io.csr.vxrm_write.valid, io.csr.vxrm_write.bits, vxrm)
   rvvCoreWrapper.io.vxsat := Mux(
       io.csr.vxsat_write.valid, io.csr.vxsat_write.bits, vxsat)
+  rvvCoreWrapper.io.frm := io.csr.frm
   rvvCoreWrapper.io.vcsr_ready := true.B
 
   io.rvv2lsu <> rvvCoreWrapper.io.rvv2lsu
