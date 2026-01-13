@@ -51,6 +51,12 @@ object GenerateCoreShimSource {
             |""".stripMargin.replaceAll("GENI", i.toString)
     }
 
+    // Add float regfile read interface inputs
+    for (i <- 0 until instructionLanes) {
+        moduleInterface += """    input [31:0] frs_GENI,
+            |""".stripMargin.replaceAll("GENI", i.toString)
+    }
+
     // Add instruction interface outputs (backpressure)
     for (i <- 0 until instructionLanes) {
         moduleInterface += "    output inst_GENI_ready,\n".replaceAll(
@@ -64,10 +70,15 @@ object GenerateCoreShimSource {
             |    output [31:0] rd_GENI_bits_data,
             |""".stripMargin.replaceAll("GENI", i.toString)
     }
+
     moduleInterface += """    output async_rd_valid,
         |    output [4:0] async_rd_bits_addr,
         |    output [31:0] async_rd_bits_data,
         |    input async_rd_ready,
+        |    output async_frd_valid,
+        |    output [4:0] async_frd_bits_addr,
+        |    output [31:0] async_frd_bits_data,
+        |    input async_frd_ready,
         |""".stripMargin
 
     // RVV to LSU
@@ -189,6 +200,14 @@ object GenerateCoreShimSource {
           "GENI", i.toString)
     }
 
+    // Float regfile read
+    coreInstantiation += "  logic [GENN-1:0][31:0] freg_read_data;\n".replaceAll(
+            "GENN", instructionLanes.toString)
+    for (i <- 0 until instructionLanes) {
+      coreInstantiation += "  assign freg_read_data[GENI] = frs_GENI;\n".replaceAll(
+          "GENI", i.toString)
+    }
+
     // RVV2LSU
     coreInstantiation += """  logic [2-1:0] uop_lsu_valid_rvv2lsu;
       |  logic [2-1:0] uop_lsu_idx_valid_rvv2lsu;
@@ -265,6 +284,7 @@ object GenerateCoreShimSource {
         |      .inst_ready(inst_ready),
         |      .reg_read_valid(reg_read_valid),
         |      .reg_read_data(reg_read_data),
+        |      .freg_read_data(freg_read_data),
         |      .reg_write_valid(reg_write_valid),
         |      .reg_write_addr(reg_write_addr),
         |      .reg_write_data(reg_write_data),
@@ -272,6 +292,10 @@ object GenerateCoreShimSource {
         |      .async_rd_addr(async_rd_bits_addr),
         |      .async_rd_data(async_rd_bits_data),
         |      .async_rd_ready(async_rd_ready),
+        |      .async_frd_valid(async_frd_valid),
+        |      .async_frd_addr(async_frd_bits_addr),
+        |      .async_frd_data(async_frd_bits_data),
+        |      .async_frd_ready(async_frd_ready),
         |      .uop_lsu_valid_rvv2lsu(uop_lsu_valid_rvv2lsu),
         |      .uop_lsu_idx_valid_rvv2lsu(uop_lsu_idx_valid_rvv2lsu),
         |      .uop_lsu_idx_addr_rvv2lsu(uop_lsu_idx_addr_rvv2lsu),
@@ -364,8 +388,10 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
 
     val rs = Vec(p.instructionLanes * 2, Flipped(new RegfileReadDataIO))
     val rd = Vec(p.instructionLanes, Valid(new RegfileWriteDataIO))
+    val frs = Vec(p.instructionLanes, Input(UInt(32.W)))
 
     val async_rd = Decoupled(new RegfileWriteDataIO)
+    val async_frd = Decoupled(new RegfileWriteDataIO)
 
     val rd_rob2rt_o = Vec(4, new Rob2Rt(p))
     val trap = Output(Valid(new RvvCompressedInstruction))
@@ -473,7 +499,9 @@ class RvvCoreShim(p: Parameters) extends Module {
   rvvCoreWrapper.io.inst <> io.inst
   rvvCoreWrapper.io.rs <> io.rs
   rvvCoreWrapper.io.rd <> io.rd
+  rvvCoreWrapper.io.frs <> io.frs
   rvvCoreWrapper.io.async_rd <> io.async_rd
+  rvvCoreWrapper.io.async_frd <> io.async_frd
   rvvCoreWrapper.io.rd_rob2rt_o <> io.rd_rob2rt_o
   io.trap := rvvCoreWrapper.io.trap
 
