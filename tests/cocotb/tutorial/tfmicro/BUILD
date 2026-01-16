@@ -41,6 +41,7 @@ coralnpu_v2_binary(
         "@tflite_micro//tensorflow/lite/micro:op_resolvers",
         "@tflite_micro//tensorflow/lite/micro:system_setup",
     ],
+    visibility = ["//visibility:public"]
 )
 
 generate_cc_arrays(
