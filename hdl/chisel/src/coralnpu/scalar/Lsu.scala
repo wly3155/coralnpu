@@ -421,7 +421,7 @@ class LsuSlot(p: Parameters, bytesPerSlot: Int) extends Bundle {
         i => lineActive(i) -> MakeValid(true.B, addrs(i))))
   }
 
-  def vectorUpdate(updated: Bool, rvv2lsu: Rvv2Lsu): LsuSlot = {
+  def vectorUpdate(rvv2lsu: Rvv2Lsu): LsuSlot = {
     val result = Wire(new LsuSlot(p, bytesPerSlot))
     result.op := op
     result.rd := rd
@@ -458,10 +458,9 @@ class LsuSlot(p: Parameters, bytesPerSlot: Int) extends Bundle {
     result.elemWidth := elemWidth
     result.sew := sew
 
-    val shouldUpdate = updated && (
-        LsuOp.isNonindexedVector(op) ||
-        (!vectorLoop.subvector.isEnabled()) ||
-        rvv2lsu.idx.valid)
+    val shouldUpdate = LsuOp.isNonindexedVector(op) ||
+                       (!vectorLoop.subvector.isEnabled()) ||
+                       rvv2lsu.idx.valid
 
     result.data := Mux(shouldUpdate && LsuOp.isVector(op) && rvv2lsu.vregfile.valid,
         UIntToVec(rvv2lsu.vregfile.bits.data, 8), data)
@@ -473,15 +472,10 @@ class LsuSlot(p: Parameters, bytesPerSlot: Int) extends Bundle {
   }
 
   // Updates the slot based on a previous read.
-  def loadUpdate(valid: Bool,
-                 lineAddr: UInt,
-                 lineData: UInt): LsuSlot = {
+  def loadUpdate(lineAddr: UInt, lineData: UInt): LsuSlot = {
     // TODO(derekjchow): Check ordering semantics
     val lineAddrs = lineAddresses()
     val lineActive = VecInit((0 until bytesPerSlot).map(i =>
-        !store &&     // Don't update if a store
-        (!LsuOp.isVector(op) || !pendingVector) &&  // Has vector data if needed
-        valid &&      // Update only if a valid read last cycle
         active(i) &&  // Update only if active
         (lineAddrs(i) === lineAddr)))  // Line must match read line
     val lineDataVec = UIntToVec(lineData, 8)
@@ -516,7 +510,7 @@ class LsuSlot(p: Parameters, bytesPerSlot: Int) extends Bundle {
   }
 
   // Updates the slot if its result is written back to the regfile.
-  def writebackUpdate(writeback: Bool): LsuSlot = {
+  def writebackUpdate(): LsuSlot = {
     val result = Wire(new LsuSlot(p, bytesPerSlot))
     result.op := op
     result.store := store
@@ -529,22 +523,15 @@ class LsuSlot(p: Parameters, bytesPerSlot: Int) extends Bundle {
     result.elemWidth := elemWidth
     result.sew := sew
 
-    val vectorWriteback = writeback && vectorLoop.isActive
+    val vectorWriteback = vectorLoop.isActive
     result.vectorLoop := Mux(vectorWriteback, vectorLoop.next(), vectorLoop)
-
-    result.pendingVector := MuxCase(false.B, Seq(
-        (!writeback) -> pendingWriteback,
-        result.vectorLoop.isActive -> true.B,  // Next LMUL
-    ))
-    result.pendingWriteback := MuxCase(false.B, Seq(
-      (!writeback) -> pendingWriteback,
-      result.vectorLoop.isActive -> true.B,        // Next LMUL
-    ))
+    result.pendingVector := result.vectorLoop.isActive
+    result.pendingWriteback := result.vectorLoop.isActive
 
     // TODO(davidgao): absorb baseAddr offset computation into vectorLoop
     val lmulUpdate = vectorWriteback && vectorLoop.segmentDone()
     result.baseAddr := MuxCase(baseAddr, Seq(
-      (!writeback || !lmulUpdate) -> baseAddr,
+      !lmulUpdate -> baseAddr,
       // For Unit and strided updates
       op.isOneOf(LsuOp.VLOAD_UNIT, LsuOp.VSTORE_UNIT) ->
           (baseAddr + (vectorLoop.segment.max * 16.U) + 16.U),
@@ -883,10 +870,9 @@ class LsuV2(p: Parameters) extends Lsu(p) {
   val vectorUpdatedSlot = if (p.enableRvv) {
       io.rvv2lsu.get(0).ready := slot.pendingVector
       io.rvv2lsu.get(1).ready := false.B
-      slot.vectorUpdate(
-          io.rvv2lsu.get(0).fire, io.rvv2lsu.get(0).bits)
+      slot.vectorUpdate(io.rvv2lsu.get(0).bits)
   } else {
-      slot.vectorUpdate(false.B, 0.U.asTypeOf(new Rvv2Lsu(p)))
+      slot
   }
 
   // ==========================================================================
@@ -894,8 +880,9 @@ class LsuV2(p: Parameters) extends Lsu(p) {
   val faultReg = RegInit(MakeInvalid(new LsuFault(p)))
 
   // First stage of load update: Update results based on bus read
-  val loadUpdatedSlot = slot.loadUpdate(
-      readFired.valid, readFired.bits.lineAddr, readData)
+  val loadUpdatedSlot = Mux(readFired.valid,
+                            slot.loadUpdate(readFired.bits.lineAddr, readData),
+                            slot)
 
   // Compute next target transaction
   val targetAddress = loadUpdatedSlot.targetAddress(
@@ -1043,13 +1030,18 @@ class LsuV2(p: Parameters) extends Lsu(p) {
       Seq(io.lsu2rvv.get(0).fire) } else { Seq() })
   assert(PopCount(writebacksFired) <= 1.U)
   val writebackFired = writebacksFired.reduce(_ || _)
-  val writebackUpdatedSlot = slot.writebackUpdate(writebackFired)
+  val writebackUpdatedSlot = slot.writebackUpdate()
 
   // TODO(derekjchow): Improve timing?
   opQueue.io.deqReady := Mux(slot.slotIdle() && (opQueue.io.nEnqueued > 0.U), 1.U, 0.U)
 
   // ==========================================================================
   // State transition
+
+  // Assertions
+  val vectorUpdate = io.rvv2lsu.map(_(0).fire).getOrElse(false.B)
+  assert(!vectorUpdate || slot.pendingVector)
+  assert(!writebackFired || (slot.shouldWriteback() || faultReg.valid))
 
   // Slot update
   val slotNext = MuxCase(slot, Seq(
@@ -1058,11 +1050,11 @@ class LsuV2(p: Parameters) extends Lsu(p) {
     // When inactive, dequeue if possible
     (slot.slotIdle() && (opQueue.io.nEnqueued > 0.U)) -> nextSlot,
     // Vector update.
-    slot.pendingVector -> vectorUpdatedSlot,
+    vectorUpdate -> vectorUpdatedSlot,
     // Active transaction update.
     slot.activeTransaction() -> transactionUpdatedSlot,
     // Writeback update.
-    slot.shouldWriteback() -> writebackUpdatedSlot,
+    writebackFired -> writebackUpdatedSlot,
   ))
 
   slot := slotNext
