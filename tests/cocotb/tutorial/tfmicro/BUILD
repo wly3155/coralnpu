@@ -72,7 +72,7 @@ cocotb_test_suite(
     tests_kwargs = {
         "waves": False,
         "tags" : ["manual"],
-        "hdl_toplevel": "RvvCoreMini_ITCM1024KB_DTCM1024KBAxi",
+        "hdl_toplevel": "RvvCoreMiniHighmemAxi",
         "seed": "42",
         "size": "enormous",
         "test_module": ["cocotb_run_mobilenet_v1.py"],
@@ -96,7 +96,8 @@ cocotb_test_suite(
 coralnpu_v2_binary(
     name = "depthwise_conv_test",
     srcs = ["depthwise_conv_test.cc"],
-    linker_script = "@coralnpu_hw//toolchain:coralnpu_tcm_highmem.ld",
+    itcm_size_kbytes = 1024,  # Highmem
+    dtcm_size_kbytes = 1024,  # Highmem
     deps = [
         "//sw/opt/litert-micro:depthwise_conv",
         "@tflite_micro//tensorflow/lite/kernels/internal:reference_base"
