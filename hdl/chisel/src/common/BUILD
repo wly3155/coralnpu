@@ -264,3 +264,24 @@ chisel_test(
         ":index_allocator",
     ],
 )
+
+chisel_library(
+    name = "fifo_state",
+    srcs = [
+        "FIFOState.scala",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":library",
+    ],
+)
+
+chisel_test(
+    name = "fifo_state_test",
+    srcs = [
+        "FIFOStateTest.scala",
+    ],
+    deps = [
+        ":fifo_state",
+    ],
+)
