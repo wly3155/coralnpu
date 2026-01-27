@@ -254,6 +254,7 @@ def coralnpu_deps():
             "@coralnpu_hw//third_party/spike:0002-Coral-Deviations.patch",
             "@coralnpu_hw//third_party/spike:0003-Dump-GPRs-on-EBREAK.patch",
             "@coralnpu_hw//third_party/spike:0004-Add-custom-CoralNPU-CSRs-and-update-MVENDORID-MARCHI.patch",
+            "@coralnpu_hw//third_party/spike:0005-Force-logging-in-vcompress.patch",
         ],
         patch_args = ["-p1"],
         urls = [
