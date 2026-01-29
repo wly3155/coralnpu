@@ -64,6 +64,8 @@ class SCore(p: Parameters) extends Module {
   val rob_io = retirement_buffer.io
 
   rob_io.inst := dispatch.io.inst
+  rob_io.jump := dispatch.io.jump
+  rob_io.branch := dispatch.io.branch
   rob_io.writeAddrScalar := dispatch.io.rdMark
   (0 until p.instructionLanes + 2).foreach(i => {
     rob_io.writeDataScalar(i) := regfile.io.writeData(i)
@@ -77,6 +79,8 @@ class SCore(p: Parameters) extends Module {
       rob_io.writeDataVector.get(i).valid := io.rvvcore.get.rd_rob2rt_o(i).w_valid
       rob_io.writeDataVector.get(i).bits.addr := io.rvvcore.get.rd_rob2rt_o(i).w_index
       rob_io.writeDataVector.get(i).bits.data := io.rvvcore.get.rd_rob2rt_o(i).w_data
+      rob_io.writeDataVector.get(i).bits.uop_pc := io.rvvcore.get.rd_rob2rt_o(i).uop_pc
+      rob_io.writeDataVector.get(i).bits.last_uop_valid := io.rvvcore.get.rd_rob2rt_o(i).last_uop_valid
     })
   }
   rob_io.fault := fault_manager.io.out
@@ -174,6 +178,8 @@ class SCore(p: Parameters) extends Module {
     bru(i).io.rs2 := regfile.io.readData(2 * i + 1)
     bru(i).io.target := regfile.io.target(i)
     dispatch.io.jalrTarget(i) := regfile.io.target(i)
+    rob_io.targets(i) := dispatch.io.bruTarget(i)
+    rob_io.jalrTargets(i) := regfile.io.target(i).data
   }
 
   bru(0).io.csr.get <> csr.io.bru

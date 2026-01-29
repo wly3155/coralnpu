@@ -290,6 +290,8 @@ class Dispatch(p: Parameters) extends Module {
     val retirement_buffer_trap_pending = Input(Bool())
     val single_step = Option.when(p.useDebugModule)(Input(Bool()))
     val debug_mode = Option.when(p.useDebugModule)(Input(Bool()))
+    val branch = Output(Vec(p.instructionLanes, Bool()))
+    val jump = Output(Vec(p.instructionLanes, Bool()))
   })
 }
 
@@ -306,6 +308,10 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
   // include instructions that trigger context switches. Treat fences as jumps
   // as well.
   val isJump = decodedInsts.map(x => x.isJump() || x.isFency())
+  // NB: Only consumer of io.jump is ROB, for now.
+  // We really only want "normal" (e.g. not mret or ecall) control-flow instructions here,
+  // not things that also have interesting properties (like fences).
+  io.jump := decodedInsts.map(x => x.isJump() && !x.ecall && !x.mret)
   val jumped = isJump.scan(false.B)(_ || _)
 
   // ---------------------------------------------------------------------------
@@ -313,6 +319,7 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
   // The operations that can be dispatched after branching are ones that can be
   // completed in one cycle. In practice, this means Alu and Bru operations
   val isBranch = decodedInsts.map(_.isCondBr())
+  io.branch := isBranch
   val branched = isBranch.scan(false.B)(_ || _)
   val branchInterlock = (0 until p.instructionLanes).map(i => branched(i))
 

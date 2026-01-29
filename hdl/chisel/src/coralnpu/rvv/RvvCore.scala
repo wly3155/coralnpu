@@ -149,7 +149,10 @@ object GenerateCoreShimSource {
             |    output rd_rob2rt_o_GENI_vector_csr_lmul,
             |    output rd_rob2rt_o_GENI_vector_csr_lmul_orig,
             |    output rd_rob2rt_o_GENI_vector_csr_vill,
-            |    output [15:0] rd_rob2rt_o_GENI_vxsaturate,""".stripMargin.replaceAll("GENI", i.toString)
+            |    output [15:0] rd_rob2rt_o_GENI_vxsaturate,
+            |    output [31:0] rd_rob2rt_o_GENI_uop_pc,
+            |    output rd_rob2rt_o_GENI_last_uop_valid,
+            """.stripMargin.replaceAll("GENI", i.toString)
     }
 
     // Add trap interface outputs
@@ -341,6 +344,8 @@ object GenerateCoreShimSource {
       |  assign rd_rob2rt_o_GENI_vector_csr_lmul_orig = rd_rob2rt_o[GENI].vector_csr.lmul_orig;
       |  assign rd_rob2rt_o_GENI_vector_csr_vill = rd_rob2rt_o[GENI].vector_csr.vill;
       |  assign rd_rob2rt_o_GENI_vxsaturate = rd_rob2rt_o[GENI].vxsaturate;
+      |  assign rd_rob2rt_o_GENI_uop_pc = rd_rob2rt_o[GENI].uop_pc;
+      |  assign rd_rob2rt_o_GENI_last_uop_valid = rd_rob2rt_o[GENI].last_uop_valid;
       |""".stripMargin.replaceAll("GENI", i.toString)
     }
     coreInstantiation += """  assign trap_bits_pc = trap_data.pc;

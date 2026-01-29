@@ -131,8 +131,16 @@ struct CoreMiniAxi_tb : Sysc_tb {
 #endif
 #if (KP_enableRvv == true)
 #define RB_DEBUG_IO_DATA_WIDTH KP_rvvVlen
+#define RB_DEBUG_IO_VEC(x, y) \
+  sc_signal<bool> rb_inst_##x##_bits_vecWrites_##y##_valid; \
+  sc_signal<sc_bv<KP_rvvVlen>> rb_inst_##x##_bits_vecWrites_##y##_bits_data; \
+  sc_signal<sc_bv<5>> rb_inst_##x##_bits_vecWrites_##y##_bits_idx;
+#define RB_DEBUG_IO_VECS_8(x) \
+  RB_DEBUG_IO_VEC(x, 0) RB_DEBUG_IO_VEC(x, 1) RB_DEBUG_IO_VEC(x, 2) RB_DEBUG_IO_VEC(x, 3) \
+  RB_DEBUG_IO_VEC(x, 4) RB_DEBUG_IO_VEC(x, 5) RB_DEBUG_IO_VEC(x, 6) RB_DEBUG_IO_VEC(x, 7)
 #else
 #define RB_DEBUG_IO_DATA_WIDTH 32
+#define RB_DEBUG_IO_VECS_8(x)
 #endif
 #define RB_DEBUG_IO(x) \
   sc_signal<bool> rb_inst_##x##_valid; \
@@ -140,9 +148,12 @@ struct CoreMiniAxi_tb : Sysc_tb {
   sc_signal<sc_bv<32>> rb_inst_##x##_bits_inst; \
   sc_signal<sc_bv<KP_retirementBufferIdxWidth>> rb_inst_##x##_bits_idx; \
   sc_signal<sc_bv<RB_DEBUG_IO_DATA_WIDTH>> rb_inst_##x##_bits_data; \
-  sc_signal<bool> rb_inst_##x##_bits_trap;
+  sc_signal<bool> rb_inst_##x##_bits_trap; \
+  RB_DEBUG_IO_VECS_8(x)
   REPEAT(RB_DEBUG_IO, KP_retirementBufferSize);
 #undef RB_DEBUG_IO
+#undef RB_DEBUG_IO_VECS_8
+#undef RB_DEBUG_IO_VEC
 #undef RB_DEBUG_IO_DATA_WIDTH
   };
 

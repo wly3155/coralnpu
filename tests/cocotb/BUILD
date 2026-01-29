@@ -108,7 +108,7 @@ CORE_MINI_AXI_SIM_TESTCASES = [
 
 # BEGIN_TESTCASES_FOR_rvv_core_mini_axi_sim_cocotb
 RVV_CORE_MINI_AXI_SIM_TESTCASES = [
-    ("core_mini_axi_basic_write_read_memory", "large"),
+    ("core_mini_axi_basic_write_read_memory", "enormous"),
     "core_mini_axi_run_wfi_in_all_slots",
     "core_mini_axi_slow_bready",
     ("core_mini_axi_write_read_memory_stress_test", "medium"),
@@ -213,7 +213,7 @@ RVV_ASSEMBLY_TESTCASES = [
     "core_mini_vmsbf_test",
     "core_mini_vmsof_test",
     "core_mini_vmsif_test",
-    ("core_mini_vill_test", "small"),
+    ("core_mini_vill_test", "medium"),
     ("core_mini_vl_test", "small"),
     "vsetvl_test",
     "vslideup_test",
@@ -225,7 +225,7 @@ RVV_ASSEMBLY_TESTCASES = [
 
 # BEGIN_TESTCASES_FOR_rvv_load_store_test
 RVV_LOAD_STORE_TESTCASES = [
-    ("load_store_bits", "small"),
+    ("load_store_bits", "medium"),
     "load_store_whole_register_test",
     "load_unit_masked",
     "load_unit_all_vtypes_test",
@@ -233,9 +233,9 @@ RVV_LOAD_STORE_TESTCASES = [
     "load8_index8",
     "load8_index8_seg",
     "load8_index16",
-    "load8_index16_seg",
+    ("load8_index16_seg", "large"),
     "load8_index32",
-    "load8_index32_seg",
+    ("load8_index32_seg", "large"),
     "load8_seg_unit",
     ("load8_stride2_m1", "small"),
     ("load8_stride2_m1_partial", "small"),

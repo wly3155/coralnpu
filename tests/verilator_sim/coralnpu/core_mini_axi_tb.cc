@@ -164,15 +164,29 @@ void CoreMiniAxi_tb::Connect() {
   core_->io_debug_float_writeData_0_bits_data(debug_io_.float_writeData_0_bits_data);
   core_->io_debug_float_writeData_1_bits_data(debug_io_.float_writeData_1_bits_data);
 #endif
+#if (KP_enableRvv == true)
+#define BIND_RB_DEBUG_IO_VEC(x, y) \
+  core_->io_debug_rb_inst_##x##_bits_vecWrites_##y##_valid(debug_io_.rb_inst_##x##_bits_vecWrites_##y##_valid); \
+  core_->io_debug_rb_inst_##x##_bits_vecWrites_##y##_bits_data(debug_io_.rb_inst_##x##_bits_vecWrites_##y##_bits_data); \
+  core_->io_debug_rb_inst_##x##_bits_vecWrites_##y##_bits_idx(debug_io_.rb_inst_##x##_bits_vecWrites_##y##_bits_idx);
+#define BIND_RB_DEBUG_IO_VECS_8(x) \
+  BIND_RB_DEBUG_IO_VEC(x, 0) BIND_RB_DEBUG_IO_VEC(x, 1) BIND_RB_DEBUG_IO_VEC(x, 2) BIND_RB_DEBUG_IO_VEC(x, 3) \
+  BIND_RB_DEBUG_IO_VEC(x, 4) BIND_RB_DEBUG_IO_VEC(x, 5) BIND_RB_DEBUG_IO_VEC(x, 6) BIND_RB_DEBUG_IO_VEC(x, 7)
+#else
+#define BIND_RB_DEBUG_IO_VECS_8(x)
+#endif
 #define BIND_RB_DEBUG_IO(x) \
   core_->io_debug_rb_inst_##x##_valid(debug_io_.rb_inst_##x##_valid); \
   core_->io_debug_rb_inst_##x##_bits_pc(debug_io_.rb_inst_##x##_bits_pc); \
   core_->io_debug_rb_inst_##x##_bits_inst(debug_io_.rb_inst_##x##_bits_inst); \
   core_->io_debug_rb_inst_##x##_bits_idx(debug_io_.rb_inst_##x##_bits_idx); \
   core_->io_debug_rb_inst_##x##_bits_data(debug_io_.rb_inst_##x##_bits_data); \
-  core_->io_debug_rb_inst_##x##_bits_trap(debug_io_.rb_inst_##x##_bits_trap);
+  core_->io_debug_rb_inst_##x##_bits_trap(debug_io_.rb_inst_##x##_bits_trap); \
+  BIND_RB_DEBUG_IO_VECS_8(x)
   REPEAT(BIND_RB_DEBUG_IO, KP_retirementBufferSize);
 #undef BIND_RB_DEBUG_IO
+#undef BIND_RB_DEBUG_IO_VECS_8
+#undef BIND_RB_DEBUG_IO_VEC
 #if (KP_useDebugModule == true)
   core_->io_dm_req_valid(dm_io_.req_valid);
   core_->io_dm_req_ready(dm_io_.req_valid);
