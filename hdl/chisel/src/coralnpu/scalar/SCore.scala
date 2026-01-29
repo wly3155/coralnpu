@@ -440,13 +440,14 @@ class SCore(p: Parameters) extends Module {
   val floatIdle = if (p.enableFloat) {fRegfile.get.io.scoreboard === 0.U} else {true.B}
   val rvvIdle = if (p.enableRvv) {io.rvvcore.get.rvv_idle} else {true.B}
   // Scalar and float arithmetics don't actually trap, we're just trying to be precise here.
-  fault_manager.io.in.fetchFault := fetch.io.fault &&
+  val fetchFaultValid = fetch.io.fault.valid &&
       !isBranching &&  // Branches and jumps
       (regfile.io.scoreboard.regd === 0.U) &&  // Pending scalar operation
       floatIdle &&  // Pending float operation
       rvvIdle &&  // Could have vill
       !lsu.io.active &&  // Could fault
       !hasFetchedInstructions
+  fault_manager.io.in.fetchFault := MakeValid(fetchFaultValid, fetch.io.fault.bits)
 
   // ---------------------------------------------------------------------------
   // Fetch Bus
