@@ -283,14 +283,18 @@ def tflite_repos():
 def mpact_repos():
     http_archive(
         name = "com_google_mpact-riscv",
-        sha256 = "01dac9ff9e7ca6a2666bf3c881f12cb146298925658e75fa351cddf06633fb0a",
-        strip_prefix = "mpact-riscv-336067a7ee0a91c2c180b35f3423d664d9045cc2",
-        url = "https://github.com/google/mpact-riscv/archive/336067a7ee0a91c2c180b35f3423d664d9045cc2.tar.gz",
+        sha256 = "b88d38251c716cd8cb6e9dbdd73161074924a3d40de18873d714eef98ad5529f",
+        strip_prefix = "mpact-riscv-cd69512240fb2957be2771aeb71fd994bac7b247",
+        url = "https://github.com/google/mpact-riscv/archive/cd69512240fb2957be2771aeb71fd994bac7b247.tar.gz",
+        patches = [
+            "@coralnpu_hw//third_party:mpact-riscv-openat.patch",
+        ],
+        patch_args = ["-p1"],
     )
 
     http_archive(
         name = "coralnpu_mpact",
-        urls = ["https://github.com/google-coral/coralnpu-mpact/archive/430a8d14ad766388ef546a6449bf3a14b3b3f233.tar.gz"],
-        sha256 = "c9a38cfcba293398fc18c2b735b1831ebc99315184667c87f4d995f4933b2814",
-        strip_prefix = "coralnpu-mpact-430a8d14ad766388ef546a6449bf3a14b3b3f233",
+        urls = ["https://github.com/google-coral/coralnpu-mpact/archive/a1d219efd49a36b8744af29df23ab06dd6c021c6.zip"],
+        sha256 = "23cf70ac2ca31f9c56fc140959298524d5db2f003fe4fdfe3552081048cbf934",
+        strip_prefix = "coralnpu-mpact-a1d219efd49a36b8744af29df23ab06dd6c021c6",
     )

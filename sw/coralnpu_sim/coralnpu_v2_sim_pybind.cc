@@ -218,7 +218,9 @@ PYBIND11_MODULE(coralnpu_v2_sim_pybind, module) {
       .def_readwrite("lsu_access_ranges",
                      &CoralNPUV2SimulatorOptions::lsu_access_ranges)
       .def_readwrite("exit_on_ebreak",
-                     &CoralNPUV2SimulatorOptions::exit_on_ebreak);
+                     &CoralNPUV2SimulatorOptions::exit_on_ebreak)
+      .def_readwrite("semihost_htif",
+                     &CoralNPUV2SimulatorOptions::semihost_htif);
 
   py::class_<CoralNPUV2SimulatorPy>(module, "CoralNPUV2SimulatorPy")
       .def(py::init<const CoralNPUV2SimulatorOptions>())

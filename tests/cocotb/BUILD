@@ -398,7 +398,6 @@ coralnpu_v2_binary(
     srcs = [
         "align_test.cc",
     ],
-    semihosting = True,
 )
 
 # Generate WFI targets for each slot (for elf generation)

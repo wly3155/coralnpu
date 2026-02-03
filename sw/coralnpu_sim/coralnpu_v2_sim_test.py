@@ -128,6 +128,39 @@ class TestCoralNPUV2SimPybind(unittest.TestCase):
     cycle_count_after = self.sim.get_cycle_count()
     self.assertEqual(cycle_count_before, cycle_count_after, "Simulator failed to halt")
 
+  def test_htif_semihosting(self):
+    """Verifies HTIF semihosting functionality."""
+    htif_elf_path = self.r.Rlocation(
+        "coralnpu_hw/tests/verilator_sim/htif_semihosting_test.elf"
+    )
+    self.assertTrue(htif_elf_path is not None, "HTIF ELF not found")
+
+    # Initialize simulator with semihost_htif enabled
+    sim = CoralNPUV2Simulator(semihost_htif=True)
+    entry_point, _ = sim.get_elf_entry_and_symbol(htif_elf_path, [])
+    sim.load_program(htif_elf_path, entry_point)
+
+    # Run the simulator
+    sim.run()
+    sim.wait()
+
+    # If it finishes, it means EBREAK was hit (which semihosting uses for exit)
+    # or the simulation reached its end.
+    self.assertGreater(sim.get_cycle_count(), 0)
+
 
 if __name__ == "__main__":
-  unittest.main()
+  import sys
+  import os
+
+  # Bazel passes the test filter in the TESTBRIDGE_TEST_ONLY environment variable.
+  # If it's set, we can use it to filter the tests.
+  if "TESTBRIDGE_TEST_ONLY" in os.environ:
+    test_filter = os.environ["TESTBRIDGE_TEST_ONLY"]
+    # unittest.main expects the filter as a positional argument.
+    # We replace any '.' with '/' if it's a full path, but usually it's just Class.method
+    # which unittest handles if passed as a positional arg.
+    argv = [sys.argv[0], test_filter]
+    unittest.main(argv=argv)
+  else:
+    unittest.main()

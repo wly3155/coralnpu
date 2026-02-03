@@ -73,6 +73,10 @@ SECTIONS {
     } > DTCM
     PROVIDE (__tbss_size = SIZEOF (.tbss));
 
+    .htif : ALIGN(16) {
+      KEEP(*(.htif))
+    } > DTCM
+
     .data : ALIGN(16) {
       __data_start__ = .;
       __data_start = .;

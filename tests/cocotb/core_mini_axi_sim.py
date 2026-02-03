@@ -158,7 +158,7 @@ async def core_mini_axi_master_write_alignment(dut):
     entry_point = await core_mini_axi.load_elf(f)
     await core_mini_axi.execute_from(entry_point)
 
-    await core_mini_axi.wait_for_halted_semihost(f)
+    await core_mini_axi.wait_for_halted()
     assert core_mini_axi.dut.io_fault.value == 0
 
 @cocotb.test()

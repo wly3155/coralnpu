@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <map>
 #include <optional>
 #include <queue>
 #include <vector>
@@ -43,6 +44,7 @@
 #include "tests/test-modules/signals-axi.h"
 /* clang-format on */
 
+#include "soc/interconnect/iconnect.h"
 #include "tests/verilator_sim/util.h"
 #define MODEL_HEADER_SUFFIX .h
 #define MODEL_HEADER STRINGIFY(VERILATOR_MODEL MODEL_HEADER_SUFFIX)
@@ -56,6 +58,7 @@
 struct CoreMiniAxi_tb : Sysc_tb {
  public:
   static const char* kCoreMiniAxiModelName;
+  typedef iconnect<2, 1> TlmMux;
 
   struct DebugIO {
     sc_signal<sc_bv<4>> en;
@@ -206,6 +209,8 @@ struct CoreMiniAxi_tb : Sysc_tb {
   void EnqueueTransactionSync(std::vector<DataTransfer> transfers);
   void EnqueueTransactionAsync(std::vector<DataTransfer> transfers);
 
+  void tohost_reader_thread();
+
  protected:
   void posedge() override;
 
@@ -218,6 +223,9 @@ struct CoreMiniAxi_tb : Sysc_tb {
   tlm2axi_bridge<KP_axi2AddrBits, KP_lsuDataBits, KP_axi2IdBits, 8, 1, 0, 0, 0,
                  0, 0>
       tlm2axi_bridge_;
+  TlmMux tlm_mux_;
+  tlm_utils::simple_initiator_socket<CoreMiniAxi_tb> tohost_initiator_socket_;
+
   axi2tlm_bridge<KP_axi2AddrBits, KP_lsuDataBits, KP_axi2IdBits, 8, 1, 0, 0, 0,
                  0, 0>
       axi2tlm_bridge_;
@@ -237,7 +245,7 @@ struct CoreMiniAxi_tb : Sysc_tb {
 
   std::unique_ptr<TrafficDesc> wrap_transfer_;
   std::unique_ptr<TrafficDesc> narrow_transfer_;
-  bool transfer_in_progress_;
+  bool transfer_in_progress_ = false;
 
   absl::Mutex transfer_queue_mtx_;
   absl::CondVar transfer_queue_cv_;
@@ -247,11 +255,21 @@ struct CoreMiniAxi_tb : Sysc_tb {
 
   static CoreMiniAxi_tb* singleton_;
   static CoreMiniAxi_tb* getSingleton() { return singleton_; }
+#ifdef HIGHMEM_RTL
+  static constexpr uint32_t csr_addr_ = 0x200000;
+#else
   static constexpr uint32_t csr_addr_ = 0x30000;
+#endif
   std::unique_ptr<VERILATOR_MODEL> core_;
 
   std::optional<uint32_t> tohost_addr_;
+  std::optional<uint32_t> tohost_ready_addr_;
   std::optional<uint32_t> fromhost_addr_;
+  std::optional<uint32_t> fromhost_ready_addr_;
+  std::map<uint64_t, int> fd_map_;
+
+  sc_event tohost_read_event_;
+  uint32_t tohost_read_addr_;
 
   bool instr_trace_ = false;
   InstructionTrace tracer_;

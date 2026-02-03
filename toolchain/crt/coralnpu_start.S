@@ -26,6 +26,7 @@
         .section ._init
         .balign 4
         .global _start
+        .weak _start
         .type _start, @function
 _start:
         csrw minstret, 0

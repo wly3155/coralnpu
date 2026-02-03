@@ -20,8 +20,9 @@ import numpy as np
 class CoralNPUV2Simulator:
   """Wrapper for CoralNPUV2SimulatorPy providing helper methods."""
 
-  def __init__(self, highmem_ld=False, exit_on_ebreak=True):
+  def __init__(self, highmem_ld=True, exit_on_ebreak=True, semihost_htif=True):
     self.options = coralnpu_v2_sim_pybind.CoralNPUV2SimulatorOptions()
+    self.options.semihost_htif = semihost_htif
     if highmem_ld:
       self.dtcm_range = self._create_lsu_range(0x100000, 0x100000)
       self.extmem_range = self._create_lsu_range(0x20000000, 0x400000)

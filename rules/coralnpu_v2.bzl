@@ -241,7 +241,9 @@ def coralnpu_v2_binary(
     """
 
     deps = kwargs.pop("deps", [])
-    if not semihosting:
+    if semihosting:
+        deps.append("//toolchain/crt:crt_semihosting")
+    else:
         deps.append("//toolchain/crt")
 
 # See cache_size_param/hw/coralnpu/toolchain/BUILD.bazel for default linker script.
