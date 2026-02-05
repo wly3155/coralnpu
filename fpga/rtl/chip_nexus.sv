@@ -14,7 +14,7 @@
 
 module chip_nexus
     #(parameter MemInitFile = "",
-      parameter int ClockFrequencyMhz = 80)
+      parameter int ClockFrequencyMhz = 50)
     (input clk_p_i,
      input clk_n_i,
      input rst_ni,
@@ -40,6 +40,19 @@ module chip_nexus
      output logic io_fault,
      output logic io_ddr_mem_axi_aw_ready,
      output logic io_ddr_mem_axi_ar_ready,
+     input ISP_DVP_D0,
+     input ISP_DVP_D1,
+     input ISP_DVP_D2,
+     input ISP_DVP_D3,
+     input ISP_DVP_D4,
+     input ISP_DVP_D5,
+     input ISP_DVP_D6,
+     input ISP_DVP_D7,
+     input ISP_DVP_PCLK,
+     input ISP_DVP_HSYNC,
+     input ISP_DVP_VSYNC,
+     input CAM_INT,           // Unused
+     output logic CAM_TRIG,   // Tied low, route to GPIO or logic to use as alternative to I2C trigger
      output logic c0_ddr4_act_n,
      output logic [16:0] c0_ddr4_adr,
      output logic [1:0] c0_ddr4_ba,
@@ -69,7 +82,7 @@ module chip_nexus
   logic clk;
   logic rst_n;
   logic clk_48MHz;
-  logic clk_aon;
+  logic clk_isp;
   logic clk_spim;
   logic locked;
   logic eos;
@@ -322,7 +335,7 @@ module chip_nexus
                .srst_ni(rst_ni),
                .clk_main_o(clk),
                .clk_48MHz_o(clk_48MHz),
-               .clk_aon_o(clk_aon),
+               .clk_isp_o(clk_isp),
                .clk_spim_o(clk_spim),
                .rst_no(rst_n),
                .locked_o(locked));
@@ -355,6 +368,7 @@ module chip_nexus
 
   coralnpu_soc i_coralnpu_soc (
     .clk_i(clk),
+    .clk_isp_i(clk_isp), // Added to support slower clock for isp, but it's very slow (250kHz)
     .rst_ni(rst_n),
     .spi_clk_i(spi_clk_i),
     .spi_csb_i(spi_csb_i),
@@ -375,6 +389,19 @@ module chip_nexus
     .gpio_o(gpio_out),
     .gpio_en_o(gpio_en),
     .gpio_i(gpio_in),
+    .ISP_DVP_D0(ISP_DVP_D0),
+    .ISP_DVP_D1(ISP_DVP_D1),
+    .ISP_DVP_D2(ISP_DVP_D2),
+    .ISP_DVP_D3(ISP_DVP_D3),
+    .ISP_DVP_D4(ISP_DVP_D4),
+    .ISP_DVP_D5(ISP_DVP_D5),
+    .ISP_DVP_D6(ISP_DVP_D6),
+    .ISP_DVP_D7(ISP_DVP_D7),
+    .ISP_DVP_PCLK(ISP_DVP_PCLK),
+    .ISP_DVP_HSYNC(ISP_DVP_HSYNC),
+    .ISP_DVP_VSYNC(ISP_DVP_VSYNC),
+    .CAM_INT(CAM_INT),
+    .CAM_TRIG(CAM_TRIG),
     .scanmode_i('0),
     .uart_sideband_i(uart_sideband_i),
     .uart_sideband_o(uart_sideband_o),

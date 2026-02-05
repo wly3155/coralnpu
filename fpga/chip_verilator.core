@@ -44,7 +44,7 @@ parameters:
   ClockFrequencyMhz:
     datatype: int
     description: "Target clock frequency in MHz."
-    default: 80
+    default: 50
     paramtype: vlogparam
   MemInitFile:
     datatype: str

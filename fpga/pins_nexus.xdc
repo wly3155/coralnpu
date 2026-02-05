@@ -17,6 +17,7 @@ create_clock -period 10.00 -name sys_clk_pin -waveform {0 5} [get_ports clk_p_i]
 set_property -dict { PACKAGE_PIN U13 IOSTANDARD DIFF_SSTL18_I } [get_ports { clk_p_i }];
 set_property -dict { PACKAGE_PIN T13 IOSTANDARD DIFF_SSTL18_I } [get_ports { clk_n_i }];
 create_clock -period 6.4 -name c0_sys_clk_p [get_ports c0_sys_clk_p]
+create_clock -period 200.00 -name ISP_DVP_PCLK -waveform {0 100.0} [get_ports ISP_DVP_PCLK]; # 5MHz camera clock
 
 # Generated Clocks
 create_generated_clock -name clk_main [get_pin i_clkgen/i_clkgen/pll/CLKOUT0]
@@ -70,13 +71,34 @@ set_property -dict { PACKAGE_PIN L38 DRIVE 8 IOSTANDARD LVCMOS12 } [get_ports { 
 set_property -dict { PACKAGE_PIN L36 DRIVE 8 IOSTANDARD LVCMOS12 } [get_ports { ddr_ui_clk }];
 set_property -dict { PACKAGE_PIN K36 DRIVE 8 IOSTANDARD LVCMOS12 } [get_ports { ddr_ui_clk_sync_rst }];
 
+## Parallel Camera Nexus
+set_property -dict { PACKAGE_PIN AK29  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D0 }];    #PMOD1_7_FPGA          -ISP_DVP_D0
+set_property -dict { PACKAGE_PIN AL29  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D1 }];    #PMOD1_1_FPGA          -ISP_DVP_D1
+set_property -dict { PACKAGE_PIN AL31  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D2 }];    #PMOD1_8_FPGA          -ISP_DVP_D2
+set_property -dict { PACKAGE_PIN AL32  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D3 }];    #PMOD1_2_FPGA          -ISP_DVP_D3
+set_property -dict { PACKAGE_PIN AL30  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D4 }];    #PMOD1_9_FPGA          -ISP_DVP_D4
+set_property -dict { PACKAGE_PIN AM29  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D5 }];    #PMOD1_3_FPGA          -ISP_DVP_D5
+set_property -dict { PACKAGE_PIN AM33  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D6 }];    #PMOD1_10_FPGA         -ISP_DVP_D6
+set_property -dict { PACKAGE_PIN AM32  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_D7 }];    #PMOD1_4_FPGA          -ISP_DVP_D7
+set_property -dict { PACKAGE_PIN AN33  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_PCLK }];  #PMOD2_1_FPGA          -ISP_DVP_PCLK
+#set_property -dict { PACKAGE_PIN AN34  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_MCLK }]; #PMOD2_7_FPGA          -ISP_DVP_MCLK  # UNUSED (using camera built in clock)
+set_property -dict { PACKAGE_PIN AM31  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_VSYNC }]; #PMOD2_2_FPGA          -ISP_DVP_VSYNC
+set_property -dict { PACKAGE_PIN AP33  IOSTANDARD LVCMOS18 } [get_ports { ISP_DVP_HSYNC }]; #PMOD2_8_FPGA          -ISP_DVP_HSYNC
+set_property -dict { PACKAGE_PIN AT36  IOSTANDARD LVCMOS18 } [get_ports { CAM_INT }];       #PMOD2_4_FPGA          -CAM_INT
+set_property -dict { PACKAGE_PIN AT37  IOSTANDARD LVCMOS18 } [get_ports { CAM_TRIG }];      #PMOD2_10_FPGA         -CAM_TRIG     # UNUSED (I2C trigger used in past)
+
+# Bypass sub-optimal clock routing error for slow PCLK, because AN33 used for cam PCLK does not have clock resources
+# Vivado does not like that
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets ISP_DVP_PCLK_IBUF_inst/O]
+
 # Asynchronous Clock Groups
 # Define all primary, asynchronous clocks
 set_clock_groups -asynchronous \
   -group [get_clocks -include_generated_clocks sys_clk_pin] \
   -group [get_clocks -include_generated_clocks c0_sys_clk_p] \
   -group [get_clocks spi_clk_i] \
-  -group [get_clocks jtag_tck_i]
+  -group [get_clocks jtag_tck_i] \
+  -group [get_clocks ISP_DVP_PCLK]
 
 # SPI Probe Outputs (PMOD3) -> Reassigned to SpiMaster
 # PMOD4: 1=AY38, 2=BA39, 3=AW35, 4=AY35, 7=AY40, 8=BA40, 9=AW36, 10=BC40
@@ -93,9 +115,4 @@ set_property -dict { PACKAGE_PIN AY40 IOSTANDARD LVCMOS18 } [get_ports { spim_sc
 set_property -dict { PACKAGE_PIN BA40 IOSTANDARD LVCMOS18 } [get_ports { spim_csb_o }];  # PMOD4_8 (CS)
 set_property -dict { PACKAGE_PIN AW36 IOSTANDARD LVCMOS18 } [get_ports { gpio[2] }];     # PMOD4_9
 set_property -dict { PACKAGE_PIN BC40 IOSTANDARD LVCMOS18 } [get_ports { gpio[3] }];     # PMOD4_10
-
-set_property -dict { PACKAGE_PIN AU40 IOSTANDARD LVCMOS18 } [get_ports { spi_clk_probe_o }];
-set_property -dict { PACKAGE_PIN AV40 IOSTANDARD LVCMOS18 } [get_ports { spi_csb_probe_o }];
-set_property -dict { PACKAGE_PIN AW40 IOSTANDARD LVCMOS18 } [get_ports { spi_mosi_probe_o }];
-set_property -dict { PACKAGE_PIN AY39 IOSTANDARD LVCMOS18 } [get_ports { spi_miso_probe_o }];
 

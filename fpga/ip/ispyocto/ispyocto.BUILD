@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,28 @@
 
 package(default_visibility = ["//visibility:public"])
 
-load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
-
-coralnpu_v2_binary(
-    name = "coralnpu_v2_hello_world_add_floats",
-    srcs = ["hello_world_add_floats.cc"],
+filegroup(
+    name = "ispyocto_rtl_files",
+    srcs = glob(
+        ["ispyocto/**"],
+        exclude = [
+            "ispyocto/dv/**",
+            "ispyocto/lint/**",
+            "**/*.core",
+        ],
+    ),
 )
 
-coralnpu_v2_binary(
-    name = "coralnpu_v2_rvv_add_intrinsic",
-    srcs = ["rvv_add_intrinsic.cc"],
+filegroup(
+    name = "ispyocto_core",
+    srcs = [
+        "ispyocto.core",
+    ],
 )
 
+filegroup(
+    name = "rtl_files",
+    srcs = [
+        ":ispyocto_rtl_files",
+    ],
+)

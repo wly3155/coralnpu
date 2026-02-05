@@ -5,6 +5,9 @@ import bus._
 import coralnpu.Parameters
 import coralnpu.MemorySize
 import coralnpu.CoreTlul
+import common.MuBi4
+
+
 
 /**
  * This is the IO bundle for the unified Chisel subsystem.
@@ -30,8 +33,10 @@ class CoralNPUChiselSubsystemIO(val hostParams: Seq[bus.TLULParameters], val dev
   // These devices are handled specially within the subsystem (e.g., converted to AXI)
   // and should not have external TileLink ports created for them.
   val speciallyHandledDevices = Set("ddr_ctrl", "ddr_mem")
+  // Note: SpeciallyHandledHosts modified to matches the XBAR port names to accomodate multiple hosts in one IP
+  val speciallyHandledHosts = Set("ispyocto_m1", "ispyocto_m2")
 
-  val externalHostPorts = cfg.hosts(enableTestHarness).filterNot(h => internalHosts.contains(h.name))
+  val externalHostPorts = cfg.hosts(enableTestHarness).filterNot(h => internalHosts.contains(h.name) || speciallyHandledHosts.contains(h.name))
   val externalDevicePorts = cfg.devices.filterNot(d =>
     internalDevices.contains(d.name) || speciallyHandledDevices.contains(d.name)
   )
@@ -64,6 +69,16 @@ class CoralNPUChiselSubsystemIO(val hostParams: Seq[bus.TLULParameters], val dev
   // The output from the Xbar is 128-bits / 6-bits, and we instantiate
   // width and TL->AXI bridges elsewhere to adapt the interfaces.
   val ddr_mem_axi = new AxiMasterIO(32, 256, 1)
+
+  // ISP Ports (Manual exposure for FPGA integration)
+  // Control Interface (Slave): CPU -> Xbar -> ISP
+  // Using generic Host2Device bundle
+  val ispyocto_ctrl = new OpenTitanTileLink.Host2Device(deviceParams(cfg.devices.indexWhere(_.name == "ispyocto_ctrl")))
+
+  // Master Interfaces (Master): ISP -> AXI2TLUL -> Xbar -> Memory
+  // Need Flipped AxiMasterIO because Subsystem acts as Slave to ISP
+  val ispyocto_m1_axi = Flipped(new AxiMasterIO(32, 64, 4))
+  val ispyocto_m2_axi = Flipped(new AxiMasterIO(32, 64, 4))
 }
 
 import chisel3.experimental.BaseModule
@@ -157,17 +172,24 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
           clint_p.lsuDataBits = 32
           clint_p.axi2IdBits = 10
           Module(new bus.Clint(clint_p))
+        case p: IspParameters => null // Handled externally
       }
     }
 
-    val instantiatedModules = SoCChiselConfig(itcmSize, dtcmSize).modules.map {
+    val instantiatedModules = SoCChiselConfig(itcmSize, dtcmSize).modules.flatMap {
       config =>
       val m = instantiateModule(config)
-      m.suggestName(config.name)
-      config.name -> m
+      if (m != null) {
+        m.suggestName(config.name)
+        Some(config.name -> m)
+      } else {
+        None
+      }
     }.toMap
 
     // --- Dynamic Wiring ---
+    // Note: SpeciallyHandledHosts modified to matches the XBAR port names to accomodate multiple hosts in one IP
+    val speciallyHandledHosts = Set("ispyocto_m1", "ispyocto_m2")
 
     // Create a map of all ports on all instantiated modules for easy lookup.
     val modulePorts = mutable.Map[String, Data]()
@@ -187,10 +209,12 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
     }
 
     // Connect all modules based on the configuration.
-    SoCChiselConfig(itcmSize, dtcmSize).modules.foreach {
+    SoCChiselConfig(itcmSize, dtcmSize).modules.filter(c => instantiatedModules.contains(c.name)).foreach {
       config =>
       config.hostConnections.foreach { case (modulePort, xbarPort) =>
-        modulePorts(s"${config.name}.$modulePort") <> xbar.io.hosts(xbarPort)
+        if (!speciallyHandledHosts.contains(xbarPort)) {
+          modulePorts(s"${config.name}.$modulePort") <> xbar.io.hosts(xbarPort)
+        }
       }
       config.deviceConnections.foreach { case (modulePort, xbarPort) =>
         xbar.io.devices(xbarPort) <> modulePorts(s"${config.name}.$modulePort")
@@ -283,6 +307,53 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
     ddr_mem_axi_conv.io.tl_a <> ddr_mem_bridge.io.tl_d.a
     ddr_mem_bridge.io.tl_d.d <> ddr_mem_axi_conv.io.tl_d
     io.ddr_mem_axi <> ddr_mem_axi_conv.io.axi
+
+    // --- ISP Integration (Manual Wiring) ---
+    // Wired to external IOs instead of internal module.
+
+    // 1. Control Interface (TLUL Slave)
+    // Map Config Port ["ispyocto_ctrl"] -> IO
+    io.ispyocto_ctrl <> xbar.io.devices("ispyocto_ctrl")
+
+    // 2. AXI Master 1 -> TLUL Host
+    // Map IO [AXI] -> Bridge -> Xbar Port ["ispyocto_m1"]
+    val ispAsyncPorts = io.async_ports_hosts("isp_axi_clk").asInstanceOf[ClockResetBundle]
+    val m1HostName = "ispyocto_m1"
+    val ispAxiParams = new Parameters
+    ispAxiParams.lsuDataBits = 64
+
+    val axibm1 = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
+      Module(new Axi2TLUL(ispAxiParams, () => new OpenTitanTileLink_A_User, () => new OpenTitanTileLink_D_User))
+    }
+    val axi2tlul_tlul_p = new TLULParameters(ispAxiParams)
+    val axibm1_req_intg_gen = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
+      Module(new RequestIntegrityGen(axi2tlul_tlul_p))
+    }
+    axibm1.io.axi <> io.ispyocto_m1_axi
+    xbar.io.hosts(m1HostName).a.valid := axibm1.io.tl_a.valid
+    axibm1.io.tl_a.ready := xbar.io.hosts(m1HostName).a.ready
+    axibm1_req_intg_gen.io.a_i := axibm1.io.tl_a.bits
+    axibm1_req_intg_gen.io.a_i.user.instr_type := MuBi4.False.asUInt
+    xbar.io.hosts(m1HostName).a.bits := axibm1_req_intg_gen.io.a_o
+    axibm1.io.tl_d <> xbar.io.hosts(m1HostName).d
+
+    // 3. AXI Master 2 -> TLUL Host
+    // Map IO [AXI] -> Bridge -> Xbar Port ["ispyocto_m2"]
+    val m2HostName = "ispyocto_m2"
+
+    val axibm2 = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
+      Module(new Axi2TLUL(ispAxiParams, () => new OpenTitanTileLink_A_User, () => new OpenTitanTileLink_D_User))
+    }
+    val axibm2_req_intg_gen = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
+      Module(new RequestIntegrityGen(axi2tlul_tlul_p))
+    }
+    axibm2.io.axi <> io.ispyocto_m2_axi
+    xbar.io.hosts(m2HostName).a.valid := axibm2.io.tl_a.valid
+    axibm2.io.tl_a.ready := xbar.io.hosts(m2HostName).a.ready
+    axibm2_req_intg_gen.io.a_i := axibm2.io.tl_a.bits
+    axibm2_req_intg_gen.io.a_i.user.instr_type := MuBi4.False.asUInt
+    xbar.io.hosts(m2HostName).a.bits := axibm2_req_intg_gen.io.a_o
+    axibm2.io.tl_d <> xbar.io.hosts(m2HostName).d
   }
 }
 

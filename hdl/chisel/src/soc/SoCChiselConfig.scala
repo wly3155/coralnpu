@@ -69,6 +69,11 @@ case class DmaParameters(
 
 /** Parameters for the CLINT module. */
 case object ClintParameters extends ModuleParameters
+/** Parameters for the IspWrapper module. */
+case class IspParameters(
+  // Add specific params here if needed, for nothing just empty or dummy
+  dummy: Int = 0
+) extends ModuleParameters
 
 
 /**
@@ -156,6 +161,20 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         ExternalPort("spi_csb",  Bool, In,  "io.spi.csb"),
         ExternalPort("spi_mosi", Bool, In,  "io.spi.mosi"),
         ExternalPort("spi_miso", Bool, Out, "io.spi.miso")
+      ),
+    ),
+    ChiselModuleConfig(
+      name = "ispyocto",
+      moduleClass = "ip.ispyocto.IspWrapper",
+      params = IspParameters(),
+      hostConnections = Map(
+        "io.m1_tl_h" -> "ispyocto_m1",
+        "io.m2_tl_h" -> "ispyocto_m2"
+      ),
+      deviceConnections = Map(
+        "io.tl_host" -> "ispyocto_ctrl"
+      ),
+      externalPorts = Seq(
       )
     ),
     ChiselModuleConfig(

@@ -82,6 +82,7 @@ chisel_library(
         ":crossbar_config_lib",
         ":coralnpu_xbar_lib",
         "//hdl/chisel/src/bus",
+        "//hdl/chisel/src/common:library",
         "//hdl/chisel/src/coralnpu",
         "//hdl/chisel/src/coralnpu:coralnpu_params",
     ],
