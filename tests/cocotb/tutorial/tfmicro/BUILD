@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
 load("//rules:coco_tb.bzl", "cocotb_test_suite", "verilator_cocotb_model")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
 load("//rules:utils.bzl", "generate_cc_arrays")
@@ -32,8 +33,9 @@ coralnpu_v2_binary(
         "run_mobilenet.cc",
     ],
     hdrs = ["mobilenet_v1_025_partial_layers.h"],
-    itcm_size_kbytes = 1024,  # Highmem
     dtcm_size_kbytes = 1024,  # Highmem
+    itcm_size_kbytes = 1024,  # Highmem
+    visibility = ["//visibility:public"],
     deps = [
         "//sw/opt/litert-micro:depthwise_conv",
         "@tflite_micro//tensorflow/lite/micro:micro_framework",
@@ -42,7 +44,6 @@ coralnpu_v2_binary(
         "@tflite_micro//tensorflow/lite/micro:op_resolvers",
         "@tflite_micro//tensorflow/lite/micro:system_setup",
     ],
-    visibility = ["//visibility:public"]
 )
 
 generate_cc_arrays(
@@ -73,7 +74,7 @@ cocotb_test_suite(
     testcases_vname = "RUN_MOBILENET_TEST",
     tests_kwargs = {
         "waves": False,
-        "tags" : ["manual"],
+        "tags": ["manual"],
         "hdl_toplevel": "RvvCoreMiniHighmemAxi",
         "seed": "42",
         "size": "enormous",
@@ -98,11 +99,22 @@ cocotb_test_suite(
 coralnpu_v2_binary(
     name = "depthwise_conv_test",
     srcs = ["depthwise_conv_test.cc"],
-    itcm_size_kbytes = 1024,  # Highmem
     dtcm_size_kbytes = 1024,  # Highmem
+    itcm_size_kbytes = 1024,  # Highmem
     deps = [
         "//sw/opt/litert-micro:depthwise_conv",
-        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base"
+        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
+    ],
+)
+
+coralnpu_v2_binary(
+    name = "conv2d_test",
+    srcs = ["conv2d_test.cc"],
+    dtcm_size_kbytes = 1024,  # Highmem
+    itcm_size_kbytes = 1024,  # Highmem
+    deps = [
+        "//sw/opt/litert-micro:conv",
+        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
     ],
 )
 
@@ -155,4 +167,42 @@ py_binary(
         "@bazel_tools//tools/python/runfiles",
         requirement("numpy"),
     ],
+)
+
+cocotb_test_suite(
+    name = "cocotb_conv2d",
+    simulators = [
+        "verilator",
+        "vcs",
+    ],
+    testcases = [
+        "test_conv2d_4x1_h2w2",
+        "test_conv2d_9x2",
+        "test_conv2d_16x1",
+        ("test_conv2d_16x16", "large"),
+        ("test_conv2d_16x16_h2w8", "large"),
+        ("test_conv2d_16x4_h8w8", "large"),
+        ("test_conv2d_16x4_h8w8_s2", "enormous"),
+    ],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "RvvCoreMiniHighmemAxi",
+        "size": "enormous",
+        "default_testcase_size": "medium",
+        "test_module": ["cocotb_conv2d.py"],
+        "deps": [
+            "//coralnpu_test_utils:core_mini_axi_sim_interface",
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@rules_python//python/runfiles",
+        ],
+        "data": ["conv2d_test.elf"],
+    },
+    vcs_build_args = VCS_BUILD_ARGS,
+    vcs_data = glob(["**/*.elf"]) + [
+        "//tests/cocotb:coverage_exclude.cfg",
+    ],
+    vcs_defines = VCS_DEFINES,
+    vcs_test_args = VCS_TEST_ARGS,
+    vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
+    verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
 )

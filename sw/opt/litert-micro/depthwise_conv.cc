@@ -21,6 +21,7 @@
 #include <cstdlib>
 
 #include "sw/opt/litert-micro/accumulator_util.h"
+#include "sw/opt/litert-micro/memory_util.h"
 #include "sw/opt/rvv_opt.h"
 #include "tensorflow/lite/kernels/kernel_util.h"
 #include "tensorflow/lite/micro/kernels/kernel_util.h"
@@ -48,20 +49,6 @@ using tflite::micro::GetTensorShape;
 namespace {
 // TODO(davidgao): move away?
 inline int idiv_ceil(int x, int y) { return (x + y - 1) / y; }
-
-// TODO(davidgao): move away and share these with other kernels
-struct AlignedFree {
-  void operator()(void* ptr) const { std::free(ptr); }
-};
-
-template <typename T>
-using aligned_array = std::unique_ptr<T[], AlignedFree>;
-
-template <typename T>
-aligned_array<T> make_aligned_array(size_t alignment, size_t nmemb) {
-  return aligned_array<T>(
-      reinterpret_cast<T*>(aligned_alloc(alignment, sizeof(T) * nmemb)));
-}
 
 void DepthwiseConvPerChannelPatch(
     const DepthwiseParams& params, const int32_t* output_multiplier,
@@ -424,16 +411,16 @@ void DepthwiseConvPerChannel(
   TFLITE_DCHECK_EQ(bias_shape.FlatSize(), out_d);
 
   // Copy filter and bias to dtcm.
-  auto f_data_copy = make_aligned_array<int8_t>(16, f_shape.FlatSize());
+  // Copy filter and bias to dtcm.
+  auto f_data_copy = make_aligned_array<int8_t>(16, f_shape.FlatSize(), f_data);
   // TODO(davidgao): if allocation fails, don't copy, use orig
   TFLITE_DCHECK_NE(f_data_copy, nullptr);
-  Memcpy(f_data_copy.get(), f_data, sizeof(int8_t) * f_shape.FlatSize());
+
   aligned_array<int32_t> bias_data_copy;
   if (bias_data) {
-    bias_data_copy = make_aligned_array<int32_t>(16, out_d);
+    bias_data_copy = make_aligned_array<int32_t>(16, out_d, bias_data);
     // TODO(davidgao): if allocation fails, don't copy, use orig
     TFLITE_DCHECK_NE(bias_data_copy, nullptr);
-    Memcpy(bias_data_copy.get(), bias_data, sizeof(int32_t) * out_d);
   }
 
   // Shifting from quantization params.
