@@ -666,6 +666,7 @@ template_rule(
     vopts = [
         "-DUSE_GENERIC",
         # RVV
+        "-DTB_SUPPORT",
         "-Wno-WIDTH",
         "-Wno-CASEINCOMPLETE",
         "-Wno-LATCH",
