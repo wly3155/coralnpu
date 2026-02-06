@@ -72,7 +72,12 @@ set_clock_groups -asynchronous \
 set_property -dict { PACKAGE_PIN AY38 IOSTANDARD LVCMOS18 } [get_ports { spim_mosi_o }]; # PMOD4_1 (D0)
 set_property -dict { PACKAGE_PIN BA39 IOSTANDARD LVCMOS18 } [get_ports { spim_miso_i }]; # PMOD4_2 (D1)
 set_property -dict { PACKAGE_PIN AW35 IOSTANDARD LVCMOS18 } [get_ports { gpio[0] }];     # PMOD4_3 (D2)
-set_property -dict { PACKAGE_PIN AY35 IOSTANDARD LVCMOS18 } [get_ports { gpio[1] }];     # PMOD4_4 (D3)
+set_property -dict { PACKAGE_PIN AY35 IOSTANDARD LVCMOS18 } [get_ports { gpio[1] }];     # PMOD4_3 (D3)
+
+# I2C (PMOD2)
+set_property -dict { PACKAGE_PIN AR35 IOSTANDARD LVCMOS18 } [get_ports { i2c_scl }];     # PMOD2_9
+set_property -dict { PACKAGE_PIN AT35 IOSTANDARD LVCMOS18 } [get_ports { i2c_sda }];     # PMOD2_3
+
 set_property -dict { PACKAGE_PIN AY40 IOSTANDARD LVCMOS18 } [get_ports { spim_sclk_o }]; # PMOD4_7 (CLK)
 set_property -dict { PACKAGE_PIN BA40 IOSTANDARD LVCMOS18 } [get_ports { spim_csb_o }];  # PMOD4_8 (CS)
 set_property -dict { PACKAGE_PIN AW36 IOSTANDARD LVCMOS18 } [get_ports { gpio[2] }];     # PMOD4_9

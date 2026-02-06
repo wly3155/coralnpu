@@ -29,6 +29,8 @@ module chip_nexus
      inout wire [3:0] gpio,
      output [1 : 0] uart_tx_o,
      input [1 : 0] uart_rx_i,
+     inout wire i2c_scl,
+     inout wire i2c_sda,
      output logic io_halted,
      output logic io_fault,
      output logic io_ddr_mem_axi_aw_ready,
@@ -123,6 +125,12 @@ module chip_nexus
     end
   endgenerate
   assign gpio_in[7:4] = 4'b0;
+
+  logic scl_in, scl_out, scl_en;
+  logic sda_in, sda_out, sda_en;
+
+  IOBUF i_scl_iobuf (.O(scl_in), .IO(i2c_scl), .I(scl_out), .T(~scl_en));
+  IOBUF i_sda_iobuf (.O(sda_in), .IO(i2c_sda), .I(sda_out), .T(~sda_en));
 
   assign ddr_cal_complete_o = c0_init_calib_complete;
   logic dbg_clk;
@@ -358,6 +366,12 @@ module chip_nexus
     .scanmode_i('0),
     .uart_sideband_i(uart_sideband_i),
     .uart_sideband_o(uart_sideband_o),
+    .scl_i(scl_in),
+    .scl_o(scl_out),
+    .scl_en_o(scl_en),
+    .sda_i(sda_in),
+    .sda_o(sda_out),
+    .sda_en_o(sda_en),
     .io_halted(io_halted),
     .io_fault(io_fault),
     .ddr_clk_i(c0_ddr4_ui_clk),

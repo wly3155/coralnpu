@@ -14,6 +14,7 @@ filesets:
       - lowrisc:tlul:adapter_sram
       - coralnpuv2:ip:sram:0.1
       - coralnpuv2:ip:coralnpu_tlul:0.1
+      - coralnpuv2:ip:i2c_master:0.1
     files:
       - rtl/coralnpu_soc.sv
     file_type: systemVerilogSource

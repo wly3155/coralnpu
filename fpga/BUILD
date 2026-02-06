@@ -29,6 +29,7 @@ filegroup(
         "//fpga/ip/spi_dpi_master:rtl_files",
         "//fpga/ip/display_dpi:rtl_files",
         "//fpga/ip/gpio_dpi:rtl_files",
+        "//fpga/ip/i2c_master:rtl_files",
         "//fpga/ip/coralnpu_tlul:rtl_files",
         "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
         "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
@@ -109,6 +110,22 @@ coralnpu_v2_binary(
     deps = [":uart"],
 )
 
+coralnpu_v2_binary(
+    name = "i2c_camera_test",
+    srcs = ["sw/i2c_camera_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
+)
+
+coralnpu_v2_binary(
+    name = "i2c_camera_test_highmem",
+    srcs = ["sw/i2c_camera_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    itcm_size_kbytes = 1024,
+    dtcm_size_kbytes = 1024,
+    deps = [":uart"],
+)
+
 filegroup(
     name = "add_uint32_m1_bin",
     srcs = [":add_uint32_m1"],
@@ -156,6 +173,7 @@ fusesoc_build(
     ],
     cores = CORALNPU_SOC_CORES + [
         ":chip_verilator.core",
+        "//fpga/ip/i2c_master:i2c_master.core",
         "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
         "//fpga/ip/display_dpi:display_dpi.core",
@@ -188,6 +206,7 @@ fusesoc_build(
     ],
     cores = CORALNPU_SOC_CORES + [
         ":chip_verilator.core",
+        "//fpga/ip/i2c_master:i2c_master.core",
         "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
         "//fpga/ip/gpio_dpi:gpio_dpi.core",
@@ -231,6 +250,7 @@ fusesoc_build(
     ] + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",
+        "//fpga/ip/i2c_master:i2c_master.core",
         "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
     ] + DDR_CORES,
     flags = [
@@ -253,6 +273,7 @@ fusesoc_build(
     ] + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",
+        "//fpga/ip/i2c_master:i2c_master.core",
         "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
     ] + DDR_CORES,
     flags = [

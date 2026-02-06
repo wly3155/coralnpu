@@ -125,6 +125,29 @@ module chip_verilator
     .tdo_oe_o(/*tdo_oe_o*/)
   );
 
+  logic scl_i, scl_o, scl_en_o;
+  logic sda_i, sda_o, sda_en_o;
+
+  wire scl_bus, sda_bus;
+  assign scl_bus = scl_en_o ? 1'b0 : 1'bz;
+  assign (pull1, pull0) scl_bus = 1'b1;
+
+  assign sda_bus = sda_en_o ? 1'b0 : 1'bz;
+  assign sda_bus = hm_sda_en ? 1'b0 : 1'bz;
+  assign (pull1, pull0) sda_bus = 1'b1;
+
+  assign scl_i = scl_bus;
+  assign sda_i = sda_bus;
+
+  logic hm_sda_en;
+  hm01b0_model i_hm01b0 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .scl_i(scl_bus),
+    .sda_i(sda_bus),
+    .sda_en_o(hm_sda_en)
+  );
+
   logic io_halted_o;
   logic io_fault_o;
   coralnpu_soc #(.MemInitFile(MemInitFile),
@@ -147,6 +170,12 @@ module chip_verilator
       .scanmode_i('0),
       .uart_sideband_i(uart_sideband_i),
       .uart_sideband_o(uart_sideband_o),
+      .scl_i(scl_i),
+      .scl_o(scl_o),
+      .scl_en_o(scl_en_o),
+      .sda_i(sda_i),
+      .sda_o(sda_o),
+      .sda_en_o(sda_en_o),
       .io_halted(io_halted_o),
       .io_fault(io_fault_o),
       .ddr_clk_i(1'b0),

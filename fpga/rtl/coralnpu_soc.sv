@@ -32,6 +32,12 @@ module coralnpu_soc
      input prim_mubi_pkg::mubi4_t scanmode_i,
      input top_pkg::uart_sideband_i_t[1 : 0] uart_sideband_i,
      output top_pkg::uart_sideband_o_t[1 : 0] uart_sideband_o,
+     input scl_i,
+     output logic scl_o,
+     output logic scl_en_o,
+     input sda_i,
+     output logic sda_o,
+     output logic sda_en_o,
      output logic io_halted,
      output logic io_fault,
      input ddr_clk_i,
@@ -146,6 +152,22 @@ module coralnpu_soc
 
   tl_h2d_t tl_uart1_o;
   tl_d2h_t tl_uart1_i;
+
+  coralnpu_tlul_pkg_32::tl_h2d_t tl_i2c_h2d;
+  coralnpu_tlul_pkg_32::tl_d2h_t tl_i2c_d2h;
+
+  i2c_master_top i_i2c_master (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .tl_i(tl_i2c_h2d),
+    .tl_o(tl_i2c_d2h),
+    .scl_i(scl_i),
+    .scl_o(scl_o),
+    .scl_en_o(scl_en_o),
+    .sda_i(sda_i),
+    .sda_o(sda_o),
+    .sda_en_o(sda_en_o)
+  );
 
   uart i_uart0(.clk_i(clk_i),
                .rst_ni(rst_ni),
@@ -393,6 +415,32 @@ module coralnpu_soc
     .io_external_devices_ports_3_d_bits_error(tl_uart1_i.d_error),
     .io_external_devices_ports_3_d_bits_user_rsp_intg(tl_uart1_i.d_user.rsp_intg),
     .io_external_devices_ports_3_d_bits_user_data_intg(tl_uart1_i.d_user.data_intg),
+
+    // External Device Port 4: i2c_master
+    .io_external_devices_ports_4_a_valid(tl_i2c_h2d.a_valid),
+    .io_external_devices_ports_4_a_bits_opcode(tl_i2c_h2d.a_opcode),
+    .io_external_devices_ports_4_a_bits_param(tl_i2c_h2d.a_param),
+    .io_external_devices_ports_4_a_bits_size(tl_i2c_h2d.a_size),
+    .io_external_devices_ports_4_a_bits_source(tl_i2c_h2d.a_source),
+    .io_external_devices_ports_4_a_bits_address(tl_i2c_h2d.a_address),
+    .io_external_devices_ports_4_a_bits_mask(tl_i2c_h2d.a_mask),
+    .io_external_devices_ports_4_a_bits_data(tl_i2c_h2d.a_data),
+    .io_external_devices_ports_4_a_bits_user_rsvd(tl_i2c_h2d.a_user.rsvd),
+    .io_external_devices_ports_4_a_bits_user_instr_type(tl_i2c_h2d.a_user.instr_type),
+    .io_external_devices_ports_4_a_bits_user_cmd_intg(tl_i2c_h2d.a_user.cmd_intg),
+    .io_external_devices_ports_4_a_bits_user_data_intg(tl_i2c_h2d.a_user.data_intg),
+    .io_external_devices_ports_4_d_ready(tl_i2c_h2d.d_ready),
+    .io_external_devices_ports_4_a_ready(tl_i2c_d2h.a_ready),
+    .io_external_devices_ports_4_d_valid(tl_i2c_d2h.d_valid),
+    .io_external_devices_ports_4_d_bits_opcode(tl_i2c_d2h.d_opcode),
+    .io_external_devices_ports_4_d_bits_param(tl_i2c_d2h.d_param),
+    .io_external_devices_ports_4_d_bits_size(tl_i2c_d2h.d_size),
+    .io_external_devices_ports_4_d_bits_source(tl_i2c_d2h.d_source),
+    .io_external_devices_ports_4_d_bits_sink(tl_i2c_d2h.d_sink),
+    .io_external_devices_ports_4_d_bits_data(tl_i2c_d2h.d_data),
+    .io_external_devices_ports_4_d_bits_error(tl_i2c_d2h.d_error),
+    .io_external_devices_ports_4_d_bits_user_rsp_intg(tl_i2c_d2h.d_user.rsp_intg),
+    .io_external_devices_ports_4_d_bits_user_data_intg(tl_i2c_d2h.d_user.data_intg),
 
     // Peripheral Ports (indexed based on SoCChiselConfig order)
     .io_external_ports_0(io_halted),      // halted

@@ -32,7 +32,7 @@ BUS_WIDTH_BYTES = 16
 async def setup_dut(dut):
     """Common setup logic for all tests."""
     # Default all TL-UL input signals to a safe state
-    for i in range(4): # 4 external device ports (rom, sram, uart0, uart1)
+    for i in range(5): # 5 external device ports (rom, sram, uart0, uart1, i2c_master)
         getattr(dut, f"io_external_devices_ports_{i}_d_valid").value = 0
 
     getattr(dut, f"io_external_ports_5").value = 0 # DM req valid
