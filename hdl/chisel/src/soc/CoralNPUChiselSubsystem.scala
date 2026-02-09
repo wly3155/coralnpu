@@ -131,6 +131,8 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
           core_p.enableFetchL0 = p.enableFetchL0
           core_p.fetchDataBits = p.fetchDataBits
           core_p.enableFloat = p.enableFloat
+          core_p.itcmSizeKBytes = itcmSize.kBytes
+          core_p.dtcmSizeKBytes = dtcmSize.kBytes
           Module(new CoreTlul(core_p, config.name))
 
         case p: Spi2TlulParameters =>
