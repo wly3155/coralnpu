@@ -50,12 +50,14 @@ class Axi2TLUL[A_USER <: Data, D_USER <: Data](p: Parameters, userAGen: () => A_
 
   private def axiToTl(addr: AxiAddress, data: Option[AxiWriteData]): TileLink_A_ChannelBase[A_USER] = {
     val tl_a = Wire(new TileLink_A_ChannelBase(tlul_p, userAGen))
-    tl_a.opcode  := data.map(_ => TLULOpcodesA.PutFullData.asUInt).getOrElse(TLULOpcodesA.Get.asUInt)
+    val mask = data.map(_.strb).getOrElse(Fill(tlul_p.w, 1.U))
+    val is_full = mask.asBools.reduce(_ && _)
+    tl_a.opcode  := data.map(_ => Mux(is_full, TLULOpcodesA.PutFullData.asUInt, TLULOpcodesA.PutPartialData.asUInt)).getOrElse(TLULOpcodesA.Get.asUInt)
     tl_a.param   := 0.U
     tl_a.address := addr.addr
     tl_a.source  := addr.id
     tl_a.size    := addr.size
-    tl_a.mask    := data.map(_.strb).getOrElse(0.U(tlul_p.w.W))
+    tl_a.mask    := mask
     tl_a.data    := data.map(_.data).getOrElse(0.U((8 * p.axi2DataBits).W))
     tl_a.user    := 0.U.asTypeOf(io.tl_a.bits.user)
     tl_a

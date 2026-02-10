@@ -106,7 +106,9 @@ async def test_write_request(dut):
 
     await RisingEdge(dut.clock)
     assert dut.io_tl_a_valid.value, "TL A_VALID should be high"
-    assert dut.io_tl_a_bits_opcode.value == TLUL_OpcodeA.PutFullData, "TL A_OPCODE should be PutFullData"
+    full_mask = (1 << data_width_bytes) - 1
+    expected_opcode = TLUL_OpcodeA.PutFullData if test_strb == full_mask else TLUL_OpcodeA.PutPartialData
+    assert dut.io_tl_a_bits_opcode.value == expected_opcode, f"TL A_OPCODE should be {expected_opcode}"
     assert dut.io_tl_a_bits_address.value == test_addr, "TL A_ADDRESS is incorrect"
     assert dut.io_tl_a_bits_source.value == test_source, "TL A_SOURCE is incorrect"
     assert dut.io_tl_a_bits_size.value == test_size, "TL A_SIZE is incorrect"
