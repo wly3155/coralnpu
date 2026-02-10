@@ -53,6 +53,7 @@ VERILATOR_OPTIONS_COMMON = [
     "-DRVFI",
     "-DUSE_GENERIC",
     "-DUSE_DPI_MEMORY",
+    "-DTB_SUPPORT",
 ]
 
 string_list_flag(

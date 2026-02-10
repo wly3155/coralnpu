@@ -243,7 +243,9 @@ module RvvCore #(parameter N = 4,
       .vcsr_valid(vcsr_valid),
       .vector_csr(vector_csr),
       .vcsr_ready(vcsr_ready),
+`ifdef TB_SUPPORT
       .rd_valid_rob2rt_o(),
+`endif
       .rvv_idle(rvv_backend_idle),
       .rd_rob2rt_o(rd_rob2rt)
   );
