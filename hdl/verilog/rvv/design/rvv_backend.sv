@@ -349,6 +349,7 @@ module rvv_backend
         .M            (`ISSUE_LANE),
         .N            (`NUM_DE_INST),
         .DATAOUT_REG  (1'b1),
+        .ASYNC_RSTN   (1'b1),
         .DEPTH        (`CQ_DEPTH)
     ) u_command_queue (
       // global
@@ -417,6 +418,7 @@ module rvv_backend
         .T                (UOP_QUEUE_t),
         .M                (`NUM_DE_UOP),
         .N                (`NUM_DP_UOP),
+        .ASYNC_RSTN       (1'b1),
         .DEPTH            (`UQ_DEPTH)
     ) u_uop_queue (
       // global
@@ -517,6 +519,7 @@ module rvv_backend
         .T            (ALU_RS_t),
         .M            (`NUM_DP_UOP),
         .N            (`NUM_ALU),
+        .ASYNC_RSTN   (1'b1),
         .DEPTH        (`ALU_RS_DEPTH),
         .CHAOS_PUSH   (1'b1),
         .DATAOUT_REG  (1'b1)
@@ -559,6 +562,7 @@ module rvv_backend
         .T                (PMT_RDT_RS_t),
         .M                (`NUM_DP_UOP),
         .N                (`NUM_PMTRDT),
+        .ASYNC_RSTN       (1'b1),
         .DEPTH            (`PMTRDT_RS_DEPTH),
         .CHAOS_PUSH       (1'b1),
         .DATAOUT_REG      (1'b1)
@@ -602,6 +606,7 @@ module rvv_backend
         .M              (`NUM_DP_UOP),
         .N              (`NUM_MUL),
         .DEPTH          (`MUL_RS_DEPTH),
+        .ASYNC_RSTN     (1'b1),
         .CHAOS_PUSH     (1'b1)
     ) u_mul_rs (
       // global
@@ -643,6 +648,7 @@ module rvv_backend
         .M              (`NUM_DP_UOP),
         .N              (`NUM_DIV),
         .DEPTH          (`DIV_RS_DEPTH),
+        .ASYNC_RSTN     (1'b1),
         .CHAOS_PUSH     (1'b1)
     ) u_div_rs (
       // global
@@ -684,6 +690,7 @@ module rvv_backend
         .M            (`NUM_DP_UOP),
         .N            (`NUM_LSU),
         .DEPTH        (`LSU_RS_DEPTH),
+        .ASYNC_RSTN   (1'b1),
         .CHAOS_PUSH   (1'b1)
     ) u_lsu_rs (
       // global
@@ -728,6 +735,7 @@ module rvv_backend
         .M            (`NUM_DP_UOP),
         .N            (`NUM_LSU),
         .DEPTH        (`LSU_RS_DEPTH),
+        .ASYNC_RSTN   (1'b1),
         .CHAOS_PUSH   (1'b1)
     ) u_lsu_map_info (
       // global
@@ -791,6 +799,7 @@ module rvv_backend
         .M            (`NUM_LSU),
         .N            (`NUM_LSU),
         .DEPTH        (`NUM_LSU*2),
+        .ASYNC_RSTN   (1'b1),
         .CHAOS_PUSH   (1'b1)
     ) u_lsu_res (
       // global

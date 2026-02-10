@@ -188,7 +188,7 @@ VSIM  = $(BUILD_PATH)/simv	\
 				+vcs+lic+wait  \
 				$(ASSERT_OPTS)	\
 				$(SEED)	\
-				$(VSIM_XPROP_OPTS)	
+				$(VSIM_XPROP_OPTS) \
 				$(PLUS_ARGS)	\
 				+UVM_TESTNAME=$(UVM_TEST) +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 				$(DUMP) $(UVM_DEBUG_SIM)	\
