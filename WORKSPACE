@@ -213,3 +213,7 @@ check_folder(
     directory = "internal",
     root_file = "//:BUILD.bazel",
 )
+local_repository(
+    name = "synthesis_internal",
+    path = "../synthesis_internal",
+)
