@@ -340,6 +340,11 @@ module rvv_backend
     logic                                 trap_ready_rob2rmp;   
     logic                                 trap_flush_rvv;
 
+  `ifdef TB_SUPPORT
+    // 32 VRF value.
+    logic    [`NUM_DP_VRF-1:0][`VLEN-1:0] vrf_data;
+  `endif
+
     genvar i;
 
 // ---code start------------------------------------------------------
@@ -994,33 +999,36 @@ module rvv_backend
         .rt2vxsat_write_valid   (wr_vxsat_valid),
         .rt2vxsat_write_data    (wr_vxsat),
         .vxsat2rt_write_ready   (wr_vxsat_ready)
+      // Retire information for RVVI.
+      `ifdef TB_SUPPORT
+        ,.vrf_data              (vrf_data),
+        .rt2rvvi_valid          (rd_valid_rob2rt_o),
+        .rt2rvvi_data           (rd_rob2rt_o)
+      `endif        
     );
 
   // VRF, Vector Register File
     rvv_backend_vrf #(
     ) u_vrf (
       // global signal
-        .clk             (clk),
-        .rst_n           (rst_n),
+        .clk              (clk),
+        .rst_n            (rst_n),
       // DP to VRF
-        .dp2vrf_rd_index (rd_index_dp2vrf),
+        .dp2vrf_rd_index  (rd_index_dp2vrf),
       // VRF to DP
-        .vrf2dp_rd_data  (rd_data_vrf2dp),
-        .vrf2dp_v0_data  (v0_mask_vrf2dp),
+        .vrf2dp_rd_data   (rd_data_vrf2dp),
+        .vrf2dp_v0_data   (v0_mask_vrf2dp),
       // RT to VRF
-        .rt2vrf_wr_valid (wr_valid_rt2vrf),
-        .rt2vrf_wr_data  (wr_data_rt2vrf)
+      `ifdef TB_SUPPORT
+        .vrf_data         (vrf_data),
+      `endif
+        .rt2vrf_wr_valid  (wr_valid_rt2vrf),
+        .rt2vrf_wr_data   (wr_data_rt2vrf)
     );
 
-  // retire information
-`ifdef TB_SUPPORT
-  assign rd_valid_rob2rt_o = rd_valid_rob2rt & rd_ready_rt2rob;
-`endif
-
-  // rvv_backend IDLE
+  // rvv_backend IDLE 
   assign rvv_idle = fifo_empty_cq2de&uq_empty&rob_empty;
-  assign rd_rob2rt_o = rd_rob2rt;
-
+  
 `endif // TB_BRINGUP
 
 endmodule
