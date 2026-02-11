@@ -67,9 +67,9 @@ module rvv_backend_retire(/*AUTOARG*/
 
 `ifdef TB_SUPPORT
 // Retire information for RVVI.
-    input   logic    [`NUM_DP_VRF-1:0][`VLEN-1:0] vrf_data;
-    output  logic    [`NUM_RT_UOP-1:0]            rt2rvvi_valid; // always ready to receive.
-    output  ROB2RT_t [`NUM_RT_UOP-1:0]            rt2rvvi_data;  
+    input   logic    [`NUM_VRF-1:0][`VLEN-1:0]  vrf_data;
+    output  logic    [`NUM_RT_UOP-1:0]          rt2rvvi_valid; // always ready to receive.
+    output  ROB2RT_t [`NUM_RT_UOP-1:0]          rt2rvvi_data;  
 `endif
 
 ////////////Wires & Regs  ///////////////

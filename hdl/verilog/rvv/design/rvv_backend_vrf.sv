@@ -30,7 +30,7 @@ input   logic     [`NUM_RT_UOP-1:0] rt2vrf_wr_valid;
 input   RT2VRF_t  [`NUM_RT_UOP-1:0] rt2vrf_wr_data;
 `ifdef TB_SUPPORT
 // send VRF updating value to RVVI, corresponding to rt2vrf_wr_data;
-output  logic     [`NUM_RT_UOP-1:0][`VLEN-1:0]  vrf_data;
+output  logic     [`NUM_VRF-1:0][`VLEN-1:0] vrf_data;
 `endif
 
 // Wires & Regs

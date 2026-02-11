@@ -342,7 +342,7 @@ module rvv_backend
 
   `ifdef TB_SUPPORT
     // 32 VRF value.
-    logic    [`NUM_DP_VRF-1:0][`VLEN-1:0] vrf_data;
+    logic    [`NUM_VRF-1:0][`VLEN-1:0]    vrf_data;
   `endif
 
     genvar i;
