@@ -701,9 +701,9 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
     }
 
-   //coverpoint for SLLI/SRLI/SRAL
+   //coverpoint for SLLI/SRLI/SRAI
    //immediate values used by shift instruction
-   imm_shift: coverpoint rv32i_trans.imm_12bit iff(rv32i_trans.trap==0) {
+   imm_shift: coverpoint rv32i_trans.imm_12bit[4:0] iff(rv32i_trans.trap==0) {
       bins b0 = {[0:5]};
       bins b1 = {[6:10]};
       bins b2 = {[11:15]};
@@ -772,7 +772,7 @@ covergroup cvgrp_RV32_I;
    //4'b1000:fence rw.rw
    fm: coverpoint rv32i_trans.fm iff(rv32i_trans.trap==0) {
       bins b0 = {4'b0000};
-      bins b1 = {4'b1000};
+      //bins b1 = {4'b1000}; not support in coralnpu 2.0
       option.weight = 1;
     }
 
@@ -1332,18 +1332,11 @@ covergroup cvgrp_RV32_I;
    }
 
    //Cross SLT instruction and RD toggle bits
-   cr_slt_rd_val: cross slt,rd_val {
+   cr_slt_rd_val: cross slt,rd_sp_val {
+      bins compare_success = binsof(slt) intersect {SLT} && binsof(rd_sp_val) intersect {1};
+      bins compare_fail = binsof(slt) intersect {SLT} && binsof(rd_sp_val) intersect {0};
       option.weight = 1;
-   }
-
-   //Cross SLT instruction and RD special values
-   cr_slt_rd_sp_val: cross slt,rd_sp_val {
-      option.weight = 1;
-   }
-
-   //Cross SLT instruction and RD value sign
-   cr_slt_rd_val_sign: cross slt,rd_val_sign {
-      option.weight = 1;
+      option.cross_auto_bin_max = 0;
    }
 
    //Cross SLTU instruction and register assignment
@@ -1372,13 +1365,11 @@ covergroup cvgrp_RV32_I;
    }
 
    //Cross SLTU instruction and RD toggle bits
-   cr_sltu_rd_val: cross sltu,rd_val {
+   cr_sltu_rd_val: cross sltu,rd_sp_val {
+      bins compare_success = binsof(sltu) intersect {SLTU} && binsof(rd_sp_val) intersect {1};
+      bins compare_fail = binsof(sltu) intersect {SLTU} && binsof(rd_sp_val) intersect {0};
       option.weight = 1;
-   }
-
-   //Cross SLTU instruction and RD special values
-   cr_sltu_rd_sp_val: cross sltu,rd_sp_val {
-      option.weight = 1;
+      option.cross_auto_bin_max = 0;
    }
 
    //Cross ADDI instruction and register assignment
@@ -1712,18 +1703,11 @@ covergroup cvgrp_RV32_I;
    }
 
    //Cross SLTI instruction and RD toggle bits
-   cr_slti_rd_val: cross slti,rd_val {
+   cr_slti_rd_val: cross slti,rd_sp_val {
+      bins compare_success = binsof(slti) intersect {SLTI} && binsof(rd_sp_val) intersect {1};
+      bins compare_fail = binsof(slti) intersect {SLTI} && binsof(rd_sp_val) intersect {0};
       option.weight = 1;
-   }
-
-   //Cross SLTI instruction and RD special values
-   cr_slti_rd_sp_val: cross slti,rd_sp_val {
-      option.weight = 1;
-   }
-
-   //Cross SLTI instruction and RD value sign
-   cr_slti_rd_val_sign: cross slti,rd_val_sign {
-      option.weight = 1;
+      option.cross_auto_bin_max = 0;
    }
 
    //Cross SLTIU instruction and register assignment
@@ -1746,14 +1730,12 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
    }
 
-   //Cross SLTIU instruction and RD toggle bits
-   cr_sltiu_rd_val: cross sltiu,rd_val {
-      option.weight = 1;
-   }
-
    //Cross SLTIU instruction and RD special values
    cr_sltiu_rd_sp_val: cross sltiu,rd_sp_val {
+      bins compare_success = binsof(sltiu) intersect {SLTIU} && binsof(rd_sp_val) intersect {1};
+      bins compare_fail = binsof(sltiu) intersect {SLTIU} && binsof(rd_sp_val) intersect {0};
       option.weight = 1;
+      option.cross_auto_bin_max = 0;
    }
 
    //Cross LB instruction and RD assignment
@@ -1783,6 +1765,10 @@ covergroup cvgrp_RV32_I;
 
    //Cross LB instruction and RD special values
    cr_lb_rd_sp_val: cross lb,rd_sp_val {
+      //sign-extend
+      ignore_bins ignore_1=binsof(rd_sp_val.b3);//0x7fffffff
+      ignore_bins ignore_2=binsof(rd_sp_val.b4);//0x80000000
+      ignore_bins ignore_3=binsof(rd_sp_val.b5);//0x80000001
       option.weight = 1;
    }
 
@@ -1813,6 +1799,10 @@ covergroup cvgrp_RV32_I;
 
    //Cross LH instruction and RD special values
    cr_lh_rd_sp_val: cross lh,rd_sp_val {
+      //sign-entend
+      ignore_bins ignore_1=binsof(rd_sp_val.b3);//0x7fffffff
+      ignore_bins ignore_2=binsof(rd_sp_val.b4);//0x80000000
+      ignore_bins ignore_3=binsof(rd_sp_val.b5);//0x80000001
       option.weight = 1;
    }
 
@@ -1865,9 +1855,12 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
-   cr_lw_mem_start_addr: cross lw,mem_start_addr ;
 
-   //Cross LBU instruction and RD  assignment
+   cr_lw_mem_start_addr: cross lw,mem_start_addr {
+      option.weight = 1;
+   }
+
+   //Cross LBU instruction and RD assignment
    cr_lbu_rd: cross lbu,rd_addr {
       option.weight = 1;
    }
@@ -1889,11 +1882,39 @@ covergroup cvgrp_RV32_I;
 
    //Cross LBU instruction and RD toggle bits
    cr_lbu_rd_val: cross lbu,rd_val {
+      ignore_bins bit_8 =binsof(rd_val.b_0_1_8);
+      ignore_bins bit_9 =binsof(rd_val.b_0_1_9);
+      ignore_bins bit_10=binsof(rd_val.b_0_1_10);
+      ignore_bins bit_11=binsof(rd_val.b_0_1_11);
+      ignore_bins bit_12=binsof(rd_val.b_0_1_12);
+      ignore_bins bit_13=binsof(rd_val.b_0_1_13);
+      ignore_bins bit_14=binsof(rd_val.b_0_1_14);
+      ignore_bins bit_15=binsof(rd_val.b_0_1_15);
+      ignore_bins bit_16=binsof(rd_val.b_0_1_16);
+      ignore_bins bit_17=binsof(rd_val.b_0_1_17);
+      ignore_bins bit_18=binsof(rd_val.b_0_1_18);
+      ignore_bins bit_19=binsof(rd_val.b_0_1_19);
+      ignore_bins bit_20=binsof(rd_val.b_0_1_20);
+      ignore_bins bit_21=binsof(rd_val.b_0_1_21);
+      ignore_bins bit_22=binsof(rd_val.b_0_1_22);
+      ignore_bins bit_23=binsof(rd_val.b_0_1_23);
+      ignore_bins bit_24=binsof(rd_val.b_0_1_24);
+      ignore_bins bit_25=binsof(rd_val.b_0_1_25);
+      ignore_bins bit_26=binsof(rd_val.b_0_1_26);
+      ignore_bins bit_27=binsof(rd_val.b_0_1_27);
+      ignore_bins bit_28=binsof(rd_val.b_0_1_28);
+      ignore_bins bit_29=binsof(rd_val.b_0_1_29);
+      ignore_bins bit_30=binsof(rd_val.b_0_1_30);
+      ignore_bins bit_31=binsof(rd_val.b_0_1_31);
       option.weight = 1;
    }
 
    //Cross LBU instruction and RD special values
    cr_lbu_rd_sp_val: cross lbu,rd_sp_val {
+      ignore_bins ignore_0=binsof(rd_sp_val.b2);
+      ignore_bins ignore_1=binsof(rd_sp_val.b3);
+      ignore_bins ignore_2=binsof(rd_sp_val.b4);
+      ignore_bins ignore_3=binsof(rd_sp_val.b5);
       option.weight = 1;
    }
 
@@ -1919,11 +1940,31 @@ covergroup cvgrp_RV32_I;
 
    //Cross LHU instruction and RD toggle bits
    cr_lhu_rd_val: cross lhu,rd_val {
+      ignore_bins bit_16=binsof(rd_val.b_0_1_16);
+      ignore_bins bit_17=binsof(rd_val.b_0_1_17);
+      ignore_bins bit_18=binsof(rd_val.b_0_1_18);
+      ignore_bins bit_19=binsof(rd_val.b_0_1_19);
+      ignore_bins bit_20=binsof(rd_val.b_0_1_20);
+      ignore_bins bit_21=binsof(rd_val.b_0_1_21);
+      ignore_bins bit_22=binsof(rd_val.b_0_1_22);
+      ignore_bins bit_23=binsof(rd_val.b_0_1_23);
+      ignore_bins bit_24=binsof(rd_val.b_0_1_24);
+      ignore_bins bit_25=binsof(rd_val.b_0_1_25);
+      ignore_bins bit_26=binsof(rd_val.b_0_1_26);
+      ignore_bins bit_27=binsof(rd_val.b_0_1_27);
+      ignore_bins bit_28=binsof(rd_val.b_0_1_28);
+      ignore_bins bit_29=binsof(rd_val.b_0_1_29);
+      ignore_bins bit_30=binsof(rd_val.b_0_1_30);
+      ignore_bins bit_31=binsof(rd_val.b_0_1_31);
       option.weight = 1;
    }
 
    //Cross LHU instruction and RD special values
    cr_lhu_rd_sp_val: cross lhu,rd_sp_val {
+      ignore_bins ignore_0=binsof(rd_sp_val.b2);
+      ignore_bins ignore_1=binsof(rd_sp_val.b3);
+      ignore_bins ignore_2=binsof(rd_sp_val.b4);
+      ignore_bins ignore_3=binsof(rd_sp_val.b5);
       option.weight = 1;
    }
 
@@ -1934,6 +1975,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross LH instruction and aligned/misaligned memory address
    cr_lhu_mem_start_addr: cross lhu,mem_start_addr {
       option.weight = 1;
@@ -2006,6 +2048,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross LH instruction and aligned/misaligned memory address
    cr_sh_mem_start_addr: cross sh,mem_start_addr {
       option.weight = 1;
@@ -2050,7 +2093,10 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
-   cr_sw_mem_start_addr: cross sw,mem_start_addr ;
+
+   cr_sw_mem_start_addr: cross sw,mem_start_addr {
+      option.weight = 1;
+   }
 
    //Cross BEQ instruction and register assignment
    cr_beq_rs1_rs2: cross beq,rs1_addr,rs2_addr {
@@ -2094,6 +2140,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross BEQ instruction and branch immediate offset value
    cr_beq_offset: cross beq,imm_12bit_sign {
       option.weight = 1;
@@ -2146,6 +2193,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross BNE instruction and branch immediate offset value
    cr_bne_offset: cross bne,imm_12bit_sign {
       option.weight = 1;
@@ -2198,6 +2246,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross BLT instruction and branch immediate offset value
    cr_blt_offset: cross blt,imm_12bit_sign {
       option.weight = 1;
@@ -2250,6 +2299,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross BGE instruction and branch immediate offset value
    cr_bge_offset: cross bge,imm_12bit_sign {
       option.weight = 1;
@@ -2302,6 +2352,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross BLTU instruction and branch immediate offset value
    cr_bltu_offset: cross bltu,imm_12bit_sign {
       option.weight = 1;
@@ -2354,6 +2405,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }
+
    //Cross BGEU instruction and branch immediate offset value
    cr_bgeu_offset: cross bgeu,imm_12bit_sign {
       option.weight = 1;
@@ -2375,7 +2427,9 @@ covergroup cvgrp_RV32_I;
    }
 
    //Cross JAL instruction and immediate toggle bits
+   //J-immediate encodes a signed offset in multiples of 2 bytes
    cr_jal_imm: cross jal,imm_20bit {
+      ignore_bins ignore_1=binsof(imm_20bit.b_0_1_0);
       option.weight = 1;
    }
 
@@ -2384,7 +2438,7 @@ covergroup cvgrp_RV32_I;
       option.weight = 1;
    }
 
-   //Cross JALR instruction and RD  assignment
+   //Cross JALR instruction and RD assignment
    cr_jalr_rd: cross jalr,rd_addr {
       option.weight = 1;
    }
@@ -2411,12 +2465,29 @@ covergroup cvgrp_RV32_I;
 
    //Cross LUI instruction and RD toggle bits
    cr_lui_rd_val: cross lui,rd_val {
+      //low 12-bit is always zero
+      ignore_bins lowbit_0=binsof(rd_val.b_0_1_0);
+      ignore_bins lowbit_1=binsof(rd_val.b_0_1_1);
+      ignore_bins lowbit_2=binsof(rd_val.b_0_1_2);
+      ignore_bins lowbit_3=binsof(rd_val.b_0_1_3);
+      ignore_bins lowbit_4=binsof(rd_val.b_0_1_4);
+      ignore_bins lowbit_5=binsof(rd_val.b_0_1_5);
+      ignore_bins lowbit_6=binsof(rd_val.b_0_1_6);
+      ignore_bins lowbit_7=binsof(rd_val.b_0_1_7);
+      ignore_bins lowbit_8=binsof(rd_val.b_0_1_8);
+      ignore_bins lowbit_9=binsof(rd_val.b_0_1_9);
+      ignore_bins lowbit_10=binsof(rd_val.b_0_1_10);
+      ignore_bins lowbit_11=binsof(rd_val.b_0_1_11);
       option.weight = 1;
    }
 
    //Cross LUI instruction and RD special values
    cr_lui_rd_sp_val: cross lui,rd_sp_val {
+      //low 12-bit is always zero
+      bins rd_sp_val_0 = binsof(lui) intersect {LUI} && binsof(rd_sp_val) intersect {32'b0};
+      bins rd_sp_val_4 = binsof(lui) intersect {LUI} && binsof(rd_sp_val) intersect {32'b10000000000000000000000000000000};
       option.weight = 1;
+      option.cross_auto_bin_max = 0;
    }
 
    //Cross LUI instruction and RD value sign
@@ -2441,11 +2512,6 @@ covergroup cvgrp_RV32_I;
 
    //Cross AUIPC instruction and RD toggle bits
    cr_auipc_rd_val: cross auipc,rd_val {
-      option.weight = 1;
-   }
-
-   //Cross AUIPC instruction and RD special values
-   cr_auipc_rd_sp_val: cross auipc,rd_sp_val {
       option.weight = 1;
    }
 

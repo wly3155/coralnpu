@@ -25,6 +25,7 @@
 `uvm_analysis_imp_decl(_rv32zicsr)
 `uvm_analysis_imp_decl(_rv32zbb)
 `uvm_analysis_imp_decl(_rv32zifencei)
+`uvm_analysis_imp_decl(_custom)
 
 //----------------------------------------------------------------------------
 // Class: coralnpu_cov
@@ -53,6 +54,9 @@ class coralnpu_cov extends uvm_component;
     coralnpu_rv32zifencei_transaction                       rv32zifencei_trans;
     uvm_analysis_imp_rv32zifencei#(coralnpu_rv32zifencei_transaction, coralnpu_cov) imp_rv32zifencei;
 
+    coralnpu_rvvi_decode_transaction                        custom_trans;
+    uvm_analysis_imp_custom#(coralnpu_rvvi_decode_transaction, coralnpu_cov) imp_custom;
+
     `include "Cvgrp_RV32_I.sv"
     `include "Cvgrp_RV32_M.sv"
     `include "Cvgrp_RV32_F.sv"
@@ -60,7 +64,7 @@ class coralnpu_cov extends uvm_component;
     `include "Cvgrp_RV32_Zicsr.sv"
     `include "Cvgrp_RV32_Zbb.sv"
     `include "Cvgrp_RV32_Zifencei.sv"
-//    `include "Cvgrp_Custom.sv"  TODO
+    `include "Cvgrp_Custom.sv"
     function new(string name = "coralnpu_cov", uvm_component parent = null);
         super.new(name, parent);
         cvgrp_RV32_I      = new();
@@ -83,6 +87,9 @@ class coralnpu_cov extends uvm_component;
 
         cvgrp_RV32_Zifencei = new();
         rv32zifencei_trans= new;
+
+        cvgrp_Custom = new();
+        custom_trans= new;
     endfunction
 
     virtual function void build_phase(uvm_phase phase);
@@ -94,6 +101,7 @@ class coralnpu_cov extends uvm_component;
         imp_rv32zicsr  = new("imp_rv32zicsr", this);
         imp_rv32zbb  = new("imp_rv32zbb", this);
         imp_rv32zifencei  = new("imp_rv32zifencei", this);
+        imp_custom = new("imp_custom",this);
     endfunction
 
     virtual function void end_of_elaboration_phase(uvm_phase phase);
@@ -140,6 +148,12 @@ class coralnpu_cov extends uvm_component;
     virtual function void write_rv32zifencei(coralnpu_rv32zifencei_transaction t);
       rv32zifencei_trans.copy(t);
       cvgrp_RV32_Zifencei.sample();
+    endfunction
+
+    //sample custom transaction from coralnpu monitor
+    virtual function void write_custom(coralnpu_rvvi_decode_transaction t);
+      custom_trans.copy(t);
+      cvgrp_Custom.sample();
     endfunction
 endclass
 
