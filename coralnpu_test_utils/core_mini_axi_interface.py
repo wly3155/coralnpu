@@ -112,13 +112,25 @@ def set_x(signal):
     raise TypeError(f"Unsupported signal type for set_x: {type(signal)}")
 
 
-def clear_validio(dut, prefix):
-  # Sets valid to 0 and all bits to X.
-  # Additional signals (like ready) are untouched.
-  dut[f'{prefix}_valid'].value = 0
-  bits_signals = [v for k, v in dut._items() if k.startswith(f'{prefix}_bits_')]
-  for s in bits_signals:
-    set_x(s)
+class ReadyValidInterface:
+  def __init__(self, dut, prefix):
+    self.valid_signal = dut[f'{prefix}_valid']
+    self.bits_signals = {}
+    for k, v in dut._items():
+      signal_prefix = f'{prefix}_bits_'
+      if k.startswith(signal_prefix):
+        self.bits_signals[k.removeprefix(signal_prefix)] = v
+    self.ready_signal = dut[f'{prefix}_ready']
+
+  def clear_valid(self):
+    self.valid_signal.value = 0
+    for _, s in self.bits_signals.items():
+      set_x(s)
+
+  def set_valid(self, bits):
+    self.valid_signal.value = 1
+    for k, v in bits.items():
+      self.bits_signals[k].value = v
 
 
 # This class simulates a memory-mapped AXI interface. Programs compiled with
@@ -150,13 +162,23 @@ class CoreMiniAxiInterface:
     self.dut.io_aclk.value = 0
     self.dut.io_irq.value = 0
     self.dut.io_te.value = 0
-    clear_validio(self.dut, "io_axi_slave_read_addr")
+    self.axi_slave_read_addr = ReadyValidInterface(
+        self.dut, "io_axi_slave_read_addr")
+    self.axi_slave_read_addr.clear_valid()
     self.dut.io_axi_slave_read_data_ready.value = 0
-    clear_validio(self.dut, "io_axi_slave_write_addr")
-    clear_validio(self.dut, "io_axi_slave_write_data")
+    self.axi_slave_write_addr = ReadyValidInterface(
+        self.dut, "io_axi_slave_write_addr")
+    self.axi_slave_write_addr.clear_valid()
+    self.axi_slave_write_data = ReadyValidInterface(
+        self.dut, "io_axi_slave_write_data")
+    self.axi_slave_write_data.clear_valid()
     self.dut.io_axi_slave_write_resp_ready.value = 0
-    clear_validio(self.dut, "io_axi_master_read_data")
-    clear_validio(self.dut, "io_axi_master_write_resp")
+    self.axi_master_read_data = ReadyValidInterface(
+        self.dut, "io_axi_master_read_data")
+    self.axi_master_read_data.clear_valid()
+    self.axi_master_write_resp = ReadyValidInterface(
+        self.dut, "io_axi_master_write_resp")
+    self.axi_master_write_resp.clear_valid()
     self.clock_ns = clock_ns
     self.clock = Clock(dut.io_aclk, clock_ns, unit="ns")
     self.csr_base_addr = csr_base_addr
@@ -195,44 +217,36 @@ class CoreMiniAxiInterface:
     await self.write_word(self.csr_base_addr + addr, data)
 
   async def slave_awagent(self, timeout=4096):
-    clear_validio(self.dut, "io_axi_slave_write_addr")
+    self.axi_slave_write_addr.clear_valid()
     while True:
       while True:
         await RisingEdge(self.dut.io_aclk)
-        clear_validio(self.dut, "io_axi_slave_write_addr")
+        self.axi_slave_write_addr.clear_valid()
         if self.slave_awfifo.qsize():
           break
       awdata = await self.slave_awfifo.get()
-      self.dut.io_axi_slave_write_addr_valid.value = 1
-      self.dut.io_axi_slave_write_addr_bits_addr.value = awdata["addr"]
-      self.dut.io_axi_slave_write_addr_bits_id.value = awdata["id"]
-      self.dut.io_axi_slave_write_addr_bits_len.value = awdata["len"]
-      self.dut.io_axi_slave_write_addr_bits_size.value = awdata["size"]
-      self.dut.io_axi_slave_write_addr_bits_burst.value = awdata["burst"]
+      self.axi_slave_write_addr.set_valid(awdata)
       await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.dut.io_axi_slave_write_addr_ready.value == 0:
+      while self.axi_slave_write_addr.ready_signal.value == 0:
         await FallingEdge(self.dut.io_aclk)
         timeout_count += 1
         if timeout_count >= timeout:
           assert False, "timeout waiting for awready"
 
   async def slave_wagent(self, timeout=4096):
-    clear_validio(self.dut, "io_axi_slave_write_data")
+    self.axi_slave_write_data.clear_valid()
     while True:
       while True:
         await RisingEdge(self.dut.io_aclk)
-        clear_validio(self.dut, "io_axi_slave_write_data")
+        self.axi_slave_write_data.clear_valid()
         if self.slave_wfifo.qsize():
           break
       wdata = await self.slave_wfifo.get()
-      self.dut.io_axi_slave_write_data_valid.value = 1
-      self.dut.io_axi_slave_write_data_bits_data.value = wdata["data"]
-      self.dut.io_axi_slave_write_data_bits_strb.value = wdata["strb"]
-      self.dut.io_axi_slave_write_data_bits_last.value = wdata["last"]
+      self.axi_slave_write_data.set_valid(wdata)
       await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.dut.io_axi_slave_write_data_ready.value == 0:
+      while self.axi_slave_write_data.ready_signal.value == 0:
         await FallingEdge(self.dut.io_aclk)
         timeout_count += 1
         if timeout_count >= timeout:
@@ -252,23 +266,18 @@ class CoreMiniAxiInterface:
         print('X seen in slave_bagent: ' + str(e))
 
   async def slave_aragent(self, timeout=4096):
-    clear_validio(self.dut, "io_axi_slave_read_addr")
+    self.axi_slave_read_addr.clear_valid()
     while True:
       while True:
         await RisingEdge(self.dut.io_aclk)
-        clear_validio(self.dut, "io_axi_slave_read_addr")
+        self.axi_slave_read_addr.clear_valid()
         if self.slave_arfifo.qsize():
           break
       ardata = await self.slave_arfifo.get()
-      self.dut.io_axi_slave_read_addr_valid.value = 1
-      self.dut.io_axi_slave_read_addr_bits_addr.value = ardata["addr"]
-      self.dut.io_axi_slave_read_addr_bits_id.value = ardata["id"]
-      self.dut.io_axi_slave_read_addr_bits_len.value = ardata["len"]
-      self.dut.io_axi_slave_read_addr_bits_size.value = ardata["size"]
-      self.dut.io_axi_slave_read_addr_bits_burst.value = ardata["burst"]
+      self.axi_slave_read_addr.set_valid(ardata)
       await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.dut.io_axi_slave_read_addr_ready.value == 0:
+      while self.axi_slave_read_addr.ready_signal.value == 0:
         await FallingEdge(self.dut.io_aclk)
         timeout_count += 1
         if timeout_count >= timeout:
@@ -337,22 +346,18 @@ class CoreMiniAxiInterface:
         raise e
 
   async def master_ragent(self, timeout=4096):
-    clear_validio(self.dut, "io_axi_master_read_data")
+    self.axi_master_read_data.clear_valid()
     while True:
       while True:
         await RisingEdge(self.dut.io_aclk)
-        clear_validio(self.dut, "io_axi_master_read_data")
+        self.axi_master_read_data.clear_valid()
         if self.master_rfifo.qsize():
           break
       rdata = await self.master_rfifo.get()
-      self.dut.io_axi_master_read_data_valid.value = 1
-      self.dut.io_axi_master_read_data_bits_id.value = rdata["id"]
-      self.dut.io_axi_master_read_data_bits_data.value = rdata["data"]
-      self.dut.io_axi_master_read_data_bits_resp.value = rdata["resp"]
-      self.dut.io_axi_master_read_data_bits_last.value = rdata["last"]
+      self.axi_master_read_data.set_valid(rdata)
       await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.dut.io_axi_master_read_data_ready.value == 0:
+      while self.axi_master_read_data.ready_signal.value == 0:
         await FallingEdge(self.dut.io_aclk)
         timeout_count += 1
         if timeout_count >= timeout:
@@ -418,20 +423,18 @@ class CoreMiniAxiInterface:
         print('X seen in master_wagent: ' + str(e))
 
   async def master_bagent(self, timeout=4096):
-    clear_validio(self.dut, "io_axi_master_write_resp")
+    self.axi_master_write_resp.clear_valid()
     while True:
       while True:
         await RisingEdge(self.dut.io_aclk)
-        clear_validio(self.dut, "io_axi_master_write_resp")
+        self.axi_master_write_resp.clear_valid()
         if self.master_bfifo.qsize():
           break
       bdata = await self.master_bfifo.get()
-      self.dut.io_axi_master_write_resp_valid.value = 1
-      self.dut.io_axi_master_write_resp_bits_id.value = bdata["id"]
-      self.dut.io_axi_master_write_resp_bits_resp.value = bdata["resp"]
+      self.axi_master_write_resp.set_valid(bdata)
       await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.dut.io_axi_master_write_resp_ready.value == 0:
+      while self.axi_master_write_resp.ready_signal.value == 0:
         await FallingEdge(self.dut.io_aclk)
         timeout_count += 1
         if timeout_count >= timeout:
