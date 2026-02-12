@@ -28,7 +28,6 @@ class FetchResponse(p: Parameters) extends Bundle {
     val addr = UInt(p.fetchAddrBits.W)
     val inst = Vec(p.fetchInstrSlots, UInt(p.instructionBits.W))
     val fault = Bool()
-    val faultAddr = UInt(32.W)
 }
 
 class Instruction(p: Parameters) extends Bundle {
@@ -62,11 +61,9 @@ class Fetcher(p: Parameters) extends Module {
   val ibusCmd = RegNext(ForceZero(MakeValid(ibusFired, io.ctrl.bits)), MakeInvalid(UInt(32.W)))
   // Fault is also buffered to accompany results.
   val fault = RegNext(io.ibus.fault.valid, false.B)
-  val faultAddr = RegNext(io.ibus.addr, 0.U(32.W))
   io.fetch.valid := ibusCmd.valid
   io.fetch.bits.addr := ibusCmd.bits
   io.fetch.bits.fault := fault
-  io.fetch.bits.faultAddr := faultAddr
   for (i <- 0 until p.fetchInstrSlots) {
     val offset = p.instructionBits * i
     io.fetch.bits.inst(i) := io.ibus.rdata(offset + p.instructionBits - 1, offset)
@@ -165,7 +162,7 @@ class FetchControl(p: Parameters) extends Module {
     val faulted = RegInit(false.B)
     val fetchFaultValid = (faulted || (io.fetchData.valid && io.fetchData.bits.fault)) &&
         !io.branch.valid
-    io.fetchFault := MakeValid(fetchFaultValid, io.fetchData.bits.faultAddr)
+    io.fetchFault := MakeValid(fetchFaultValid, io.fetchData.bits.addr)
     faulted := fetchFaultValid
 
     // Send out results. All branch or flush, current or past, will make us
