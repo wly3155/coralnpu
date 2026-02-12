@@ -653,6 +653,9 @@ def run_full_regression(tests_to_run: List[Tuple[str, str]], spike_bin: str,
     shutil.make_archive(zip_filename, 'zip', output_dir)
     logging.info(f"Artifact created: {os.path.abspath(zip_filename + '.zip')}")
 
+    if status == "FAIL":
+        sys.exit(1)
+
 
 def main():
     args = parse_arguments()
