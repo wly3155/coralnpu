@@ -31,31 +31,26 @@ module rvv_backend_alu_unit_other
   logic   [`ROB_DEPTH_WIDTH-1:0]      rob_entry;
   FUNCT6_u                            uop_funct6;
   logic   [`FUNCT3_WIDTH-1:0]         uop_funct3;
-  logic                               vm;
   EEW_e                               vd_eew;
   logic   [`VLEN-1:0]                 v0_data;
-  logic                               v0_data_valid;
   logic   [`REGFILE_INDEX_WIDTH-1:0]  vs1_opcode;              
   logic   [`VLEN-1:0]                 vs1_data;           
-  logic                               vs1_data_valid; 
   logic   [`VLEN-1:0]                 vs2_data;	        
-  logic                               vs2_data_valid;  
   EEW_e                               vs2_eew;
   logic   [`XLEN-1:0] 	              rs1_data;        
-  logic        	                      rs1_data_valid;
-  logic   [`UOP_INDEX_WIDTH-1:0]      uop_index;          
+  logic   [$clog2(`EMUL_MAX)-1:0]     uop_index;          
 
   // execute 
   // mask logic instructions
-  logic   [`VLENB-1:0]                                v0_data_in_use;
-  logic   [`VLEN-1:0]                                 src2_data;
-  logic   [`VLEN-1:0]                                 src1_data;
-  logic   [`VLEN-1:0]                                 result_data;
-  logic   [`VLEN-1:0]                                 result_data_extend;  
-  logic   [`VLEN-1:0]                                 result_data_vmerge; 
+  logic   [`VLENB-1:0]                v0_data_in_use;
+  logic   [`VLEN-1:0]                 src2_data;
+  logic   [`VLEN-1:0]                 src1_data;
+  logic   [`VLEN-1:0]                 result_data;
+  logic   [`VLEN-1:0]                 result_data_extend;  
+  logic   [`VLEN-1:0]                 result_data_vmerge; 
   
   // for-loop
-  genvar                                              j;
+  genvar                              j;
 
 //
 // prepare source data to calculate    
@@ -66,16 +61,12 @@ module rvv_backend_alu_unit_other
   assign  uop_funct3     = alu_uop.uop_funct3;
   assign  vm             = alu_uop.vm;
   assign  v0_data        = alu_uop.v0_data;
-  assign  v0_data_valid  = alu_uop.v0_data_valid;
   assign  vd_eew         = alu_uop.vd_eew;
   assign  vs1_opcode     = alu_uop.vs1;
   assign  vs1_data       = alu_uop.vs1_data;
-  assign  vs1_data_valid = alu_uop.vs1_data_valid;
+  assign  rs1_data       = alu_uop.vs1_data[`XLEN-1:0];
   assign  vs2_data       = alu_uop.vs2_data;
-  assign  vs2_data_valid = alu_uop.vs2_data_valid;
   assign  vs2_eew        = alu_uop.vs2_eew;
-  assign  rs1_data       = alu_uop.rs1_data;
-  assign  rs1_data_valid = alu_uop.rs1_data_valid;
   assign  uop_index      = alu_uop.uop_index;
 
 //  
@@ -87,32 +78,19 @@ module rvv_backend_alu_unit_other
 
     // prepare source data
     case(uop_funct3)
-      OPIVV: begin
-        case(uop_funct6.ari_funct6)
-          VMERGE_VMV: begin
-            //                                          vmv.v           vmerge.v
-            result_valid = alu_uop_valid&vs1_data_valid&(vm||vs2_data_valid&v0_data_valid);
-          end
-        endcase
-      end
-
+      OPIVV,
       OPIVX: begin
         case(uop_funct6.ari_funct6)
           VMERGE_VMV: begin
-            //                                          vmv.v           vmerge.v
-            result_valid = alu_uop_valid&rs1_data_valid&(vm||vs2_data_valid&v0_data_valid);
+            result_valid = alu_uop_valid;
           end
         endcase
       end
-
       OPIVI: begin
         case(uop_funct6.ari_funct6)
-          VMERGE_VMV: begin
-            //                                          vmv.v           vmerge.v
-            result_valid = alu_uop_valid&rs1_data_valid&(vm||vs2_data_valid&v0_data_valid);
-          end
+          VMERGE_VMV,
           VSMUL_VMVNRR: begin
-            result_valid = alu_uop_valid&vm&vs2_data_valid;
+            result_valid = alu_uop_valid;
           end
         endcase
       end
@@ -122,30 +100,47 @@ module rvv_backend_alu_unit_other
           VXUNARY0: begin
             case(vs1_opcode) 
               VZEXT_VF2,
-              VSEXT_VF2: begin
-                result_valid = alu_uop_valid&(vs1_data_valid==1'b0)&vs2_data_valid&((vs2_eew==EEW8)|(vs2_eew==EEW16));
-              end
+              VSEXT_VF2,
               VZEXT_VF4,
               VSEXT_VF4: begin
-                result_valid = alu_uop_valid&(vs1_data_valid==1'b0)&vs2_data_valid&(vs2_eew==EEW8);
+                result_valid = alu_uop_valid;
               end
             endcase
           end
           VWRXUNARY0: begin
-            // vmv.x.s
-            result_valid = alu_uop_valid&vm&vs2_data_valid&(vs1_opcode==VMV_X_S);
+            case(vs1_opcode)
+              VMV_X_S: begin
+                result_valid = alu_uop_valid;
+              end
+            endcase
+          end
+        endcase
+      end
+      OPMVX: begin
+        case(uop_funct6.ari_funct6)
+          VWRXUNARY0: begin
+            result_valid = alu_uop_valid;
           end
         endcase
       end
 
-      OPMVX: begin
+    `ifdef ZVE32F_ON
+      OPFVV: begin
         case(uop_funct6.ari_funct6)
-          VWRXUNARY0: begin
-            // vmv.s.x
-            result_valid = alu_uop_valid&vm&rs1_data_valid;
+          VWRFUNARY0: begin
+            result_valid = alu_uop_valid;
           end
         endcase
       end
+      OPFVF: begin
+        case(uop_funct6.ari_funct6)
+          VFMERGE_VFMV,
+          VWRFUNARY0: begin
+            result_valid = alu_uop_valid;
+          end
+        endcase
+      end
+    `endif
     endcase
   end
 
@@ -178,7 +173,7 @@ module rvv_backend_alu_unit_other
           VMERGE_VMV: begin
             // vmv.v
             if(vm==1'b1) begin
-              for(int i=0;i<`VLEN/`WORD_WIDTH;i=i+1) begin
+              for(int i=0;i<`VLENW;i=i+1) begin
                 case(vd_eew)
                   EEW8: begin
                     src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
@@ -202,9 +197,9 @@ module rvv_backend_alu_unit_other
               end
             end
             // vmerge.v
-            else begin
+            else begin 
               src2_data = vs2_data;
-              for(int i=0;i<`VLEN/`WORD_WIDTH;i=i+1) begin
+              for(int i=0;i<`VLENW;i=i+1) begin
                 case(vs2_eew)
                   EEW8: begin
                     src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
@@ -236,7 +231,7 @@ module rvv_backend_alu_unit_other
           VMERGE_VMV: begin
             // vmv.v
             if(vm==1'b1) begin
-              for(int i=0;i<`VLEN/`WORD_WIDTH;i=i+1) begin
+              for(int i=0;i<`VLENW;i=i+1) begin
                 case(vd_eew)
                   EEW8: begin
                     src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
@@ -262,7 +257,7 @@ module rvv_backend_alu_unit_other
             // vmerge.v
             else begin
               src2_data = vs2_data;
-              for(int i=0;i<`VLEN/`WORD_WIDTH;i=i+1) begin
+              for(int i=0;i<`VLENW;i=i+1) begin
                 case(vs2_eew)
                   EEW8: begin
                     src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
@@ -355,6 +350,97 @@ module rvv_backend_alu_unit_other
           end
         endcase
       end
+    `ifdef ZVE32F_ON
+      OPFVF: begin
+        case(uop_funct6.ari_funct6)
+          VFMERGE_VFMV: begin
+            // vfmv.v.f
+            if(vm==1'b1) begin
+              for(int i=0;i<`VLENW;i=i+1) begin
+                case(vd_eew)
+                  //EEW8: begin
+                  //  src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+1)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+2)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+3)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //end
+                  //EEW16: begin
+                  //  src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0             +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+1)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[1*`BYTE_WIDTH +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+2)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0             +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+3)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[1*`BYTE_WIDTH +: `BYTE_WIDTH];
+                  //end
+                  EEW32: begin
+                    src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0             +: `BYTE_WIDTH];
+                    src1_data[(4*i+1)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[1*`BYTE_WIDTH +: `BYTE_WIDTH];
+                    src1_data[(4*i+2)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[2*`BYTE_WIDTH +: `BYTE_WIDTH];
+                    src1_data[(4*i+3)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[3*`BYTE_WIDTH +: `BYTE_WIDTH];
+                  end
+                endcase
+              end
+            end
+            // vfmerge.vfm
+            else begin 
+              src2_data = vs2_data;
+              for(int i=0;i<`VLENW;i=i+1) begin
+                case(vs2_eew)
+                  //EEW8: begin
+                  //  src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+1)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+2)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+3)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+                  //end
+                  //EEW16: begin
+                  //  src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0             +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+1)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[1*`BYTE_WIDTH +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+2)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0             +: `BYTE_WIDTH];
+                  //  src1_data[(4*i+3)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[1*`BYTE_WIDTH +: `BYTE_WIDTH];
+                  //end
+                  EEW32: begin
+                    src1_data[(4*i  )*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[0             +: `BYTE_WIDTH];
+                    src1_data[(4*i+1)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[1*`BYTE_WIDTH +: `BYTE_WIDTH];
+                    src1_data[(4*i+2)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[2*`BYTE_WIDTH +: `BYTE_WIDTH];
+                    src1_data[(4*i+3)*`BYTE_WIDTH +: `BYTE_WIDTH] = rs1_data[3*`BYTE_WIDTH +: `BYTE_WIDTH];
+                  end
+                endcase
+              end
+            end
+          end
+          VWRFUNARY0: begin
+            // vmv.s.f
+            case(vd_eew)
+              //EEW8: begin
+              //  src1_data[0 +: `BYTE_WIDTH] = rs1_data[0 +: `BYTE_WIDTH];
+              //end
+              //EEW16: begin
+              //  src1_data[0 +: `HWORD_WIDTH] = rs1_data[0 +: `HWORD_WIDTH];
+              //end
+              EEW32: begin
+                src1_data[0 +: `WORD_WIDTH] = rs1_data[0 +: `WORD_WIDTH];
+              end
+            endcase
+          end
+        endcase
+      end
+      OPFVV: begin
+        case(uop_funct6.ari_funct6)
+          VWRFUNARY0: begin
+            // vmv.f.s
+            case(vs2_eew)
+              //EEW8: begin
+              //  src2_data[0 +: `BYTE_WIDTH] = vs2_data[0 +: `BYTE_WIDTH];
+              //end
+              //EEW16: begin
+              //  src2_data[0 +: `HWORD_WIDTH] = vs2_data[0 +: `HWORD_WIDTH];
+              //end
+              EEW32: begin
+                src2_data[0 +: `WORD_WIDTH] = vs2_data[0 +: `WORD_WIDTH];
+              end
+            endcase
+          end
+        endcase
+      end
+    `endif
     endcase
   end
 
@@ -363,7 +449,7 @@ module rvv_backend_alu_unit_other
 //
   // VXUNARY0
   generate
-    for (j=0;j<`VLEN/`WORD_WIDTH;j=j+1) begin: EXE_EXTEND
+    for (j=0;j<`VLENW;j=j+1) begin: EXE_EXTEND
       always_comb begin
         result_data_extend[j*`WORD_WIDTH +: `WORD_WIDTH] = 'b0;
         
@@ -427,7 +513,7 @@ module rvv_backend_alu_unit_other
   end 
 
   generate
-    for (j=0;j<`VLEN/`WORD_WIDTH;j=j+1) begin: EXE_VMERGE
+    for (j=0;j<`VLENW;j=j+1) begin: EXE_VMERGE
       always_comb begin
         result_data_vmerge[j*`WORD_WIDTH +: `WORD_WIDTH] = 'b0;
         
@@ -502,6 +588,28 @@ module rvv_backend_alu_unit_other
           end
         endcase
       end
+    `ifdef ZVE32F_ON
+      OPFVF: begin
+        case(uop_funct6.ari_funct6)
+          VFMERGE_VFMV: begin
+            if(vm==1'b0)
+              result_data = result_data_vmerge;
+            else
+              result_data = src1_data;
+          end
+          VWRFUNARY0: begin
+            result_data = src1_data;
+          end
+        endcase
+      end
+      OPFVV: begin
+        case(uop_funct6.ari_funct6)
+          VWRFUNARY0: begin
+            result_data = src2_data;
+          end
+        endcase
+      end
+    `endif
     endcase
   end
 
@@ -509,15 +617,14 @@ module rvv_backend_alu_unit_other
 // submit result to ROB
 //
 `ifdef TB_SUPPORT
-  assign result.uop_pc = alu_uop.uop_pc;
+  assign result.uop_pc    = alu_uop.uop_pc;
 `endif
-
   assign result.rob_entry = rob_entry;
-
-  assign result.w_data = result_data;
-
-  assign result.w_valid = result_valid;
-
+  assign result.w_data    = result_data;
+  assign result.w_valid   = result_valid;
   assign result.vsaturate = 'b0;
+`ifdef ZVE32F_ON
+  assign result.fpexp     = 'b0;
+`endif
 
 endmodule

@@ -161,17 +161,17 @@ module RvvCore #(parameter N = 4,
     UOP_LSU2RVV_t     [`NUM_LSU-1:0]          uop_lsu_lsu2rvv;
     always_comb begin
       for (int i = 0; i < `NUM_LSU; i++) begin
-        // TODO(derekjchow): Modify me
+        `ifdef TB_SUPPORT
+              uop_lsu_lsu2rvv[i].uop_pc = 0;
+              uop_lsu_lsu2rvv[i].uop_index = 0;
+        `endif
+
         uop_lsu_lsu2rvv[i].vregfile_write_valid = (
             uop_lsu_valid_lsu2rvv[i] && !uop_lsu_last_lsu2rvv[i]);
         uop_lsu_lsu2rvv[i].vregfile_write_addr = uop_lsu_addr_lsu2rvv[i];
         uop_lsu_lsu2rvv[i].vregfile_write_data = uop_lsu_wdata_lsu2rvv[i];
         uop_lsu_lsu2rvv[i].lsu_vstore_last = (
             uop_lsu_valid_lsu2rvv[i] && uop_lsu_last_lsu2rvv[i]);
-      `ifdef TB_SUPPORT
-        uop_lsu_lsu2rvv[i].uop_pc = 0;
-        uop_lsu_lsu2rvv[i].uop_index = 0;
-      `endif
       end
     end
 
@@ -179,17 +179,31 @@ module RvvCore #(parameter N = 4,
   // TODO(derekjchow): Properly arbitrate write-back tie-offs by extending
   // interface. For time being, only accept from slot 0.
   logic    [`NUM_RT_UOP-1:0] rt_xrf_valid_rvv2rvs;
-  RT2XRF_t [`NUM_RT_UOP-1:0] rt_xrf_rvv2rvs;
-  logic    [`NUM_RT_UOP-1:0] rt_xrf_ready_rvs2rvv;
+  RT2RVS_t [`NUM_RT_UOP-1:0] rt_rvs_rvv2rvs;
+  logic    [`NUM_RT_UOP-1:0] rt_rvs_ready_rvs2rvv;
+
   always_comb begin
-    rt_xrf_ready_rvs2rvv[0] = async_rd_ready;
+    rt_rvs_ready_rvs2rvv[0] = async_rd_ready;
     async_rd_valid = rt_xrf_valid_rvv2rvs[0];
-    async_rd_addr = rt_xrf_rvv2rvs[0].rt_index;
-    async_rd_data = rt_xrf_rvv2rvs[0].rt_data;
+    async_rd_addr = rt_rvs_rvv2rvs[0].rt_index;
+    async_rd_data = rt_rvs_rvv2rvs[0].rt_data;
     for (int i = 1; i < `NUM_RT_UOP; i++) begin
-      rt_xrf_ready_rvs2rvv[i] = 0;
+      rt_rvs_ready_rvs2rvv[i] = 0;
     end
   end
+
+  // Floating point regfile write-back
+  logic [`NUM_RT_UOP-1:0]                           rvv2rvs_frd_valid;
+  logic [`NUM_RT_UOP-1:0][`REGFILE_INDEX_WIDTH-1:0] rvv2rvs_frd_addr;
+  logic [`NUM_RT_UOP-1:0][`XLEN-1:0]                rvv2rvs_frd_data;
+  logic [`NUM_RT_UOP-1:0]                           rvv2rvs_frd_ready;
+  always_comb begin
+    rvv2rvs_frd_ready[0] = async_frd_ready;
+    rvv2rvs_frd_ready[1] = 0;
+  end
+  assign rvv2rvs_frd_valid[0] = async_frd_valid;
+  assign rvv2rvs_frd_addr[0] = async_frd_addr;
+  assign rvv2rvs_frd_data[0] = async_frd_data;
 
   // Backpressure
   logic wr_vxsat_ready;
@@ -202,17 +216,21 @@ module RvvCore #(parameter N = 4,
   logic                            wr_vxsat_valid;
   logic    [`VCSR_VXSAT_WIDTH-1:0] wr_vxsat;
 
+  // Floating point CSR Update, unused for now
+  logic    rt2fcsr_write_valid;
+  RVFEXP_t rt2fcsr_write_data;
+  logic    fcsr2rt_write_ready;
+  always_comb begin
+    // TODO(derekjchow): Actually accept and use
+    fcsr2rt_write_ready = 1;
+  end
+
   // Trap handling tie-off
   logic  trap_valid_rvs2rvv;
   logic  trap_ready_rvv2rvs;
   always_comb begin
     trap_valid_rvs2rvv = 0;
   end
-
-  // Tie-off floating point writeback until implemented.
-  assign async_frd_valid = 0;
-  assign async_frd_addr = 0;
-  assign async_frd_data = 0;
 
   ROB2RT_t [`NUM_RT_UOP-1:0] rd_rob2rt;
   assign rd_rob2rt_o = rd_rob2rt;
@@ -236,12 +254,24 @@ module RvvCore #(parameter N = 4,
       .uop_lsu_lsu2rvv(uop_lsu_lsu2rvv),
       .uop_lsu_ready_rvv2lsu(uop_lsu_ready_rvv2lsu),
 
-      .rt_xrf_rvv2rvs(rt_xrf_rvv2rvs),
+      .rt_rvs_rvv2rvs(rt_rvs_rvv2rvs),
       .rt_xrf_valid_rvv2rvs(rt_xrf_valid_rvv2rvs),
-      .rt_xrf_ready_rvs2rvv(rt_xrf_ready_rvs2rvv),
+      .rt_rvs_ready_rvs2rvv(rt_rvs_ready_rvs2rvv),
+
+      // Floating point
+      .async_frd_valid(rvv2rvs_frd_valid),
+      .async_frd_addr(rvv2rvs_frd_addr),
+      .async_frd_data(rvv2rvs_frd_data),
+      .async_frd_ready(rvv2rvs_frd_ready),
+
       .wr_vxsat_valid(wr_vxsat_valid),
       .wr_vxsat(wr_vxsat),
       .wr_vxsat_ready(wr_vxsat_ready),
+
+      .rt2fcsr_write_valid(rt2fcsr_write_valid),
+      .rt2fcsr_write_data(rt2fcsr_write_data),
+      .fcsr2rt_write_ready(fcsr2rt_write_ready),
+
       .trap_valid_rvs2rvv(trap_valid_rvs2rvv),
       .trap_ready_rvv2rvs(trap_ready_rvv2rvs),
       .vcsr_valid(vcsr_valid),

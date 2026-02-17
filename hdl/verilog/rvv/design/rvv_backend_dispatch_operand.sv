@@ -19,7 +19,7 @@ module rvv_backend_dispatch_operand
   input   logic       [`VLEN-1:0]                   v0_mask_vrf2dp;
 
 // get the operand from VRF
-`ifdef ISSUE_3_READ_PORT_6  
+`ifdef DISPATCH3
   always_comb begin
     vrf_byp[0].v0  = v0_mask_vrf2dp;
     vrf_byp[0].vs1 = rd_data_vrf2dp[0];
@@ -123,13 +123,13 @@ module rvv_backend_dispatch_operand
 
               VVX: begin
                 vrf_byp[2].vs1 = rd_data_vrf2dp[3];
-                vrf_byp[2].vs2 = uop_uop2dp[0].vs1_index_valid ? rd_data_vrf2dp[2] : rd_data_vrf2dp[0];
+                vrf_byp[2].vs2 = uop_uop2dp[0].vs1_valid ? rd_data_vrf2dp[2] : rd_data_vrf2dp[0];
                 vrf_byp[2].vd  = rd_data_vrf2dp[3];
               end
 
               XVV: begin
                 vrf_byp[2].vs1 = rd_data_vrf2dp[5];
-                vrf_byp[2].vs2 = uop_uop2dp[0].vs1_index_valid ? rd_data_vrf2dp[2] : rd_data_vrf2dp[0];
+                vrf_byp[2].vs2 = uop_uop2dp[0].vs1_valid ? rd_data_vrf2dp[2] : rd_data_vrf2dp[0];
                 vrf_byp[2].vd  = rd_data_vrf2dp[5];
               end
             endcase
@@ -270,19 +270,7 @@ module rvv_backend_dispatch_operand
     endcase
   end   
 
-`elsif ISSUE_2_READ_PORT_6  
-  always_comb begin
-    vrf_byp[0].v0  = v0_mask_vrf2dp;
-    vrf_byp[0].vs1 = rd_data_vrf2dp[0];
-    vrf_byp[0].vs2 = rd_data_vrf2dp[1];
-    vrf_byp[0].vd  = rd_data_vrf2dp[2];
-    vrf_byp[1].v0  = v0_mask_vrf2dp;
-    vrf_byp[1].vs1 = rd_data_vrf2dp[3];
-    vrf_byp[1].vs2 = rd_data_vrf2dp[4];
-    vrf_byp[1].vd  = rd_data_vrf2dp[5];
-  end
-
-`else //ISSUE_2_READ_PORT_4
+`else // DISPATCH2
   always_comb begin
     vrf_byp[0].v0  = v0_mask_vrf2dp;
     vrf_byp[0].vs1 = 'b0;

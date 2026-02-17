@@ -1,3 +1,4 @@
+
 `ifndef HDL_VERILOG_RVV_DESIGN_RVV_SVH
 `include "rvv_backend.svh"
 `endif
@@ -9,13 +10,12 @@ module rvv_backend_div
 ( 
   clk,
   rst_n,
-  pop_ex2rs,
-  div_uop_rs2ex,
-  fifo_empty_rs2ex,
-  fifo_almost_empty_rs2ex,
-  result_valid_ex2rob,
-  result_ex2rob,
-  result_ready_rob2div,
+  pop,
+  uop_valid,
+  uop,
+  result_valid,
+  result,
+  result_ready,
   trap_flush_rvv
 );
 
@@ -27,64 +27,102 @@ module rvv_backend_div
   input   logic     rst_n;
 
   // DIV RS to DIV unit
-  input   DIV_RS_t  [`NUM_DIV-1:0]  div_uop_rs2ex;
-  input   logic                     fifo_empty_rs2ex;
-  input   logic     [`NUM_DIV-1:0]  fifo_almost_empty_rs2ex;
-  output  logic     [`NUM_DIV-1:0]  pop_ex2rs;
+  input   logic     [`NUM_DIV-1:0]  uop_valid;
+  input   DIV_RS_t  [`NUM_DIV-1:0]  uop;
+  output  logic     [`NUM_DIV-1:0]  pop;
 
   // submit DIV result to ROB
-  output  logic     [`NUM_DIV-1:0]  result_valid_ex2rob;
-  output  PU2ROB_t  [`NUM_DIV-1:0]  result_ex2rob;
-  input   logic     [`NUM_DIV-1:0]  result_ready_rob2div;
-
+  output  logic     [`NUM_DIV-1:0]  result_valid;
+  output  PU2ROB_t  [`NUM_DIV-1:0]  result;
+  input   logic     [`NUM_DIV-1:0]  result_ready;
+  
   // trap-flush
-  input   logic                     trap_flush_rvv;
+  input   logic                     trap_flush_rvv;  
 
 //
 // internal signals
 //
-  // DIV RS to DIV unit
-  logic             [`NUM_DIV-1:0]  div_uop_valid_rs2ex;    
-  
+  //fix point signal
+  logic             [`NUM_DIV-1:0]  x_uop_vld;
+  logic             [`NUM_DIV-1:0]  x_uop_rdy;
+  logic             [`NUM_DIV-1:0]  x_result_vld;
+  PU2ROB_t          [`NUM_DIV-1:0]  x_result;
+  logic             [`NUM_DIV-1:0]  x_result_rdy;
+
+`ifdef ZVE32F_ON
+  //floating point signal for fpnew div
+  logic             [`NUM_DIV-1:0]  fp_uop_vld;
+  logic             [`NUM_DIV-1:0]  fp_uop_rdy;
+  logic             [`NUM_DIV-1:0]  fp_result_vld;
+  PU2ROB_t          [`NUM_DIV-1:0]  fp_result;
+  logic             [`NUM_DIV-1:0]  fp_result_rdy;
+
+  logic                      [1:0]  arb_req;
+  logic                      [1:0]  arb_grt;
+`endif
+
   // for-loop
   genvar                            i;
 
 //
 // Instantiate rvv_backend_div_unit
 //
-  // generate valid signals
-  assign div_uop_valid_rs2ex[0] = !fifo_empty_rs2ex;
-
-  generate
-    for (i=1;i<`NUM_DIV;i=i+1) begin: GET_UOP_VALID
-      assign  div_uop_valid_rs2ex[i] = !fifo_almost_empty_rs2ex[i];
-    end
-  endgenerate
-
-  // generate pop signals
-  assign pop_ex2rs[0] = div_uop_valid_rs2ex[0]&result_valid_ex2rob[0]&result_ready_rob2div[0];
-    
-  generate
-    for (i=1;i<`NUM_DIV;i=i+1) begin: POP_DIV_RS
-      assign pop_ex2rs[i] = div_uop_valid_rs2ex[i]&result_valid_ex2rob[i]&result_ready_rob2div[i]&(pop_ex2rs[i-1:0]=='1);
-    end
-  endgenerate
-
   // instantiate
   generate
     for (i=0;i<`NUM_DIV;i++) begin: DIV_UNIT
+      assign x_uop_vld[i] = uop_valid[i] & uop[i].is_div; 
+
       rvv_backend_div_unit u_div_unit
         (
           .clk            (clk),
           .rst_n          (rst_n),
-          .div_uop_valid  (div_uop_valid_rs2ex[i]),
-          .div_uop        (div_uop_rs2ex[i]),
-          .result_valid   (result_valid_ex2rob[i]),
-          .result         (result_ex2rob[i]),
-          .result_ready   (result_ready_rob2div[i]),
+          .div_uop_valid  (x_uop_vld[i]),
+          .div_uop        (uop[i]),
+          .div_uop_ready  (x_uop_rdy[i]),
+          .result_valid   (x_result_vld[i]),
+          .result         (x_result[i]),
+          .result_ready   (x_result_rdy[i]),
           .trap_flush_rvv (trap_flush_rvv)
         );
+
+    `ifdef ZVE32F_ON
+      assign fp_uop_vld[i] = uop_valid[i] & !uop[i].is_div; 
+
+      rvv_backend_fdiv_wrapper u_fdiv_unit
+        (
+          .clk            (clk),
+          .rst_n          (rst_n),
+          .fdiv_uop_valid (fp_uop_vld[i]),
+          .fdiv_uop       (uop[i]),
+          .fdiv_uop_ready (fp_uop_rdy[i]),
+          .result_valid   (fp_result_vld[i]),
+          .result         (fp_result[i]),
+          .result_ready   (fp_result_rdy[i]),
+          .trap_flush_rvv (trap_flush_rvv)
+        );
+    `endif
     end
+
+    // generate pop signals
+    assign pop[0] = x_uop_vld[0]&x_uop_rdy[0] 
+                  `ifdef ZVE32F_ON
+                    || fp_uop_vld[0]&fp_uop_rdy[0]
+                  `endif
+                    ;
   endgenerate
+
+`ifdef ZVE32F_ON
+  assign arb_req = {fp_result_vld[0], x_result_vld[0]};
+  arb_round_robin #(.REQ_NUM(2)) arb2rob (.clk(clk), .rst_n(rst_n), .req(arb_req), .grant(arb_grt));
+
+  assign result_valid[0]  = |arb_req;
+  assign result[0]        = arb_grt[0] ? x_result[0]: fp_result[0];
+  assign x_result_rdy[0]  = arb_grt[0] & result_ready[0];
+  assign fp_result_rdy[0] = arb_grt[1] & result_ready[0];
+`else
+  assign result_valid[0]  = x_result_vld[0];
+  assign result[0]        = x_result[0];
+  assign x_result_rdy[0]  = result_ready[0];
+`endif
 
 endmodule

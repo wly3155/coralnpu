@@ -391,11 +391,11 @@ generate
     for (x=0; x<4; x=x+1) begin
       for (y=0; y<4; y=y+1) begin
         rvv_backend_mul_unit_mul8 u_mul8 (
-          .out(mul8_out[z*16+y*4+x]), //16bit out
-          .in0(mul8_in0[z*4+x]), 
-          .in0_is_signed(mul8_in0_is_signed[z*4+x]),
-          .in1(mul8_in1[z*4+y]), 
-          .in1_is_signed(mul8_in1_is_signed[z*4+y]));
+          .res(mul8_out[z*16+y*4+x]), //16bit out
+          .src0(mul8_in0[z*4+x]), 
+          .src0_is_signed(mul8_in0_is_signed[z*4+x]),
+          .src1(mul8_in1[z*4+y]), 
+          .src1_is_signed(mul8_in1_is_signed[z*4+y]));
 
         edff #(.T(logic [16-1:0])) u_mul8_delay (
           .q(mul8_out_d1[z*16+y*4+x]), 

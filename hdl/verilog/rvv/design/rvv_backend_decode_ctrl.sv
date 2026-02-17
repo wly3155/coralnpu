@@ -13,15 +13,13 @@ module rvv_backend_decode_ctrl
 (
   clk,
   rst_n,
-  pkg_valid,
-  uop_valid_de2uq,
-  uop_de2uq,
+  de_uop_valid,
+  de_uop,   
   uop_index_remain,
   pop,
   push,
-  dataout,
-  fifo_full_uq2de, 
-  fifo_almost_full_uq2de,
+  uop,
+  uq_ready,
   trap_flush_rvv
 );
 //
@@ -30,504 +28,665 @@ module rvv_backend_decode_ctrl
   // global signals
   input   logic                                           clk;
   input   logic                                           rst_n;
-
   // decoded uops
-  input   logic       [`NUM_DE_INST-1:0]                  pkg_valid;
-  input   logic       [`NUM_DE_INST-1:0][`NUM_DE_UOP-1:0] uop_valid_de2uq;
-  input   UOP_QUEUE_t [`NUM_DE_INST-1:0][`NUM_DE_UOP-1:0] uop_de2uq;
-  
+  input   logic       [`NUM_DE_INST-1:0][`NUM_DE_UOP-1:0] de_uop_valid;
+  input   UOP_QUEUE_t [`NUM_DE_INST-1:0][`NUM_DE_UOP-1:0] de_uop;
   // uop_index for decode_unit
   output  logic       [`UOP_INDEX_WIDTH-1:0]              uop_index_remain;
-  
   // pop signals for command queue
   output  logic       [`NUM_DE_INST-1:0]                  pop;
-
   // signals from Uops Quue
   output  logic       [`NUM_DE_UOP-1:0]                   push;
-  output  UOP_QUEUE_t [`NUM_DE_UOP-1:0]                   dataout;
-  input   logic                                           fifo_full_uq2de;
-  input   logic       [`NUM_DE_UOP-1:0]                   fifo_almost_full_uq2de;
-
+  output  UOP_QUEUE_t [`NUM_DE_UOP-1:0]                   uop;
+  input   logic       [`NUM_DE_UOP-1:0]                   uq_ready;
   // trap-flush
-  input   logic                                           trap_flush_rvv;
+  input   logic                                           trap_flush_rvv; 
 
 //
 // internal signals
 //
-  // get last uop signal 
-  logic [`NUM_DE_UOP-1:0]         uop1_last_valid;
-  logic [`NUM_DE_INST-1:0]        last_uop_unit;
-  logic [`NUM_DE_UOP-1:0]         get_unit1_last_signal;
-
-  // compress uop_valid
-  logic [`NUM_DE_UOP-1:0]         compress_valid;
-
-  // fifo is ready when it has `NUM_DE_UOP free spaces at least
-  logic                           fifo_ready;
-  
+  // last uop signal for pop
+  logic [`NUM_DE_UOP-1:0]                                 last_uop;
   // signals in uop_index DFF 
-  logic                           uop_index_clear;   
-  logic                           uop_index_enable_unit0;
-  logic                           uop_index_enable_unit1;
-  logic                           uop_index_enable;
-  logic [`UOP_INDEX_WIDTH-1:0]    uop_index_din;
-  
-  // used in getting push0-3
-  logic [`NUM_DE_UOP-1:0]         push_valid;
+  logic [`UOP_INDEX_WIDTH-1:0]                            final_uop_index;
+  logic                                                   uop_index_en;
+  logic [`UOP_INDEX_WIDTH-1:0]                            uop_index_din;
   
   // for-loop
-  genvar                          i;
+  integer                                                 i;
+  genvar                                                  j;
 
-//
-// ctroller
-//
+  `ifdef ASSERT_ON
+    `rvv_expect(`NUM_DE_INST<=`NUM_DE_UOP)
+    else $error("`NUM_DE_INST=%d is greater than `NUM_DE_UOP=%d.", `NUM_DE_INST, `NUM_DE_UOP);
+  `endif
+
   generate
-    // get unit1 last uop signal
-    for (i=0;i<`NUM_DE_UOP;i++) begin: GET_UOP1_LAST
-      assign uop1_last_valid[i] = uop_de2uq[1][i].last_uop_valid;
-    end
+    // push data into Uops Queue
+    assign push[0] = de_uop_valid[0][0]&uq_ready[0];
+    assign uop[0]  = de_uop[0][0];
 
-    for (i=0;i<`NUM_DE_UOP;i++) begin: GET_UNIT1_LAST
-      assign get_unit1_last_signal[i] = |uop1_last_valid[(`NUM_DE_UOP-1-i):0];
-    end
-
-    if(`NUM_DE_UOP==6) begin
-      // get unit0 last uop signal
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0001,
-          6'b00_0011,
-          6'b00_0111,
-          6'b00_1111,
-          6'b01_1111: last_uop_unit[0] = 'b1;
-          6'b11_1111: last_uop_unit[0] = uop_de2uq[0][`NUM_DE_UOP-1].last_uop_valid;
-          default   : last_uop_unit[0] = 'b0;
-        endcase
+    if (`NUM_DE_INST>=3'd2) begin : gen_push1_uop1
+      if(`NUM_DE_UOP>=3'd2) begin
+        assign push[1] = (de_uop_valid[0][1]|de_uop_valid[1][0]) ? uq_ready[1] : 'b0;
+        assign uop[1]  =  de_uop_valid[0][1] ? de_uop[0][1] : de_uop[1][0];
       end
+    end
+
+    if (`NUM_DE_INST==3'd2) begin : if_inst_eq_2 // `NUM_DE_INST==2
+      if(`NUM_DE_UOP>=3'd3) begin : gen_push2_uop2
+        always_comb begin
+          casex({de_uop_valid[1][1:0],de_uop_valid[0][2:1]})
+            4'b??_11: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[0][2];
+            end
+            4'b?1_01: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[1][0];
+            end
+            4'b11_?0: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[1][1];
+            end
+            default: begin 
+              push[2] = 'b0;
+              uop[2]  = de_uop[0][2];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==3
     
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0000: last_uop_unit[1] = get_unit1_last_signal[0];
-          6'b00_0001: last_uop_unit[1] = get_unit1_last_signal[1];
-          6'b00_0011: last_uop_unit[1] = get_unit1_last_signal[2];
-          6'b00_0111: last_uop_unit[1] = get_unit1_last_signal[3];
-          6'b00_1111: last_uop_unit[1] = get_unit1_last_signal[4];
-          6'b01_1111: last_uop_unit[1] = get_unit1_last_signal[5]; 
-          default   : last_uop_unit[1] = 'b0;
-        endcase
-      end
+      if(`NUM_DE_UOP>=3'd4) begin : gen_push3_uop3
+        always_comb begin
+          casex({de_uop_valid[1][2:0],de_uop_valid[0][3:1]})
+            6'b???_111: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[0][3];
+            end
+            6'b??1_011: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][0];
+            end
+            6'b?11_?01: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][1];
+            end
+            6'b111_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][2];
+            end
+            default: begin 
+              push[3] = 'b0;
+              uop[3]  = de_uop[0][3];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==4
 
-      // compress uop_valid
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0001: compress_valid = {uop_valid_de2uq[1][4:0],1'b1}; 
-          6'b00_0011: compress_valid = {uop_valid_de2uq[1][3:0],2'b11}; 
-          6'b00_0111: compress_valid = {uop_valid_de2uq[1][2:0],3'b111}; 
-          6'b00_1111: compress_valid = {uop_valid_de2uq[1][1:0],4'b1111}; 
-          6'b01_1111: compress_valid = {uop_valid_de2uq[1][0]  ,5'b1_1111}; 
-          6'b11_1111: compress_valid = 6'b11_1111; 
-          default   : compress_valid = 'b0; 
-        endcase
-      end
+      if(`NUM_DE_UOP>=3'd5) begin : gen_push4_uop4
+        always_comb begin
+          casex({de_uop_valid[1][3:0],de_uop_valid[0][4:1]})
+            8'b????_1111: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[0][4];
+            end
+            8'b???1_0111: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][0];
+            end
+            8'b??11_?011: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][1];
+            end
+            8'b?111_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][2];
+            end
+            8'b1111_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][3];
+            end
+            default: begin 
+              push[4] = 'b0;
+              uop[4]  = de_uop[0][4];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==5
 
-    end
-    else begin //if(`NUM_DE_UOP==4)
-      // get unit0 last uop signal
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          4'b0001,
-          4'b0011,
-          4'b0111: last_uop_unit[0] = 'b1;
-          4'b1111: last_uop_unit[0] = uop_de2uq[0][`NUM_DE_UOP-1].last_uop_valid;
-          default: last_uop_unit[0] = 'b0;
-        endcase
-      end
+      if(`NUM_DE_UOP>=3'd6) begin : gen_push5_uop5
+        always_comb begin
+          casex({de_uop_valid[1][4:0],de_uop_valid[0][5:1]})
+            10'b?????_11111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[0][5];
+            end
+            10'b????1_01111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][0];
+            end
+            10'b???11_?0111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][1];
+            end
+            10'b??111_??011: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][2];
+            end
+            10'b?1111_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][3];
+            end
+            10'b11111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][4];
+            end
+            default: begin 
+              push[5] = 'b0;
+              uop[5]  = de_uop[0][5];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==6
+    end // NUM_DE_INST==2
+
+    if (`NUM_DE_INST==3'd3) begin : if_inst_eq_3
+      if(`NUM_DE_UOP>=3'd3) begin : gen_push2_uop2
+        always_comb begin
+          casex({de_uop_valid[2][0],de_uop_valid[1][1:0],de_uop_valid[0][2:1]})
+            5'b?_??_11: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[0][2];
+            end
+            5'b?_?1_01: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[1][0];
+            end
+            5'b?_11_?0: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[1][1];
+            end
+            5'b1_01_?0: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[2][0];
+            end
+            default: begin 
+              push[2] = 'b0;
+              uop[2]  = de_uop[0][2];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==3
     
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          4'b0000: last_uop_unit[1] = get_unit1_last_signal[0];
-          4'b0001: last_uop_unit[1] = get_unit1_last_signal[1];
-          4'b0011: last_uop_unit[1] = get_unit1_last_signal[2];
-          4'b0111: last_uop_unit[1] = get_unit1_last_signal[3];
-          default: last_uop_unit[1] = 'b0;
-        endcase
-      end
+      if(`NUM_DE_UOP>=3'd4) begin : gen_push3_uop3
+        always_comb begin
+          casex({de_uop_valid[2][1:0],de_uop_valid[1][2:0],de_uop_valid[0][3:1]})
+            8'b??_???_111: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[0][3];
+            end
+            8'b??_??1_011: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][0];
+            end
+            8'b??_?11_?01: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][1];
+            end
+            8'b?1_?01_?01: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[2][0];
+            end
+            8'b??_111_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][2];
+            end
+            8'b?1_011_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[2][0];
+            end
+            8'b11_?01_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[2][1];
+            end
+            default: begin 
+              push[3] = 'b0;
+              uop[3]  = de_uop[0][3];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==4
 
-      // compress uop_valid
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          4'b0001: compress_valid = {uop_valid_de2uq[1][2:0],1'b1}; 
-          4'b0011: compress_valid = {uop_valid_de2uq[1][1:0],2'b11}; 
-          4'b0111: compress_valid = {uop_valid_de2uq[1][0]  ,3'b111}; 
-          4'b1111: compress_valid = 4'b1111; 
-          default: compress_valid = 'b0; 
-        endcase
-      end
+      if(`NUM_DE_UOP>=3'd5) begin : gen_push4_uop4
+        always_comb begin
+          casex({de_uop_valid[2][2:0],de_uop_valid[1][3:0],de_uop_valid[0][4:1]})
+            11'b???_????_1111: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[0][4];
+            end
+            11'b???_???1_0111: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][0];
+            end
+            11'b???_??11_?011: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][1];
+            end
+            11'b??1_??01_?011: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][0];
+            end
+            11'b???_?111_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][2];
+            end
+            11'b??1_?011_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][0];
+            end
+            11'b?11_??01_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][1];
+            end
+            11'b???_1111_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][3];
+            end
+            11'b??1_0111_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][0];
+            end
+            11'b?11_?011_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][1];
+            end
+            11'b111_??01_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][2];
+            end
+            default: begin 
+              push[4] = 'b0;
+              uop[4]  = de_uop[0][4];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==5
 
+      if(`NUM_DE_UOP>=3'd6) begin : gen_push5_uop5
+        always_comb begin
+          casex({de_uop_valid[2][3:0],de_uop_valid[1][4:0],de_uop_valid[0][5:1]})
+            14'b????_?????_11111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[0][5];
+            end
+            14'b????_????1_01111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][0];
+            end
+            14'b????_???11_?0111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][1];
+            end
+            14'b???1_???01_?0111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            14'b????_??111_??011: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][2];
+            end
+            14'b???1_??011_??011: begin            
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            14'b??11_???01_??011: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][1];
+            end
+            14'b????_?1111_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][3];
+            end
+            14'b???1_?0111_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            14'b??11_??011_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][1];
+            end
+            14'b?111_???01_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][2];
+            end
+            14'b????_11111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][4];
+            end
+            14'b???1_01111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            14'b??11_?0111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][1];
+            end
+            14'b?111_??011_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][2];
+            end
+            14'b1111_???01_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][3];
+            end
+            default: begin 
+              push[5] = 'b0;
+              uop[5]  = de_uop[0][5];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==6 
+    end // NUM_DE_INST==3
+
+    if (`NUM_DE_INST==3'd4) begin : if_inst_eq_4
+      if(`NUM_DE_UOP>=3'd3) begin : gen_push2_uop2
+        always_comb begin
+          casex({de_uop_valid[2][0],de_uop_valid[1][1:0],de_uop_valid[0][2:1]})
+            5'b?_??_11: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[0][2];
+            end
+            5'b?_?1_01: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[1][0];
+            end
+            5'b?_11_?0: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[1][1];
+            end
+            5'b1_01_?0: begin
+              push[2] = uq_ready[2];
+              uop[2]  = de_uop[2][0];
+            end
+            default: begin 
+              push[2] = 'b0;
+              uop[2]  = de_uop[0][2];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==3
+    
+      if(`NUM_DE_UOP>=3'd4) begin : gen_push3_uop3
+        always_comb begin
+          casex({de_uop_valid[3][0],de_uop_valid[2][1:0],de_uop_valid[1][2:0],de_uop_valid[0][3:1]})
+            9'b?_??_???_111: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[0][3];
+            end
+            9'b?_??_??1_011: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][0];
+            end
+            9'b?_??_?11_?01: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][1];
+            end
+            9'b?_?1_?01_?01: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[2][0];
+            end
+            9'b?_??_111_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[1][2];
+            end
+            9'b?_?1_011_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[2][0];
+            end
+            9'b?_11_?01_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[2][1];
+            end
+            9'b1_01_?01_??0: begin
+              push[3] = uq_ready[3];
+              uop[3]  = de_uop[3][0];
+            end
+            default: begin 
+              push[3] = 'b0;
+              uop[3]  = de_uop[0][3];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==4
+
+      if(`NUM_DE_UOP>=3'd5) begin : gen_push4_uop4
+        always_comb begin
+          casex({de_uop_valid[3][1:0],de_uop_valid[2][2:0],de_uop_valid[1][3:0],de_uop_valid[0][4:1]})
+            13'b??_???_????_1111: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[0][4];
+            end
+            13'b??_???_???1_0111: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][0];
+            end
+            13'b??_???_??11_?011: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][1];
+            end
+            13'b??_??1_??01_?011: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][0];
+            end
+            13'b??_???_?111_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][2];
+            end
+            13'b??_??1_?011_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][0];
+            end
+            13'b??_?11_??01_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][1];
+            end
+            13'b?1_?01_??01_??01: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[3][0];
+            end
+            13'b??_???_1111_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[1][3];
+            end
+            13'b??_??1_0111_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][0];
+            end
+            13'b??_?11_?011_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][1];
+            end
+            13'b?1_?01_?011_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[3][0];
+            end
+            13'b??_111_??01_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[2][2];
+            end
+            13'b?1_011_??01_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[3][0];
+            end
+            13'b11_?01_??01_???0: begin
+              push[4] = uq_ready[4];
+              uop[4]  = de_uop[3][1];
+            end
+            default: begin 
+              push[4] = 'b0;
+              uop[4]  = de_uop[0][4];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==5
+
+      if(`NUM_DE_UOP>=3'd6) begin : gen_push5_uop5
+        always_comb begin
+          casex({de_uop_valid[3][2:0],de_uop_valid[2][3:0],de_uop_valid[1][4:0],de_uop_valid[0][5:1]})
+            17'b???_????_?????_11111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[0][5];
+            end
+            17'b???_????_????1_01111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][0];
+            end
+            17'b???_????_???11_?0111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][1];
+            end
+            17'b???_???1_???01_?0111: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            17'b???_????_??111_??011: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][2];
+            end
+            17'b???_???1_??011_??011: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            17'b???_??11_???01_??011: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][1];
+            end
+            17'b??1_??01_???01_??011: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][0];
+            end
+            17'b???_????_?1111_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][3];
+            end
+            17'b???_???1_?0111_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            17'b???_??11_??011_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][1];
+            end
+            17'b??1_??01_??011_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][0];
+            end
+            17'b???_?111_???01_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][2];
+            end
+            17'b??1_?011_???01_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][0];
+            end
+            17'b?11_??01_???01_???01: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][1];
+            end
+            17'b???_????_11111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[1][4];
+            end
+            17'b???_???1_01111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][0];
+            end
+            17'b???_??11_?0111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][1];
+            end
+            17'b??1_??01_?0111_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][0];
+            end
+            17'b???_?111_??011_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][2];
+            end
+            17'b??1_?011_??011_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][0];
+            end
+            17'b?11_??01_??011_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][1];
+            end
+            17'b???_1111_???01_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[2][3];
+            end
+            17'b??1_0111_???01_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][0];
+            end
+            17'b?11_?011_???01_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][1];
+            end
+            17'b111_??01_???01_????0: begin
+              push[5] = uq_ready[5];
+              uop[5]  = de_uop[3][2];
+            end
+            default: begin 
+              push[5] = 'b0;
+              uop[5]  = de_uop[0][5];
+            end
+          endcase
+        end
+      end // NUM_DE_UOP==6 
+    end // NUM_DE_INST==3
+      
+    // calculate pop siganl for LCQ
+    for(j=0;j<`NUM_DE_UOP;j++) begin : gen_last_uop
+      assign last_uop[j] = push[j]&uop[j].last_uop_valid;
     end
   endgenerate
 
-  // get fifo_ready
-  assign fifo_ready = (compress_valid=='b0) ? 'b0 : ((compress_valid&fifo_almost_full_uq2de)=='b0);
-      
-  // get pop signal to Command Queue
-  assign pop[0] =          pkg_valid[0]&((last_uop_unit[0]&fifo_ready) || (uop_valid_de2uq[0][`NUM_DE_UOP-1:0]=='b0));
-  assign pop[1] = pop[0] ? pkg_valid[1]&((last_uop_unit[1]&fifo_ready) || (uop_valid_de2uq[1][`NUM_DE_UOP-1:0]=='b0)) : 'b0;
-  
-  // instantiate cdffr for uop_index
-  // clear signal
-  assign uop_index_clear = (pop[0]&(!pkg_valid[1])) | pop[1];
-  
-  // enable signal
-  assign uop_index_enable_unit0 =          pkg_valid[0]&(uop_valid_de2uq[0][`NUM_DE_UOP-1:0]!='b0)&(last_uop_unit[0]=='b0)&fifo_ready;
-  assign uop_index_enable_unit1 = pop[0] ? pkg_valid[1]&(uop_valid_de2uq[1][`NUM_DE_UOP-1:0]!='b0)&(last_uop_unit[1]=='b0)&fifo_ready : 'b0;
-  assign uop_index_enable       = uop_index_enable_unit0 | uop_index_enable_unit1;  
+  always_comb begin
+    pop = 'b0;
+    i   = 0;
+
+    for(int k=0;k<`NUM_DE_UOP;k++) begin
+      pop[i] = last_uop[k];
+      i      = i+last_uop[k];
+    end
+  end
   
   // uop index remain
+  always_comb begin
+    uop_index_din = 'b0;
+
+    for(int k=0;k<`NUM_DE_UOP;k++) begin
+      if(push[k])
+        uop_index_din = uop[k].last_uop_valid ? 'b0 : uop[k].uop_index + (`UOP_INDEX_WIDTH)'('d1);
+    end
+  end
+
+  assign uop_index_en = |push;
+
   cdffr 
   #(
     .T         (logic[`UOP_INDEX_WIDTH-1:0])
   )
   uop_index_cdffr
-  (
+  ( 
     .clk       (clk), 
     .rst_n     (rst_n), 
-    .c         (uop_index_clear|trap_flush_rvv),
-    .e         (uop_index_enable), 
+    .c         (trap_flush_rvv), 
+    .e         (uop_index_en), 
     .d         (uop_index_din),
     .q         (uop_index_remain)
   ); 
-
-  generate
-    if(`NUM_DE_UOP==6) begin
-      // datain signal
-      always_comb begin
-        // initial
-        uop_index_din = uop_index_remain;    
-        
-        case(1'b1)
-          uop_index_enable_unit0: 
-            uop_index_din = uop_de2uq[0][`NUM_DE_UOP-1].uop_index + 1'b1;    
-          uop_index_enable_unit1: begin
-            case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-              6'b00_0000: uop_index_din = uop_de2uq[1][5].uop_index + 1'b1; 
-              6'b00_0001: uop_index_din = uop_de2uq[1][4].uop_index + 1'b1; 
-              6'b00_0011: uop_index_din = uop_de2uq[1][3].uop_index + 1'b1; 
-              6'b00_0111: uop_index_din = uop_de2uq[1][2].uop_index + 1'b1; 
-              6'b00_1111: uop_index_din = uop_de2uq[1][1].uop_index + 1'b1; 
-              6'b01_1111: uop_index_din = uop_de2uq[1][0].uop_index + 1'b1; 
-              6'b11_1111: uop_index_din = 'b0; 
-            endcase
-          end
-        endcase
-      end
-    
-      // push signal and push data into Uops Queue
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0000: begin
-            push_valid[0] = uop_valid_de2uq[1][0];
-            dataout[0]    = uop_de2uq[1][0];
-          end
-          6'b00_0001, 
-          6'b00_0011, 
-          6'b00_0111, 
-          6'b00_1111, 
-          6'b01_1111, 
-          6'b11_1111: begin 
-            push_valid[0] = uop_valid_de2uq[0][0];
-            dataout[0]    = uop_de2uq[0][0];
-          end
-          default: begin 
-            push_valid[0] = 'b0;
-            dataout[0]    = 'b0;
-          end
-        endcase
-      end
-
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0000: begin
-            push_valid[1] = uop_valid_de2uq[1][1];
-            dataout[1]    = uop_de2uq[1][1];
-          end
-          6'b00_0001: begin
-            push_valid[1] = uop_valid_de2uq[1][0];
-            dataout[1]    = uop_de2uq[1][0];
-          end
-          6'b00_0011, 
-          6'b00_0111, 
-          6'b00_1111, 
-          6'b01_1111, 
-          6'b11_1111: begin 
-            push_valid[1] = uop_valid_de2uq[0][1];
-            dataout[1]    = uop_de2uq[0][1];
-          end
-          default: begin 
-            push_valid[1] = 'b0;
-            dataout[1]    = 'b0;
-          end
-        endcase
-      end
-
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0000: begin
-            push_valid[2] = uop_valid_de2uq[1][2];
-            dataout[2]    = uop_de2uq[1][2];
-          end
-          6'b00_0001: begin
-            push_valid[2] = uop_valid_de2uq[1][1];
-            dataout[2]    = uop_de2uq[1][1];
-          end
-          6'b00_0011: begin 
-            push_valid[2] = uop_valid_de2uq[1][0];
-            dataout[2]    = uop_de2uq[1][0];
-          end
-          6'b00_0111, 
-          6'b00_1111, 
-          6'b01_1111, 
-          6'b11_1111: begin 
-            push_valid[2] = uop_valid_de2uq[0][2];
-            dataout[2]    = uop_de2uq[0][2];
-          end
-          default: begin 
-            push_valid[2] = 'b0;
-            dataout[2]    = 'b0;
-          end
-        endcase
-      end
-    
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0000: begin
-            push_valid[3] = uop_valid_de2uq[1][3];
-            dataout[3]    = uop_de2uq[1][3];
-          end
-          6'b00_0001: begin
-            push_valid[3] = uop_valid_de2uq[1][2];
-            dataout[3]    = uop_de2uq[1][2];
-          end
-          6'b00_0011: begin 
-            push_valid[3] = uop_valid_de2uq[1][1];
-            dataout[3]    = uop_de2uq[1][1];
-          end
-          6'b00_0111: begin
-            push_valid[3] = uop_valid_de2uq[1][0];
-            dataout[3]    = uop_de2uq[1][0];
-          end
-          6'b00_1111, 
-          6'b01_1111, 
-          6'b11_1111: begin 
-            push_valid[3] = uop_valid_de2uq[0][3];
-            dataout[3]    = uop_de2uq[0][3];
-          end
-          default: begin 
-            push_valid[3] = 'b0;
-            dataout[3]    = 'b0;
-          end
-        endcase
-      end
-    
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0000: begin
-            push_valid[4] = uop_valid_de2uq[1][4];
-            dataout[4]    = uop_de2uq[1][4];
-          end
-          6'b00_0001: begin
-            push_valid[4] = uop_valid_de2uq[1][3];
-            dataout[4]    = uop_de2uq[1][3];
-          end
-          6'b00_0011: begin 
-            push_valid[4] = uop_valid_de2uq[1][2];
-            dataout[4]    = uop_de2uq[1][2];
-          end
-          6'b00_0111: begin
-            push_valid[4] = uop_valid_de2uq[1][1];
-            dataout[4]    = uop_de2uq[1][1];
-          end
-          6'b00_1111: begin 
-            push_valid[4] = uop_valid_de2uq[1][0];
-            dataout[4]    = uop_de2uq[1][0];
-          end
-          6'b01_1111, 
-          6'b11_1111: begin 
-            push_valid[4] = uop_valid_de2uq[0][4];
-            dataout[4]    = uop_de2uq[0][4];
-          end
-          default: begin 
-            push_valid[4] = 'b0;
-            dataout[4]    = 'b0;
-          end
-        endcase
-      end
-
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          6'b00_0000: begin
-            push_valid[5] = uop_valid_de2uq[1][5];
-            dataout[5]    = uop_de2uq[1][5];
-          end
-          6'b00_0001: begin
-            push_valid[5] = uop_valid_de2uq[1][4];
-            dataout[5]    = uop_de2uq[1][4];
-          end
-          6'b00_0011: begin 
-            push_valid[5] = uop_valid_de2uq[1][3];
-            dataout[5]    = uop_de2uq[1][3];
-          end
-          6'b00_0111: begin
-            push_valid[5] = uop_valid_de2uq[1][2];
-            dataout[5]    = uop_de2uq[1][2];
-          end
-          6'b00_1111: begin 
-            push_valid[5] = uop_valid_de2uq[1][1];
-            dataout[5]    = uop_de2uq[1][1];
-          end
-          6'b01_1111: begin
-            push_valid[5] = uop_valid_de2uq[1][0];
-            dataout[5]    = uop_de2uq[1][0];
-          end
-          6'b11_1111: begin 
-            push_valid[5] = uop_valid_de2uq[0][5];
-            dataout[5]    = uop_de2uq[0][5];
-          end
-          default: begin 
-            push_valid[5] = 'b0;
-            dataout[5]    = 'b0;
-          end
-        endcase
-      end
-
-    end //`NUM_DE_UOP==6
-    else begin //if(`NUM_DE_UOP==4)
-      // datain signal
-      always_comb begin
-        // initial
-        uop_index_din = uop_index_remain;    
-        
-        case(1'b1)
-          uop_index_enable_unit0: 
-            uop_index_din = uop_de2uq[0][`NUM_DE_UOP-1].uop_index + 1'b1;    
-          uop_index_enable_unit1: begin
-            case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-              4'b0000: uop_index_din = uop_de2uq[1][3].uop_index + 1'b1; 
-              4'b0001: uop_index_din = uop_de2uq[1][2].uop_index + 1'b1; 
-              4'b0011: uop_index_din = uop_de2uq[1][1].uop_index + 1'b1; 
-              4'b0111: uop_index_din = uop_de2uq[1][0].uop_index + 1'b1; 
-              4'b1111: uop_index_din = 'b0; 
-            endcase
-          end
-        endcase
-      end
-      
-      // push signal and push data into Uops Queue
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          4'b0000: begin
-            push_valid[0] = uop_valid_de2uq[1][0];
-            dataout[0]    = uop_de2uq[1][0];
-          end
-          4'b0001,
-          4'b0011,
-          4'b0111,
-          4'b1111: begin
-            push_valid[0] = uop_valid_de2uq[0][0];
-            dataout[0]    = uop_de2uq[0][0];
-          end
-          default: begin
-            push_valid[0] = 'b0;
-            dataout[0]    = 'b0;
-          end
-        endcase
-      end
-
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          4'b0000: begin
-            push_valid[1] = uop_valid_de2uq[1][1];
-            dataout[1]    = uop_de2uq[1][1];
-          end
-          4'b0001: begin
-            push_valid[1] = uop_valid_de2uq[1][0];
-            dataout[1]    = uop_de2uq[1][0];
-          end
-          4'b0011,
-          4'b0111,
-          4'b1111: begin
-            push_valid[1] = uop_valid_de2uq[0][1];
-            dataout[1]    = uop_de2uq[0][1];
-          end
-          default: begin
-            push_valid[1] = 'b0;
-            dataout[1]    = 'b0;
-          end
-        endcase
-      end
-      
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          4'b0000: begin
-            push_valid[2] = uop_valid_de2uq[1][2];
-            dataout[2]    = uop_de2uq[1][2];
-          end
-          4'b0001: begin
-            push_valid[2] = uop_valid_de2uq[1][1];
-            dataout[2]    = uop_de2uq[1][1];
-          end
-          4'b0011: begin
-            push_valid[2] = uop_valid_de2uq[1][0];
-            dataout[2]    = uop_de2uq[1][0];
-          end
-          4'b0111,
-          4'b1111: begin
-            push_valid[2] = uop_valid_de2uq[0][2];
-            dataout[2]    = uop_de2uq[0][2];
-          end
-          default: begin
-            push_valid[2] = 'b0;
-            dataout[2]    = 'b0;
-          end
-        endcase
-      end
-    
-      always_comb begin
-        case(uop_valid_de2uq[0][`NUM_DE_UOP-1:0])
-          4'b0000: begin
-            push_valid[3] = uop_valid_de2uq[1][3];
-            dataout[3]    = uop_de2uq[1][3];
-          end
-          4'b0001: begin
-            push_valid[3] = uop_valid_de2uq[1][2];
-            dataout[3]    = uop_de2uq[1][2];
-          end
-          4'b0011: begin
-            push_valid[3] = uop_valid_de2uq[1][1];
-            dataout[3]    = uop_de2uq[1][1];
-          end
-          4'b0111: begin
-            push_valid[3] = uop_valid_de2uq[1][0];
-            dataout[3]    = uop_de2uq[1][0];
-          end
-          4'b1111: begin
-            push_valid[3] = uop_valid_de2uq[0][3];
-            dataout[3]    = uop_de2uq[0][3];
-          end
-          default: begin
-            push_valid[3] = 'b0;
-            dataout[3]    = 'b0;
-          end
-        endcase
-      end
-    
-    end //`NUM_DE_UOP==4
-  endgenerate
-
-  generate 
-    for (i=0;i<`NUM_DE_UOP;i++) begin: GET_PUSH
-      assign push[i] = push_valid[i]&fifo_ready;
-    end
-  endgenerate
 
 endmodule

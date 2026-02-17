@@ -18,6 +18,7 @@ load("//rules:vcs.bzl", "vcs_testbench_test")
 exports_files(
     srcs = [
         "rvv_backend.sv",
+        "rvv_backend_arb.sv",  # New
         "rvv_backend_alu.sv",
         "rvv_backend_alu_unit.sv",
         "rvv_backend_alu_unit_addsub.sv",
@@ -31,6 +32,12 @@ exports_files(
         "rvv_backend_decode_unit.sv",
         "rvv_backend_decode_unit_ari.sv",
         "rvv_backend_decode_unit_lsu.sv",
+
+        "rvv_backend_decode_unit_ari_de2.sv",  # New
+        "rvv_backend_decode_unit_lsu_de2.sv",  # New
+        "rvv_backend_decode_unit_de2.sv",  # New
+        "rvv_backend_decode_de2.sv",  # New
+
         "rvv_backend_dispatch.sv",
         "rvv_backend_dispatch_bypass.sv",
         "rvv_backend_dispatch_ctrl.sv",
@@ -42,6 +49,24 @@ exports_files(
         "rvv_backend_div.sv",
         "rvv_backend_div_unit_divider.sv",
         "rvv_backend_div_unit.sv",
+
+        "rvv_backend_fdiv_wrapper.sv",  # New
+
+        "rvv_backend_sqrt7_rec7.sv",  # New
+        "rvv_backend_fma_wrapper.sv",  # New
+        "rvv_backend_fma.sv",  # New
+
+
+
+
+        "rvv_backend_freduction.sv",  # New
+        "rvv_backend_pmtrdt_unit_permutation.sv",  # New
+        "rvv_backend_pmtrdt_unit_reduction_alu.sv",  # New
+        "rvv_backend_pmtrdt_unit_reduction.sv",  # New
+
+        "rvv_backend_retire_waw.sv",  # New
+
+
         "rvv_backend_lsu_remap.sv",
         "rvv_backend_mac_unit.sv",
         "rvv_backend_mul_unit.sv",
@@ -59,6 +84,43 @@ exports_files(
         "MultiFifo.sv",
         "RvvCore.sv",
         "RvvFrontEnd.sv",
+
+
+
+
+        "FPnew/common_cells/inc/assertions.svh",  # New
+        "FPnew/common_cells/inc/registers.svh",  # New
+        "FPnew/common_cells/src/cf_math_pkg.sv",  # New
+        "FPnew/fpnew_pkg.sv",  # New
+        "FPnew/fpu_div_sqrt_mvp/defs_div_sqrt_mvp.sv",  # New
+        "FPnew/C910_DivSqrt/gated_clk_cell.v",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_ff1.v",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_pack.v",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_srt_radix16_bound_table.v",  # New
+        "FPnew/fpu_div_sqrt_mvp/iteration_div_sqrt_mvp.sv",  # New
+        "FPnew/common_cells/src/lzc.sv",  # New
+        "FPnew/fpnew_classifier.sv",  # New
+        "FPnew/fpnew_rounding.sv",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_ctrl.v",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_prepare.v",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_round.v",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_scalar_dp.v",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_srt_radix16_with_sqrt.v",  # New
+        "FPnew/common_cells/src/rr_arb_tree.sv",  # New
+        "FPnew/fpu_div_sqrt_mvp/control_mvp.sv",  # New
+        "FPnew/fpu_div_sqrt_mvp/preprocess_mvp.sv",  # New
+        "FPnew/fpu_div_sqrt_mvp/norm_div_sqrt_mvp.sv",  # New
+        "FPnew/fpnew_cast_multi.sv",  # New
+        "FPnew/fpnew_fma_multi.sv",  # New
+        "FPnew/fpnew_noncomp.sv",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_srt.v",  # New
+        "FPnew/fpu_div_sqrt_mvp/nrbd_nrsc_mvp.sv",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_double.v",  # New
+        "FPnew/fpu_div_sqrt_mvp/div_sqrt_top_mvp.sv",  # New
+        "FPnew/C910_DivSqrt/ct_vfdsu_top.v",  # New
+        "FPnew/fpnew_divsqrt_multi.sv",  # New
+        "FPnew/fpnew_divsqrt_th_64_multi.sv",  # New
+
     ],
     visibility = ["//visibility:public"],
 )

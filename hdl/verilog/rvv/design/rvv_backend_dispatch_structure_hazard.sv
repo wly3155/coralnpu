@@ -26,7 +26,7 @@ module rvv_backend_dispatch_structure_hazard
 //determine rd_index for VRF read ports
 
     generate
-`ifdef ISSUE_3_READ_PORT_6  
+`ifdef DISPATCH3
       // 6 read ports of VRF
       // rd0 : uop0.vs1 or uop2 
       // rd1 : uop0.vs2 or uop2
@@ -340,25 +340,7 @@ module rvv_backend_dispatch_structure_hazard
         endcase
       end
 
-`elsif ISSUE_2_READ_PORT_6  
-      // 6 read ports of VRF
-      // rd0 : uop0.vs1
-      // rd1 : uop0.vs2
-      // rd2 : uop0.vs3
-      // rd3 : uop1.vs1
-      // rd4 : uop1.vs2
-      // rd5 : uop1.vs3
-      assign rd_index[0] = strct_uop[0].vs1_index;
-      assign rd_index[1] = strct_uop[0].vs2_index;
-      assign rd_index[2] = strct_uop[0].vd_index;
-      assign rd_index[3] = strct_uop[1].vs1_index;
-      assign rd_index[4] = strct_uop[1].vs2_index;
-      assign rd_index[5] = strct_uop[1].vd_index;
-
-      //check structure hazard
-      assign arch_hazard.vr_limit = 1'b0;
-
-`else //ISSUE_2_READ_PORT_4
+`else // DISPATCH2
       // 4 read ports of VRF
       // rd0: uop0.vs2 or uop0.vs1 or uop0.vd
       // rd1: uop0.vs1 or uop1.vd

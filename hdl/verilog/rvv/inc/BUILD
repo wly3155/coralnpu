@@ -19,6 +19,7 @@ exports_files(
         "rvv_backend_div.svh",
         "rvv_backend_config.svh",
         "rvv_backend_dispatch.svh",
+        "rvv_backend_fma.svh",
         "rvv_backend_pmtrdt.svh",
         "rvv_backend.svh",
         "rvv_backend_sva.svh"

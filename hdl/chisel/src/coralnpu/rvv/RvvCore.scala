@@ -448,7 +448,13 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
   addResource("hdl/verilog/rvv/inc/rvv_backend_alu.svh")
   addResource("hdl/verilog/rvv/inc/rvv_backend_dispatch.svh")
   addResource("hdl/verilog/rvv/inc/rvv_backend_div.svh")
+  addResource("hdl/verilog/rvv/inc/rvv_backend_fma.svh")
   addResource("hdl/verilog/rvv/inc/rvv_backend_pmtrdt.svh")
+  addResource("hdl/verilog/rvv/common/adder.sv") // New
+  addResource("hdl/verilog/rvv/common/arb_round_robin.sv") // New
+  addResource("hdl/verilog/rvv/common/barrel_shifter.sv")  // New
+  addResource("hdl/verilog/rvv/common/handshake_ff.sv")  // New
+  addResource("hdl/verilog/rvv/common/handshake_multi_fifo.sv")  // New
   addResource("hdl/verilog/rvv/common/cdffr.sv")
   addResource("hdl/verilog/rvv/common/compressor_3_2.sv")
   addResource("hdl/verilog/rvv/common/compressor_4_2.sv")
@@ -456,6 +462,48 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
   addResource("hdl/verilog/rvv/common/edff.sv")
   addResource("hdl/verilog/rvv/common/edff_2d.sv")
   addResource("hdl/verilog/rvv/common/multi_fifo.sv")
+
+  // FPnew 
+  // 1. Packages and Includes (Must be compiled first)
+  addResource("hdl/verilog/rvv/design/FPnew/common_cells/inc/assertions.svh")
+  addResource("hdl/verilog/rvv/design/FPnew/common_cells/inc/registers.svh")
+  addResource("hdl/verilog/rvv/design/FPnew/common_cells/src/cf_math_pkg.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_pkg.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/defs_div_sqrt_mvp.sv")
+  // 2. Base Modules (No internal dependencies other than packages)
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/gated_clk_cell.v")
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_ff1.v")
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_pack.v")
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_srt_radix16_bound_table.v")
+  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/iteration_div_sqrt_mvp.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/common_cells/src/lzc.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_classifier.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_rounding.sv")
+  // 3. Intermediate Modules (Depend on Base Modules)
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_ctrl.v")
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_prepare.v")
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_round.v")
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_scalar_dp.v")
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_srt_radix16_with_sqrt.v")
+  addResource("hdl/verilog/rvv/design/FPnew/common_cells/src/rr_arb_tree.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/control_mvp.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/preprocess_mvp.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/norm_div_sqrt_mvp.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_cast_multi.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_fma_multi.sv")
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_noncomp.sv")
+  // 4. Higher-Level Modules (Depend on Intermediate Modules)
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_srt.v")
+  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/nrbd_nrsc_mvp.sv")
+  // 5. Sub-System Modules (Depend on Higher-Level Modules)
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_double.v")
+  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/div_sqrt_top_mvp.sv")
+  // 6. Top-Level Integration Modules
+  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_top.v")
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_divsqrt_multi.sv")
+  // 7. Final Wrapper
+  addResource("hdl/verilog/rvv/design/FPnew/fpnew_divsqrt_th_64_multi.sv")
+
   addResource("hdl/verilog/rvv/design/Aligner.sv")
   addResource("hdl/verilog/rvv/design/RvvFrontEnd.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_alu_unit_addsub.sv")
@@ -466,11 +514,16 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
   addResource("hdl/verilog/rvv/design/rvv_backend_alu_unit_shift.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_alu_unit.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_alu.sv")
+  addResource("hdl/verilog/rvv/design/rvv_backend_arb.sv")  // New
   addResource("hdl/verilog/rvv/design/rvv_backend_decode_unit.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_decode_unit_ari.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_decode_unit_lsu.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_decode_ctrl.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_decode.sv")
+  addResource("hdl/verilog/rvv/design/rvv_backend_decode_unit_ari_de2.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_decode_unit_lsu_de2.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_decode_unit_de2.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_decode_de2.sv")  // New
   addResource("hdl/verilog/rvv/design/rvv_backend_dispatch_bypass.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_dispatch_ctrl.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_dispatch_operand.sv")
@@ -481,14 +534,23 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
   addResource("hdl/verilog/rvv/design/rvv_backend_dispatch.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_div_unit_divider.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_div_unit.sv")
+  addResource("hdl/verilog/rvv/design/rvv_backend_fdiv_wrapper.sv")  // New
   addResource("hdl/verilog/rvv/design/rvv_backend_div.sv")
+  addResource("hdl/verilog/rvv/design/rvv_backend_sqrt7_rec7.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_fma_wrapper.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_fma.sv")  // New
   addResource("hdl/verilog/rvv/design/rvv_backend_lsu_remap.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_mul_unit_mul8.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_mac_unit.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_mul_unit.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_mulmac.sv")
+  addResource("hdl/verilog/rvv/design/rvv_backend_freduction.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_pmtrdt_unit_permutation.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_pmtrdt_unit_reduction_alu.sv")  // New
+  addResource("hdl/verilog/rvv/design/rvv_backend_pmtrdt_unit_reduction.sv")  // New
   addResource("hdl/verilog/rvv/design/rvv_backend_pmtrdt_unit.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_pmtrdt.sv")
+  addResource("hdl/verilog/rvv/design/rvv_backend_retire_waw.sv")  // New
   addResource("hdl/verilog/rvv/design/rvv_backend_retire.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_rob.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_vrf_reg.sv")

@@ -28,6 +28,8 @@ VERILATOR_BUILD_ARGS = [
     "-Wno-UNSIGNED",
     "-DUSE_GENERIC=\"\"",
     "-DTB_SUPPORT",
+    "-DZVE32F_ON",
+    "-DVLEN_128",
 ]
 
 VCS_BUILD_ARGS = [

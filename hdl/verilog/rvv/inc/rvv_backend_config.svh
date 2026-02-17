@@ -1,9 +1,18 @@
 `ifndef RVV_CONFIG_SVH
 `define RVV_CONFIG_SVH
 
-// config for multi-issue
-`define ISSUE_3_READ_PORT_6
-//`define ISSUE_2_READ_PORT_6
-//`define ISSUE_2_READ_PORT_4
+// config for multi-dispatch
+`define DISPATCH3
+//`define DISPATCH2
+
+// FP ISA 
+//`define ZVE32F_ON
+//`define ZVFBFWMA_ON
+
+// LSU interaction
+`define UNMK_USCS_LOAD_NOHANDSHAKE
+
+// ARBITER
+`define ARBITER_ON
 
 `endif // RVV_CONFIG_SVH

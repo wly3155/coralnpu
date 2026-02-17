@@ -45,7 +45,7 @@ module rvv_backend_dispatch_opr_byte_type
     logic  [`VSTART_WIDTH-1:0]          uop_v0_end;
     logic  [`VSTART_WIDTH-1:0]          uop_v0_end_offset;
     logic  [`VLENB-1:0]                 v0_enable, v0_enable_tmp;
-
+    
     // result
     BYTE_TYPE_t                         vs2;
     BYTE_TYPE_t                         vd;
@@ -93,6 +93,9 @@ module rvv_backend_dispatch_opr_byte_type
 
         always_comb begin
           case (uop_info.uop_exe_unit)
+          `ifdef ZVE32F_ON
+            FRDT,
+          `endif
             RDT:begin
               uop_vs2_start = (`VSTART_WIDTH)'(uop_info.uop_index) << uop_vs2_offset ;
             end
@@ -107,11 +110,11 @@ module rvv_backend_dispatch_opr_byte_type
                 {EEW32,EEW16},
                 {EEW16,EEW8}: begin
                   // widening instruction: EEW_vd:EEW_vs = 2:1
-                  uop_vs2_start = (`VSTART_WIDTH)'(uop_info.uop_index[`UOP_INDEX_WIDTH-1:1]) << uop_vs2_offset;
+                  uop_vs2_start = (`VSTART_WIDTH)'(uop_info.uop_index[$clog2(`EMUL_MAX)-1:1]) << uop_vs2_offset;
                 end
                 {EEW32,EEW8}: begin
                   // widening instruction: EEW_vd:EEW_vs = 4:1
-                  uop_vs2_start = (`VSTART_WIDTH)'(uop_info.uop_index[`UOP_INDEX_WIDTH-1:2]) << uop_vs2_offset;
+                  uop_vs2_start = (`VSTART_WIDTH)'(uop_info.uop_index[$clog2(`EMUL_MAX)-1:2]) << uop_vs2_offset;
                 end
                 default: begin
                   uop_vs2_start = 'b0;
@@ -170,7 +173,7 @@ module rvv_backend_dispatch_opr_byte_type
             {EEW32,EEW16},
             {EEW16,EEW8}: begin
               // narrowing instruction: EEW_vd:EEW_vs = 1:2
-              ele_start           = (`VSTART_WIDTH)'(uop_info.uop_index[`UOP_INDEX_WIDTH-1:1] << (VLENB_WIDTH - vd_eew_shift));
+              ele_start           = (`VSTART_WIDTH)'(uop_info.uop_index[$clog2(`EMUL_MAX)-1:1] << (VLENB_WIDTH - vd_eew_shift));
               
               uop_v0_start_offset = uop_info.uop_index[0] ? (`VSTART_WIDTH)'(`VLENB >> eew_max_shift) : 'b0;
               uop_v0_end_offset   = uop_info.uop_index[0] ? (`VLENB >> vd_eew_shift)-1'b1 : (`VLENB >> eew_max_shift)-1'b1; 
@@ -189,7 +192,7 @@ module rvv_backend_dispatch_opr_byte_type
             end
             {EEW32,EEW8}: begin
               // narrowing instruction: EEW_vd:EEW_vs = 1:4
-              ele_start = (`VSTART_WIDTH)'(uop_info.uop_index[`UOP_INDEX_WIDTH-1:2]) << VLENB_WIDTH;
+              ele_start = (`VSTART_WIDTH)'(uop_info.uop_index[$clog2(`EMUL_MAX)-1:2]) << VLENB_WIDTH;
 
               case(uop_info.uop_index[1:0])
                 2'd3: begin
@@ -259,6 +262,9 @@ module rvv_backend_dispatch_opr_byte_type
 
           always_comb begin
             case (uop_info.uop_exe_unit)
+            `ifdef ZVE32F_ON
+              FRDT,
+            `endif
               RDT:begin
                 case(uop_info.vd_eew)
                   EEW32:vd[i] = i<4 ? BODY_ACTIVE : TAIL;

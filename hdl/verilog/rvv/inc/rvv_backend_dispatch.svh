@@ -3,7 +3,7 @@
 
 `ifndef HDL_VERILOG_RVV_DESIGN_RVV_DEFINE_SVH
 `include "rvv_backend_define.svh"
-`endif  // not defined HDL_VERILOG_RVV_DESIGN_RVV_DEFINE_SVH
+`endif
 
 // input signals for RAW check
 typedef struct packed {
@@ -79,20 +79,21 @@ typedef struct packed {
 typedef struct packed {
   EXE_UNIT_e             uop_exe_unit;
   logic                  pshrob_valid;
+  logic                  pshlsu_valid;
 } UOP_CTRL_t;
 
 // input signals for opr_byte_type unit
 typedef struct packed {
-  logic [`UOP_INDEX_WIDTH-1:0] uop_index;
-  EXE_UNIT_e                   uop_exe_unit;
-  EEW_e                        vd_eew;
-  EEW_e                        vs1_eew;
-  EEW_e                        vs2_eew;
-  logic [`VSTART_WIDTH-1:0]    vstart;
-  logic [`VL_WIDTH-1:0]        vl;
-  logic                        vm;
-  logic                        ignore_vma;
-  logic                        ignore_vta;
+  logic [$clog2(`EMUL_MAX)-1:0] uop_index;      
+  EXE_UNIT_e                    uop_exe_unit;
+  EEW_e                         vd_eew;
+  EEW_e                         vs1_eew;
+  EEW_e                         vs2_eew;
+  logic [`VSTART_WIDTH-1:0]     vstart;
+  logic [`VL_WIDTH-1:0]         vl;
+  logic                         vm;
+  logic                         ignore_vma;
+  logic                         ignore_vta;
 } UOP_INFO_t;
 
 // the vector operand byte type in uop

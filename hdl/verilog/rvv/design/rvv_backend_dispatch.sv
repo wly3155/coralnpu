@@ -5,18 +5,6 @@
 //     a. stall pipeline
 //     b. foreward data from ROB
 // 3. Dispatch unit read vector data from VRF for uops.
-// 
-// feature list:
-// 1. Dispatch module can issue 2 uops at most.
-//     a. Uop sequence must be in-order.
-//     b. Issuing uop(s) use valid-ready handshake mechanism.
-// 2. Dispatch rules
-//     a. RAW data hazard: 
-//         I. uop0 Vs rob_entry(s). if rob_entry.vd_valid is 'b0, then stall pipeline (do not issue uop0)
-//         II.uop1 Vs rob_entry(s). if rob_entry.vd_valid is 'b0, then do not issue uop1
-//         II.uop1 Vs uop0. if uop0.vd_valid is the src of uop1, then do not issue uop0
-//     b. Structure hazard:
-//         I. the src-operand number of uops is more than 4, then only issue uop0
 
 `ifndef HDL_VERILOG_RVV_DESIGN_RVV_SVH
 `include "rvv_backend.svh"
@@ -44,6 +32,11 @@ module rvv_backend_dispatch
     rs_valid_dp2div,
     rs_dp2div,
     rs_ready_div2dp,
+`ifdef ZVE32F_ON
+    rs_valid_dp2fma,
+    rs_dp2fma,
+    rs_ready_fma2dp,
+`endif
     rs_valid_dp2lsu,
     rs_dp2lsu,
     rs_ready_lsu2dp,
@@ -53,7 +46,7 @@ module rvv_backend_dispatch
     uop_valid_dp2rob,
     uop_dp2rob,
     uop_ready_rob2dp,
-    uop_index_rob2dp,
+    rob_entry_rob2dp,
     rd_index_dp2vrf,        
     rd_data_vrf2dp,
     v0_mask_vrf2dp,
@@ -91,6 +84,13 @@ module rvv_backend_dispatch
     output DIV_RS_t       [`NUM_DP_UOP-1:0]       rs_dp2div;
     input  logic          [`NUM_DP_UOP-1:0]       rs_ready_div2dp;
 
+`ifdef ZVE32F_ON
+// Dispatch unit to FMA reservation station
+    output logic          [`NUM_DP_UOP-1:0]       rs_valid_dp2fma;
+    output FMA_RS_t       [`NUM_DP_UOP-1:0]       rs_dp2fma;
+    input  logic          [`NUM_DP_UOP-1:0]       rs_ready_fma2dp;
+`endif
+
 // Dispatch unit to LSU 
     // to LSU RS
     output logic          [`NUM_DP_UOP-1:0]       rs_valid_dp2lsu;
@@ -105,7 +105,7 @@ module rvv_backend_dispatch
     output logic          [`NUM_DP_UOP-1:0]       uop_valid_dp2rob;
     output DP2ROB_t       [`NUM_DP_UOP-1:0]       uop_dp2rob;
     input  logic          [`NUM_DP_UOP-1:0]       uop_ready_rob2dp;
-    input  logic          [`ROB_DEPTH_WIDTH-1:0]  uop_index_rob2dp;
+    input  logic          [`ROB_DEPTH_WIDTH-1:0]  rob_entry_rob2dp;
 
 // Dispatch unit sends read request to VRF for vector data.
 // Dispatch unit to VRF unit
@@ -138,10 +138,10 @@ module rvv_backend_dispatch
     UOP_INFO_t          [`NUM_DP_UOP-1:0]   uop_info;
     UOP_OPN_BYTE_TYPE_t [`NUM_DP_UOP-1:0]   uop_operand_byte_type;
 
-    logic [`NUM_DP_UOP-1:0][`VL_WIDTH-1:0]             vlmax;
-    logic [`NUM_DP_UOP-1:0][$clog2(`VSTART_WIDTH)-1:0] vlmax_shift;
+    logic [`NUM_DP_UOP-1:0][`VL_WIDTH-1:0]          vlmax;
+    logic [`NUM_DP_UOP-1:0][$clog2(`VL_WIDTH)-1:0]  vlmax_shift;
 
-    logic [`NUM_DP_UOP-1:0][`ROB_DEPTH_WIDTH-1:0]      rob_address;
+    logic [`NUM_DP_UOP-1:0][`ROB_DEPTH_WIDTH-1:0]   rob_address;
 
 // ---code start------------------------------------------------------
     genvar i;
@@ -149,7 +149,10 @@ module rvv_backend_dispatch
     // vlmax = lmul * `VLENB / sew 
     generate
       for (i=0; i<`NUM_DP_UOP; i++) begin : gen_vlmax
-        assign vlmax_shift[i] ={1'b0, uop_uop2dp[i].vector_csr.lmul[1:0]} + $clog2(`VLENB) - uop_uop2dp[i].vector_csr.sew - {uop_uop2dp[i].vector_csr.lmul[2],2'b00};
+        assign vlmax_shift[i] = ($clog2(`VL_WIDTH))'(uop_uop2dp[i].vector_csr.lmul[1:0]) 
+                                + $clog2(`VLENB) 
+                                - ($clog2(`VL_WIDTH))'(uop_uop2dp[i].vector_csr.sew) 
+                                - {{($clog2(`VL_WIDTH)-3){1'b0}},uop_uop2dp[i].vector_csr.lmul[2],2'b0};
         assign vlmax[i] = (`VL_WIDTH)'(1) << vlmax_shift[i];
       end
     endgenerate
@@ -157,10 +160,10 @@ module rvv_backend_dispatch
     generate
         for (i=0; i<`NUM_DP_UOP; i++) begin : gen_suc_uop
             assign suc_uop[i].vs1_index = uop_uop2dp[i].vs1;
-            assign suc_uop[i].vs1_valid = uop_uop2dp[i].vs1_index_valid;
+            assign suc_uop[i].vs1_valid = uop_uop2dp[i].vs1_valid;
             assign suc_uop[i].vs2_index = uop_uop2dp[i].vs2_index;
             assign suc_uop[i].vs2_valid = uop_uop2dp[i].vs2_valid;
-            assign suc_uop[i].vd_index  = uop_uop2dp[i].vd_index;
+            assign suc_uop[i].vd_index  = uop_uop2dp[i].dst_index;
             assign suc_uop[i].vs3_valid = uop_uop2dp[i].vs3_valid;
             assign suc_uop[i].vm        = uop_uop2dp[i].vm;
         end
@@ -186,9 +189,9 @@ module rvv_backend_dispatch
 // RAW data hazard check between uop(s)
     generate
         for (i=0; i<`NUM_DP_UOP-1; i++) begin : gen_pre_uop_uop
-            assign pre_uop_uop[i].w_index = uop_uop2dp[i].vd_index;
+            assign pre_uop_uop[i].w_index = uop_uop2dp[i].dst_index;
             assign pre_uop_uop[i].w_valid = 1'b0;
-            assign pre_uop_uop[i].w_type  = uop_uop2dp[i].rd_index_valid ? XRF : VRF;
+            assign pre_uop_uop[i].w_type  = uop_uop2dp[i].vd_valid ? VRF : XRF;
             assign pre_uop_uop[i].valid   = uop_uop2dp[i].vd_valid & uop_valid_uop2dp[i];
         end
         for (i=1; i<`NUM_DP_UOP; i++) begin : gen_raw_uop_uop
@@ -206,10 +209,10 @@ module rvv_backend_dispatch
     generate
         for (i=0; i<`NUM_DP_UOP; i++) begin : gen_strct_uop
             assign strct_uop[i].vs1_index = uop_uop2dp[i].vs1;
-            assign strct_uop[i].vs1_valid = uop_uop2dp[i].vs1_index_valid;
+            assign strct_uop[i].vs1_valid = uop_uop2dp[i].vs1_valid;
             assign strct_uop[i].vs2_index = uop_uop2dp[i].vs2_index;
             assign strct_uop[i].vs2_valid = uop_uop2dp[i].vs2_valid;
-            assign strct_uop[i].vd_index  = uop_uop2dp[i].vd_index;
+            assign strct_uop[i].vd_index  = uop_uop2dp[i].dst_index;
             assign strct_uop[i].vs3_valid = uop_uop2dp[i].vs3_valid;
             assign strct_uop[i].uop_exe_unit = uop_uop2dp[i].uop_exe_unit;
             assign strct_uop[i].uop_class = uop_uop2dp[i].uop_class;
@@ -265,6 +268,7 @@ module rvv_backend_dispatch
         for (i=0; i<`NUM_DP_UOP; i++) begin : gen_uop_ctrl
             assign uop_ctrl[i].uop_exe_unit = uop_uop2dp[i].uop_exe_unit;
             assign uop_ctrl[i].pshrob_valid = uop_uop2dp[i].pshrob_valid;
+            assign uop_ctrl[i].pshlsu_valid = uop_uop2dp[i].pshlsu_valid;
         end
     endgenerate
 
@@ -286,6 +290,10 @@ module rvv_backend_dispatch
         .rs_ready_mul2dp        (rs_ready_mul2dp),
         .rs_valid_dp2div        (rs_valid_dp2div),
         .rs_ready_div2dp        (rs_ready_div2dp),
+      `ifdef ZVE32F_ON
+        .rs_valid_dp2fma        (rs_valid_dp2fma),
+        .rs_ready_fma2dp        (rs_ready_fma2dp),
+      `endif
         .rs_valid_dp2lsu        (rs_valid_dp2lsu),
         .rs_ready_lsu2dp        (rs_ready_lsu2dp),
         .mapinfo_valid_dp2lsu   (mapinfo_valid_dp2lsu),
@@ -298,7 +306,7 @@ module rvv_backend_dispatch
     generate
         for (i=0; i<`NUM_DP_UOP; i++) begin : gen_opr_bype_type
             assign uop_info[i].uop_index  = (uop_uop2dp[i].uop_exe_unit==LSU)&(uop_uop2dp[i].uop_funct6.lsu_funct6.lsu_is_seg==IS_SEGMENT)? 
-                                            (`UOP_INDEX_WIDTH)'(uop_uop2dp[i].seg_field_index) : uop_uop2dp[i].uop_index;
+                                            uop_uop2dp[i].seg_field_index : uop_uop2dp[i].uop_index[$clog2(`EMUL_MAX)-1:0];
             assign uop_info[i].uop_exe_unit = uop_uop2dp[i].uop_exe_unit;
             assign uop_info[i].vd_eew     = uop_uop2dp[i].vd_eew;
             assign uop_info[i].vs1_eew    = uop_uop2dp[i].vs1_eew;
@@ -322,130 +330,167 @@ module rvv_backend_dispatch
     generate
         for (i=0; i<`NUM_DP_UOP; i++) begin : gen_output_sig
           // rob_address
-            if (i==0)
-              assign rob_address[0] = uop_index_rob2dp;
-            else begin 
-              //assign rob_address[i] = (uop_uop2dp[i].uop_exe_unit==RDT||uop_uop2dp[i].uop_exe_unit==CMP)&(!uop_uop2dp[i].first_uop_valid) ? rob_address[i-1] : rob_address[i-1]+1'b1;
+            if (i==0) begin : gen_rob_address_0
+              assign rob_address[0] = rob_entry_rob2dp;
+            end else begin : gen_rob_address_i
               assign rob_address[i] = rob_address[i-1] + (`ROB_DEPTH_WIDTH)'(uop_uop2dp[i-1].pshrob_valid);
             end
 
           // ALU RS
-`ifdef TB_SUPPORT
-            assign rs_dp2alu[i].uop_pc        = uop_uop2dp[i].uop_pc; 
-`endif
-            assign rs_dp2alu[i].rob_entry     = rob_address[i]; 
-            assign rs_dp2alu[i].uop_funct6    = uop_uop2dp[i].uop_funct6;
-            assign rs_dp2alu[i].uop_funct3    = uop_uop2dp[i].uop_funct3;
-            assign rs_dp2alu[i].vstart        = uop_uop2dp[i].vector_csr.vstart;
-            assign rs_dp2alu[i].vl            = uop_uop2dp[i].vs_evl;
-            assign rs_dp2alu[i].vm            = uop_uop2dp[i].vm;
-            assign rs_dp2alu[i].vxrm          = uop_uop2dp[i].vector_csr.xrm;
-            assign rs_dp2alu[i].v0_data       = uop_operand[i].v0;
-            assign rs_dp2alu[i].v0_data_valid = uop_uop2dp[i].v0_valid;
-            assign rs_dp2alu[i].vd_data       = uop_operand[i].vd;
-            assign rs_dp2alu[i].vd_data_valid = uop_uop2dp[i].vs3_valid;
-            assign rs_dp2alu[i].vd_eew        = uop_uop2dp[i].vd_eew;
-            assign rs_dp2alu[i].vs1           = uop_uop2dp[i].vs1;
-            assign rs_dp2alu[i].vs1_data      = uop_operand[i].vs1;
-            assign rs_dp2alu[i].vs1_data_valid= uop_uop2dp[i].vs1_index_valid;
-            assign rs_dp2alu[i].vs2_data      = uop_operand[i].vs2;
-            assign rs_dp2alu[i].vs2_data_valid= uop_uop2dp[i].vs2_valid;
-            assign rs_dp2alu[i].vs2_eew       = uop_uop2dp[i].vs2_eew;
-            assign rs_dp2alu[i].rs1_data      = uop_uop2dp[i].rs1_data;
-            assign rs_dp2alu[i].rs1_data_valid= uop_uop2dp[i].rs1_data_valid;
-            assign rs_dp2alu[i].uop_index     = uop_uop2dp[i].uop_index;
+          `ifdef TB_SUPPORT
+            assign rs_dp2alu[i].uop_pc          = uop_uop2dp[i].uop_pc; 
+          `endif
+            assign rs_dp2alu[i].rob_entry       = rob_address[i]; 
+            assign rs_dp2alu[i].uop_funct6      = uop_uop2dp[i].uop_funct6;
+            assign rs_dp2alu[i].uop_funct3      = uop_uop2dp[i].uop_funct3;
+            assign rs_dp2alu[i].is_cmp          = uop_uop2dp[i].uop_exe_unit==CMP; 
+            assign rs_dp2alu[i].vstart          = uop_uop2dp[i].vector_csr.vstart;
+            assign rs_dp2alu[i].vl              = uop_uop2dp[i].vs_evl;
+            assign rs_dp2alu[i].vm              = uop_uop2dp[i].vm;
+            assign rs_dp2alu[i].vxrm            = uop_uop2dp[i].vector_csr.xrm;
+            assign rs_dp2alu[i].v0_data         = uop_operand[i].v0;
+            assign rs_dp2alu[i].v0_data_valid   = uop_uop2dp[i].v0_valid;
+            assign rs_dp2alu[i].vd_data         = uop_operand[i].vd;
+            assign rs_dp2alu[i].vd_data_valid   = uop_uop2dp[i].vs3_valid;
+            assign rs_dp2alu[i].vd_eew          = uop_uop2dp[i].vd_eew;
+            assign rs_dp2alu[i].vs1             = uop_uop2dp[i].vs1;
+            assign rs_dp2alu[i].vs1_data        = uop_uop2dp[i].vs1_valid ? uop_operand[i].vs1 : (`VLEN)'(uop_uop2dp[i].rs1_data);
+            assign rs_dp2alu[i].vs1_data_valid  = uop_uop2dp[i].vs1_valid;
+            assign rs_dp2alu[i].rs1_data_valid  = uop_uop2dp[i].rs1_data_valid;
+            assign rs_dp2alu[i].vs2_data        = uop_operand[i].vs2;
+            assign rs_dp2alu[i].vs2_data_valid  = uop_uop2dp[i].vs2_valid;
+            assign rs_dp2alu[i].vs2_eew         = uop_uop2dp[i].vs2_eew;
+            assign rs_dp2alu[i].first_uop_valid = uop_uop2dp[i].first_uop_valid;
+            assign rs_dp2alu[i].last_uop_valid  = uop_uop2dp[i].last_uop_valid;
+            assign rs_dp2alu[i].uop_index       = uop_uop2dp[i].uop_index[$clog2(`EMUL_MAX)-1:0];
 
           // PMTRDT RS
-`ifdef TB_SUPPORT
+          `ifdef TB_SUPPORT
             assign rs_dp2pmtrdt[i].uop_pc          = uop_uop2dp[i].uop_pc; 
-`endif
+          `endif
             assign rs_dp2pmtrdt[i].rob_entry       = rob_address[i]; 
             assign rs_dp2pmtrdt[i].uop_exe_unit    = uop_uop2dp[i].uop_exe_unit; 
             assign rs_dp2pmtrdt[i].uop_funct6      = uop_uop2dp[i].uop_funct6;
             assign rs_dp2pmtrdt[i].uop_funct3      = uop_uop2dp[i].uop_funct3;
-            assign rs_dp2pmtrdt[i].vstart          = uop_uop2dp[i].vector_csr.vstart;
             assign rs_dp2pmtrdt[i].vl              = uop_uop2dp[i].vs_evl;
-            assign rs_dp2pmtrdt[i].vlmax           = vlmax[i];
             assign rs_dp2pmtrdt[i].vm              = uop_uop2dp[i].vm;
+            assign rs_dp2pmtrdt[i].vlmax           = vlmax[i];
             assign rs_dp2pmtrdt[i].v0_data         = uop_operand[i].v0;
-            assign rs_dp2pmtrdt[i].v0_data_valid   = uop_uop2dp[i].v0_valid;
             assign rs_dp2pmtrdt[i].vs1_data        = uop_operand[i].vs1;
             assign rs_dp2pmtrdt[i].vs1_eew         = uop_uop2dp[i].vs1_eew;
-            assign rs_dp2pmtrdt[i].vs1_data_valid  = uop_uop2dp[i].vs1_index_valid;
+            assign rs_dp2pmtrdt[i].vs1_data_valid  = uop_uop2dp[i].vs1_valid;
+            assign rs_dp2pmtrdt[i].vs2_index       = uop_uop2dp[i].vs2_index;
             assign rs_dp2pmtrdt[i].vs2_data        = uop_operand[i].vs2;
             assign rs_dp2pmtrdt[i].vs2_eew         = uop_uop2dp[i].vs2_eew;
             assign rs_dp2pmtrdt[i].vs2_type        = uop_operand_byte_type[i].vs2;
-            assign rs_dp2pmtrdt[i].vs2_data_valid  = uop_uop2dp[i].vs2_valid;
-            assign rs_dp2pmtrdt[i].vs3_data        = uop_operand[i].vd;
-            assign rs_dp2pmtrdt[i].vs3_data_valid  = uop_uop2dp[i].vs3_valid;
+            assign rs_dp2pmtrdt[i].vd_eew          = uop_uop2dp[i].vd_eew;
+            assign rs_dp2pmtrdt[i].dst_index       = uop_uop2dp[i].dst_index;
             assign rs_dp2pmtrdt[i].rs1_data        = uop_uop2dp[i].rs1_data;
-            assign rs_dp2pmtrdt[i].rs1_data_valid  = uop_uop2dp[i].rs1_data_valid;
             assign rs_dp2pmtrdt[i].first_uop_valid = uop_uop2dp[i].first_uop_valid;
             assign rs_dp2pmtrdt[i].last_uop_valid  = uop_uop2dp[i].last_uop_valid;
-            assign rs_dp2pmtrdt[i].uop_index       = uop_uop2dp[i].uop_index;
+            assign rs_dp2pmtrdt[i].uop_index       = uop_uop2dp[i].uop_index[$clog2(`EMUL_MAX)-1:0];
+          `ifdef ZVE32F_ON
+            assign rs_dp2pmtrdt[i].frm             = uop_uop2dp[i].vector_csr.frm;
+          `endif
             
           // MUL/MAC RS
-`ifdef TB_SUPPORT
-            assign rs_dp2mul[i].uop_pc         = uop_uop2dp[i].uop_pc; 
-`endif
-            assign rs_dp2mul[i].rob_entry      = rob_address[i]; 
-            assign rs_dp2mul[i].uop_funct6     = uop_uop2dp[i].uop_funct6;
-            assign rs_dp2mul[i].uop_funct3     = uop_uop2dp[i].uop_funct3;
-            assign rs_dp2mul[i].vxrm           = uop_uop2dp[i].vector_csr.xrm;
-            assign rs_dp2mul[i].vs1_data       = uop_operand[i].vs1;
-            assign rs_dp2mul[i].vs1_data_valid = uop_uop2dp[i].vs1_index_valid;
-            assign rs_dp2mul[i].vs2_data       = uop_operand[i].vs2;
-            assign rs_dp2mul[i].vs2_data_valid = uop_uop2dp[i].vs2_valid;
-            assign rs_dp2mul[i].vs2_eew        = uop_uop2dp[i].vs2_eew;
-            assign rs_dp2mul[i].vs3_data       = uop_operand[i].vd;
-            assign rs_dp2mul[i].vs3_data_valid = uop_uop2dp[i].vs3_valid;
-            assign rs_dp2mul[i].rs1_data       = uop_uop2dp[i].rs1_data;
-            assign rs_dp2mul[i].rs1_data_valid = uop_uop2dp[i].rs1_data_valid;
-            assign rs_dp2mul[i].uop_index      = uop_uop2dp[i].uop_index;
+          `ifdef TB_SUPPORT
+            assign rs_dp2mul[i].uop_pc          = uop_uop2dp[i].uop_pc; 
+          `endif
+            assign rs_dp2mul[i].rob_entry       = rob_address[i]; 
+            assign rs_dp2mul[i].uop_funct6      = uop_uop2dp[i].uop_funct6;
+            assign rs_dp2mul[i].uop_funct3      = uop_uop2dp[i].uop_funct3;
+            assign rs_dp2mul[i].vxrm            = uop_uop2dp[i].vector_csr.xrm;
+            assign rs_dp2mul[i].vs1_data        = uop_uop2dp[i].vs1_valid ? uop_operand[i].vs1 : (`VLEN)'(uop_uop2dp[i].rs1_data);
+            assign rs_dp2mul[i].vs1_data_valid  = uop_uop2dp[i].vs1_valid;
+            assign rs_dp2mul[i].rs1_data_valid  = uop_uop2dp[i].rs1_data_valid;
+            assign rs_dp2mul[i].vs2_data        = uop_operand[i].vs2;
+            assign rs_dp2mul[i].vs2_data_valid  = uop_uop2dp[i].vs2_valid;
+            assign rs_dp2mul[i].vs2_eew         = uop_uop2dp[i].vs2_eew;
+            assign rs_dp2mul[i].vs3_data        = uop_operand[i].vd;
+            assign rs_dp2mul[i].vs3_data_valid  = uop_uop2dp[i].vs3_valid;
+            assign rs_dp2mul[i].uop_index       = uop_uop2dp[i].uop_index[0];
 
           // DIV RS
-`ifdef TB_SUPPORT
-            assign rs_dp2div[i].uop_pc        = uop_uop2dp[i].uop_pc; 
-`endif
-            assign rs_dp2div[i].rob_entry     = rob_address[i]; 
-            assign rs_dp2div[i].uop_funct6    = uop_uop2dp[i].uop_funct6;
-            assign rs_dp2div[i].uop_funct3    = uop_uop2dp[i].uop_funct3;
-            assign rs_dp2div[i].vs1_data      = uop_operand[i].vs1;
-            assign rs_dp2div[i].vs1_data_valid= uop_uop2dp[i].vs1_index_valid;
-            assign rs_dp2div[i].vs2_data      = uop_operand[i].vs2;
-            assign rs_dp2div[i].vs2_eew       = uop_uop2dp[i].vs2_eew;
-            assign rs_dp2div[i].vs2_data_valid= uop_uop2dp[i].vs2_valid;
-            assign rs_dp2div[i].rs1_data      = uop_uop2dp[i].rs1_data;
-            assign rs_dp2div[i].rs1_data_valid= uop_uop2dp[i].rs1_data_valid;
+          `ifdef TB_SUPPORT
+            assign rs_dp2div[i].uop_pc          = uop_uop2dp[i].uop_pc; 
+          `endif
+            assign rs_dp2div[i].rob_entry       = rob_address[i]; 
+            assign rs_dp2div[i].uop_funct6      = uop_uop2dp[i].uop_funct6;
+            assign rs_dp2div[i].uop_funct3      = uop_uop2dp[i].uop_funct3;
+            assign rs_dp2div[i].is_div          = uop_uop2dp[i].uop_exe_unit==DIV; 
+            assign rs_dp2div[i].vs1_data        = uop_uop2dp[i].vs1_valid ? uop_operand[i].vs1 : (`VLEN)'(uop_uop2dp[i].rs1_data);
+            assign rs_dp2div[i].vs1_data_valid  = uop_uop2dp[i].vs1_valid;
+            assign rs_dp2div[i].rs1_data_valid  = uop_uop2dp[i].rs1_data_valid;
+            assign rs_dp2div[i].vs2_data        = uop_operand[i].vs2;
+            assign rs_dp2div[i].vs2_eew         = uop_uop2dp[i].vs2_eew;
+            assign rs_dp2div[i].vs2_data_valid  = uop_uop2dp[i].vs2_valid;
+          `ifdef ZVE32F_ON
+            assign rs_dp2div[i].frm             = uop_uop2dp[i].vector_csr.frm;
+            assign rs_dp2div[i].vs1             = uop_uop2dp[i].vs1;
+          `endif
+
+          `ifdef ZVE32F_ON
+          // FMA RS
+          `ifdef TB_SUPPORT
+            assign rs_dp2fma[i].uop_pc          = uop_uop2dp[i].uop_pc; 
+          `endif
+            assign rs_dp2fma[i].rob_entry       = rob_address[i]; 
+            assign rs_dp2fma[i].uop_funct6      = uop_uop2dp[i].uop_funct6;
+            assign rs_dp2fma[i].uop_funct3      = uop_uop2dp[i].uop_funct3;
+            assign rs_dp2fma[i].uop_exe_unit    = uop_uop2dp[i].uop_exe_unit;
+            assign rs_dp2fma[i].vstart          = uop_uop2dp[i].vector_csr.vstart;
+            assign rs_dp2fma[i].vl              = uop_uop2dp[i].vs_evl;
+            assign rs_dp2fma[i].vm              = uop_uop2dp[i].vm;
+            assign rs_dp2fma[i].frm             = uop_uop2dp[i].vector_csr.frm;
+            assign rs_dp2fma[i].v0_data         = uop_operand[i].v0[`VLENW*`EMUL_MAX-1:0];
+            assign rs_dp2fma[i].v0_data_valid   = uop_uop2dp[i].v0_valid;
+            assign rs_dp2fma[i].vs1             = uop_uop2dp[i].vs1;
+            assign rs_dp2fma[i].vs1_data        = uop_operand[i].vs1;
+            assign rs_dp2fma[i].vs1_data_valid  = uop_uop2dp[i].vs1_valid;
+            assign rs_dp2fma[i].vs2_data        = uop_operand[i].vs2;
+            assign rs_dp2fma[i].vs2_data_valid  = uop_uop2dp[i].vs2_valid;
+            assign rs_dp2fma[i].vs2_eew         = uop_uop2dp[i].vs2_eew;
+            assign rs_dp2fma[i].vs3_data        = uop_operand[i].vd;
+            assign rs_dp2fma[i].vs3_data_valid  = uop_uop2dp[i].vs3_valid;
+            assign rs_dp2fma[i].rs1_data        = uop_uop2dp[i].rs1_data;
+            assign rs_dp2fma[i].rs1_data_valid  = uop_uop2dp[i].rs1_data_valid;
+            assign rs_dp2fma[i].last_uop_valid  = uop_uop2dp[i].last_uop_valid;
+            assign rs_dp2fma[i].uop_index       = uop_uop2dp[i].uop_index[$clog2(`EMUL_MAX)-1:0];            
+          `endif
 
           // LSU RS
-`ifdef TB_SUPPORT
+          `ifdef TB_SUPPORT
             assign rs_dp2lsu[i].uop_pc              = uop_uop2dp[i].uop_pc; 
-`endif
+          `endif
             assign rs_dp2lsu[i].vidx_valid          = uop_uop2dp[i].vs2_valid;
             assign rs_dp2lsu[i].vidx_addr           = uop_uop2dp[i].vs2_index;
             assign rs_dp2lsu[i].vidx_data           = uop_operand[i].vs2;
             assign rs_dp2lsu[i].vregfile_read_valid = uop_uop2dp[i].vs3_valid;
-            assign rs_dp2lsu[i].vregfile_read_addr  = uop_uop2dp[i].vd_index;
+            assign rs_dp2lsu[i].vregfile_read_addr  = uop_uop2dp[i].dst_index;
             assign rs_dp2lsu[i].vregfile_read_data  = uop_operand[i].vd;
             assign rs_dp2lsu[i].v0_valid            = uop_uop2dp[i].v0_valid;
             assign rs_dp2lsu[i].v0_data             = uop_operand_byte_type[i].v0_strobe;
 
           // LSU MAP INFO
-`ifdef TB_SUPPORT
+          `ifdef TB_SUPPORT
             assign mapinfo_dp2lsu[i].uop_pc              = uop_uop2dp[i].uop_pc; 
-`endif
+          `endif
             assign mapinfo_dp2lsu[i].valid               = mapinfo_valid_dp2lsu[i];
             assign mapinfo_dp2lsu[i].rob_entry           = rob_address[i];
             assign mapinfo_dp2lsu[i].lsu_class           = uop_uop2dp[i].uop_funct6.lsu_funct6.lsu_is_store;
-            assign mapinfo_dp2lsu[i].vregfile_write_addr = uop_uop2dp[i].vd_index;
+            assign mapinfo_dp2lsu[i].vregfile_write_addr = uop_uop2dp[i].dst_index;
 
           // ROB
-`ifdef TB_SUPPORT
+          `ifdef TB_SUPPORT
             assign uop_dp2rob[i].uop_pc         = uop_uop2dp[i].uop_pc; 
-`endif
-            assign uop_dp2rob[i].w_index        = uop_uop2dp[i].rd_index_valid ? uop_uop2dp[i].rd_index : uop_uop2dp[i].vd_index;
-            assign uop_dp2rob[i].w_type         = uop_uop2dp[i].rd_index_valid ? XRF : VRF;
+          `endif
+            assign uop_dp2rob[i].w_index        = uop_uop2dp[i].dst_index;
+            assign uop_dp2rob[i].w_type         = uop_uop2dp[i].vd_valid ? VRF : 
+          `ifdef ZVE32F_ON
+                                                  uop_uop2dp[i].fd_valid ? FRF :
+          `endif
+                                                  XRF;
             assign uop_dp2rob[i].byte_type      = uop_operand_byte_type[i].vd;
             assign uop_dp2rob[i].vector_csr     = uop_uop2dp[i].vector_csr;
             assign uop_dp2rob[i].last_uop_valid = uop_uop2dp[i].last_uop_valid;

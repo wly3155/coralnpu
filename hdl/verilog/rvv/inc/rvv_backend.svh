@@ -2,7 +2,9 @@
 `define HDL_VERILOG_RVV_DESIGN_RVV_SVH
 
 `ifndef HDL_VERILOG_RVV_DESIGN_RVV_DEFINE_SVH
+`ifndef HDL_VERILOG_RVV_DESIGN_RVV_DEFINE_SVH
 `include "rvv_backend_define.svh"
+`endif
 `endif  // not defined HDL_VERILOG_RVV_DESIGN_RVV_DEFINE_SVH
 
 //
@@ -39,6 +41,24 @@ typedef enum logic [1:0] {
   ROD = 3
 } RVVXRM;
 
+// Floating-point Rounding Mode
+typedef enum logic [2:0] {
+  FRNE=0,
+  FRTZ=1,
+  FRDN=2,
+  FRUP=3,
+  FRMM=4
+} RVFRM;
+
+// Floating-point Exception
+typedef struct packed {
+  logic nv;   
+  logic dz; 
+  logic of;   
+  logic uf;   
+  logic nx;   
+} RVFEXP_t;
+
 // The architectural configuration state of the RVV core.
 typedef struct packed {
   logic                         vill; // This configuration is illegal
@@ -49,8 +69,8 @@ typedef struct packed {
   RVVXRM                        xrm;       
   logic [`VCSR_VXSAT_WIDTH-1:0] xsat;   // rvv dont need this bit, but output this to rvs
 `ifdef ZVE32F_ON
-  logic [2:0]                   frm;       // rounding mode for floating-point
-`endif  // ZVE32F_ON
+  RVFRM                         frm;
+`endif
   RVVSEW                        sew;
   RVVLMUL                       lmul;
   RVVLMUL                       lmul_orig;
@@ -87,8 +107,49 @@ typedef struct packed {
 //
 // DE stage, Command Queue to Uops Queue
 //
-// execution unit
+// Effective MUL enum
+typedef enum logic [3:0] {
+  EMUL1=0,
+  EMUL2=1,
+  EMUL4=2,
+  EMUL8=3,
+  EMUL3,
+  EMUL5,
+  EMUL6,
+  EMUL7,
+  EMUL_NONE     // it means this is not supported 
+} EMUL_e;
+
+// Effective Element Width
 typedef enum logic [2:0] {
+  EEW_NONE,    // it means this is not supported 
+  EEW1,
+  EEW8, 
+  EEW16,
+  EEW32,
+  EEW64
+} EEW_e;
+
+// the legal RVVCmd after decoding
+typedef struct packed {
+  RVVCmd                          cmd;
+  EEW_e                           eew_vs1;
+  EEW_e                           eew_vs2;
+  EEW_e                           eew_vd;
+  EEW_e                           eew_max;
+  EMUL_e                          emul_vs1;
+  EMUL_e                          emul_vs2;
+  EMUL_e                          emul_vd;
+  EMUL_e                          emul_max;
+  logic   [`UOP_INDEX_WIDTH-1:0]  uop_vstart;         
+  logic   [`UOP_INDEX_WIDTH-1:0]  uop_index_max;         
+  logic   [`VL_WIDTH-1:0]         evl;
+  logic                           force_vma_agnostic;
+  logic                           force_vta_agnostic;
+} LCMD_t;
+
+// execution unit
+typedef enum logic [3:0] {
   ALU,
   MUL,
   MAC,
@@ -96,10 +157,20 @@ typedef enum logic [2:0] {
   RDT,
   CMP,
   DIV,
-  LSU
+  LSU,
+`ifdef ZVE32F_ON
+  FMA,
+  FCVT,
+  FRDT,
+  FNCMP,
+  FCMP,
+  FDIV,
+  FTBL,
+`endif
+  MISC
 } EXE_UNIT_e;
 
-// when EXE_UNIT_e is not LSU, it is used to distinguish arithmetic instructions, based on inst_encoding[14:12]
+// funct3
   parameter  OPIVV=3'b000;      // vs2,      vs1, vd.
   parameter  OPFVV=3'b001;      // vs2,      vs1, vd/rd. float, not support
   parameter  OPMVV=3'b010;      // vs2,      vs1, vd/rd.
@@ -109,7 +180,7 @@ typedef enum logic [2:0] {
   parameter  OPMVX=3'b110;      // vs2,      rs1, vd/rd.
   parameter  OPCFG=3'b111;      // vset* instructions        
 
-// when EXE_UNIT_e is not LSU, it identifys what instruction, vadd or vmacc or ..? based on inst_encoding[31:26]
+// funct6
   // OPI* instructions
   parameter VADD            =   6'b000_000;
   parameter VSUB            =   6'b000_010;
@@ -169,9 +240,9 @@ typedef enum logic [2:0] {
   parameter VASUB           =   6'b001_011;
   parameter VSLIDE1UP       =   6'b001_110;
   parameter VSLIDE1DOWN     =   6'b001_111;
-  parameter VWRXUNARY0      =   6'b010_000;
-  parameter VXUNARY0        =   6'b010_010;
-  parameter VMUNARY0        =   6'b010_100;
+  parameter VWRXUNARY0      =   6'b010_000;     
+  parameter VXUNARY0        =   6'b010_010;     
+  parameter VMUNARY0        =   6'b010_100;     
   parameter VCOMPRESS       =   6'b010_111;
   parameter VMANDN          =   6'b011_000;
   parameter VMAND           =   6'b011_001;
@@ -209,7 +280,7 @@ typedef enum logic [2:0] {
   parameter VWMACCUS        =   6'b111_110;
   parameter VWMACCSU        =   6'b111_111;  
 
-// vwxunary0, the uop could be vcpop.m, vfirst.m and vmv. They can be distinguished by vs1 field(inst_encoding[19:15]).
+// vwxunary0 and vrxunary0, the uop could be vcpop.m, vfirst.m and vmv. They can be distinguished by vs1 field(inst_encoding[19:15]).
   parameter VMV_X_S         =   5'b00000;
   parameter VCPOP           =   5'b10000;
   parameter VFIRST          =   5'b10001;
@@ -221,12 +292,78 @@ typedef enum logic [2:0] {
   parameter VZEXT_VF2       =   5'b00110;
   parameter VSEXT_VF2       =   5'b00111;
 
-// vmxunary0, the uop could be vmsbf, vmsof, vmsif, viota, vid. They can be distinguished by vs1 field(inst_encoding[19:15]).
+// vmunary0, the uop could be vmsbf, vmsof, vmsif, viota, vid. They can be distinguished by vs1 field(inst_encoding[19:15]).
   parameter VMSBF           =   5'b00001;
   parameter VMSOF           =   5'b00010;
   parameter VMSIF           =   5'b00011;
   parameter VIOTA           =   5'b10000;
   parameter VID             =   5'b10001;
+
+`ifdef ZVE32F_ON
+  // OPF* instructions
+  parameter VFADD           =   6'b000_000;
+  parameter VFSUB           =   6'b000_010;
+  parameter VFRSUB          =   6'b100_111;
+  parameter VFMUL           =   6'b100_100;
+  parameter VFDIV           =   6'b100_000;
+  parameter VFRDIV          =   6'b100_001;
+  parameter VFMACC          =   6'b101_100;
+  parameter VFNMACC         =   6'b101_101;
+  parameter VFMSAC          =   6'b101_110;
+  parameter VFNMSAC         =   6'b101_111;
+  parameter VFMADD          =   6'b101_000;
+  parameter VFNMADD         =   6'b101_001;
+  parameter VFMSUB          =   6'b101_010;
+  parameter VFNMSUB         =   6'b101_011;
+  parameter VFUNARY1        =   6'b010_011;
+  parameter VFMIN           =   6'b000_100;
+  parameter VFMAX           =   6'b000_110;
+  parameter VFSGNJ          =   6'b001_000;
+  parameter VFSGNJN         =   6'b001_001;
+  parameter VFSGNJX         =   6'b001_010;
+  parameter VMFEQ           =   6'b011_000;
+  parameter VMFNE           =   6'b011_100;
+  parameter VMFLT           =   6'b011_011;
+  parameter VMFLE           =   6'b011_001;
+  parameter VMFGT           =   6'b011_101;
+  parameter VMFGE           =   6'b011_111;
+  parameter VFMERGE_VFMV    =   6'b010_111;     // it could be vfmerge or vfmv, based on vm field
+  parameter VFUNARY0        =   6'b010_010;
+  parameter VFREDOSUM       =   6'b000_011;
+  parameter VFREDUSUM       =   6'b000_001;
+  parameter VFREDMAX        =   6'b000_111;
+  parameter VFREDMIN        =   6'b000_101;
+  parameter VWRFUNARY0      =   6'b010_000;
+  parameter VFSLIDE1UP      =   6'b001_110;
+  parameter VFSLIDE1DOWN    =   6'b001_111;
+
+  // vfunary0. They can be distinguished by vs1 field(inst_encoding[19:15]).
+  parameter VFCVT_XUFV      =   5'b00000;
+  parameter VFCVT_XFV       =   5'b00001;
+  parameter VFCVT_RTZXUFV   =   5'b00110;
+  parameter VFCVT_RTZXFV    =   5'b00111;
+  parameter VFCVT_FXUV      =   5'b00010;
+  parameter VFCVT_FXV       =   5'b00011;
+  
+  // vfunary1. They can be distinguished by vs1 field(inst_encoding[19:15]).
+  parameter VFSQRT          =   5'b00000;
+  parameter VFRSQRT7        =   5'b00100;
+  parameter VFREC7          =   5'b00101;
+  parameter VFCLASS         =   5'b10000;
+  
+  // vwfunary0 and vrfunary0
+  parameter VFMV_F_S        =   5'b00000;
+  parameter VFMV_S_F        =   5'b00000;  // vs2 field
+
+  `ifdef ZVFBFWMA_ON
+  // OPF* instructions
+  parameter VFWMACCBF16     =   6'b111_011; 
+
+  // vfunary0. They can be distinguished by vs1 field(inst_encoding[19:15]).
+  parameter VFNCVTBF16      =   5'b11101;
+  parameter VFWCVTBF16      =   5'b01101;
+  `endif
+`endif
 
 // when EXE_UNIT_e is LSU, it identifys what LSU instruction, unit-stride load or indexed store or ..? based on inst_encoding[31:26]
 typedef enum logic [1:0] {
@@ -257,8 +394,8 @@ typedef enum logic [1:0] {
 
 // It identifys what inst_encoding[11:7] is used for when LSU instruction, based on inst_encoding[5]
 typedef enum logic [0:0] {
-  IS_LOAD,       // when load, inst_encoding[11:7] is seen as vd
-  IS_STORE       // when store, inst_encoding[11:7] is seen as vs3
+  IS_LOAD,       
+  IS_STORE       
 } LSU_IS_STORE_e;
 
 // segment load/store 
@@ -283,36 +420,15 @@ typedef union packed {
 
 // uop classification used for dispatch rule
 typedef enum logic [2:0] {
-  VVV,
-  XVV,
-  VVX,
-  VXX,
-  XVX,
-  XXV,
-  XXX
+  XXX=0,
+  XXV=1,
+  XVX=2,
+  XVV=3,
+  VXX=4,
+  VXV=5,
+  VVX=6,
+  VVV=7
 } UOP_CLASS_e;
-
-// Effective MUL enum
-typedef enum logic [3:0] {
-  EMUL1=0,
-  EMUL2=1,
-  EMUL4=2,
-  EMUL8=3,
-  EMUL3,
-  EMUL5,
-  EMUL6,
-  EMUL7,
-  EMUL_NONE     // it means this is not supported 
-} EMUL_e;
-
-// Effective Element Width
-typedef enum logic [2:0] {
-  EEW_NONE,    // it means this is not supported 
-  EEW1,
-  EEW8, 
-  EEW16,
-  EEW32
-} EEW_e;
 
 // Number of REG
   parameter NREG1 = 3'b000;  
@@ -330,6 +446,19 @@ typedef enum logic [2:0] {
   parameter NF7 = 3'b110;
   parameter NF8 = 3'b111;
 
+// Destination data struct
+`ifdef ZVE32F_ON
+typedef enum logic [1:0] {
+`else
+typedef enum logic [0:0] {
+`endif
+  VRF,
+  XRF
+`ifdef ZVE32F_ON
+  ,FRF
+`endif
+} W_DATA_TYPE_e;
+
 // the uop struct stored in Uops Queue
 typedef struct packed {
 `ifdef TB_SUPPORT
@@ -340,37 +469,35 @@ typedef struct packed {
   EXE_UNIT_e                          uop_exe_unit; 
   UOP_CLASS_e                         uop_class;   
   RVVConfigState                      vector_csr;  
-  logic   [`VL_WIDTH-1:0]             vs_evl;             // effective vl
+  logic   [`VL_WIDTH-1:0]             vs_evl;             
   logic                               ignore_vma;
   logic                               ignore_vta;
-  logic                               force_vma_agnostic; // some situation will force to mask-agnostic regardless of vtype.vma
-  logic                               force_vta_agnostic; // some situation will force to tail-agnostic regardless of vtype.vta
-
-  logic                               vm;                 // Original 32bit instruction encoding: inst[25]
-  logic                               v0_valid;           // when v0_valid=1, v0 will be regarded as a vector operand in this uop, not mask register. Like: vadc.vvm
-  logic   [`REGFILE_INDEX_WIDTH-1:0]  vd_index;           // Original 32bit instruction encoding: inst[11:7].this index is also used as vs3 in some uops 
+  logic                               force_vma_agnostic; 
+  logic                               force_vta_agnostic; 
+  logic                               vm;                 
+  logic                               v0_valid;           
+  logic   [`REGFILE_INDEX_WIDTH-1:0]  dst_index;
   EEW_e                               vd_eew;  
   logic                               vd_valid;
-  logic                               vs3_valid;          // when vs3_valid=1, vd will be regarded as a vector operand in this uop.
-  // when vs1_index_valid=1, vs1 field is used as vs1_index to address VRF
-  // when vs1_opcode_valid=0, vs1 field is used to decode some OPMVV uops 
+  logic                               vs3_valid;          
+  logic                               xd_valid; 
+`ifdef ZVE32F_ON
+  logic                               fd_valid; 
+`endif
   logic   [`REGFILE_INDEX_WIDTH-1:0]  vs1;              
   EEW_e                               vs1_eew;            
-  logic                               vs1_index_valid;
-  logic                               vs1_opcode_valid;
-  logic   [`REGFILE_INDEX_WIDTH-1:0]  vs2_index; 	        // Original 32bit instruction encoding: inst[24:20]
+  logic                               vs1_valid;
+  logic   [`REGFILE_INDEX_WIDTH-1:0]  vs2_index; 	        
   EEW_e                               vs2_eew;
   logic                               vs2_valid;
-  logic   [`REGFILE_INDEX_WIDTH-1:0]  rd_index; 	        // Original 32bit instruction encoding: inst[11:7].
-  logic                               rd_index_valid; 
-  logic   [`XLEN-1:0] 	              rs1_data;           // rs1_data could be from X[rs1] and imm(inst[19:15]). If it is imm, the 5-bit imm(inst[19:15]) will be sign-extend or zero-extend(shift instructions...) to XLEN-bit. 
+  logic   [`XLEN-1:0] 	              rs1_data;           
   logic        	                      rs1_data_valid;                                
-          
-  logic   [`UOP_INDEX_WIDTH-1:0]      uop_index;          // used for calculate v0_start in DP stage
-  logic                               first_uop_valid;    // one instruction may be split to many uops, this signal is used to specify the first uop in those uops of one instruction.
-  logic                               last_uop_valid;     // one instruction may be split to many uops, this signal is used to specify the last uop in those uops of one instruction.
-  logic   [$clog2(`EMUL_MAX)-1:0]     seg_field_index;    // used for calculate v0_start in DP stage for segment ld/st
-  logic                               pshrob_valid;       // wheather this uop is pushed into ROB.
+  logic   [`UOP_INDEX_WIDTH-1:0]      uop_index;          
+  logic                               first_uop_valid;    
+  logic                               last_uop_valid;     
+  logic   [$clog2(`EMUL_MAX)-1:0]     seg_field_index;    
+  logic                               pshrob_valid;       
+  logic                               pshlsu_valid;
 } UOP_QUEUE_t;    
 
 // specify whether the current byte belongs to 'prestart' or 'body-inactive' or 'body-active' or 'tail'
@@ -381,20 +508,10 @@ typedef enum logic [1:0] {
   BODY_ACTIVE   = 2'b11       // body-active byte
 } BYTE_TYPE_e;
 
-// ReOrder Buffer data struct
-typedef enum logic [0:0] {
-  VRF,
-  XRF
-} W_DATA_TYPE_e;
-
 // trap handle
 typedef enum logic [1:0] {
-  TRAP_LSU,         // RVS find some illegal instructions when complete LSU transaction, like bus error,
-                    // which means a trap occurs to the instruction that is executing in RVV.
-                    // So RVV will top CQ to receive new instructions and flush Command Queue and Uops Queue,
-                    // and complete the instructions in EX, ME and WB stage. And RVS need to send rob_entry of that exception instruction.
-                    // After RVV retire all uops before that exception instruction, RVV response a ready signal for trap application.
-  TRAP_LSU_FF       // fault only first load, need to confirm whether has TLB or not.
+  TRAP_LSU,           
+  TRAP_LSU_FF       
 } TRAP_INFO_e;
 
 // the max number of byte in a vector register is VLENB
@@ -407,32 +524,26 @@ typedef struct packed {
   logic   [`ROB_DEPTH_WIDTH-1:0]      rob_entry;
   FUNCT6_u                            uop_funct6;  
   logic   [`FUNCT3_WIDTH-1:0]         uop_funct3;
+  logic                               is_cmp;
   logic   [`VSTART_WIDTH-1:0]         vstart;
   logic   [`VL_WIDTH-1:0]             vl;       
-  // vm field can be used to identify vmadc.v?m/vmadc.v? uop in the same uop_funct6(6'b010000).
-  // vm field can be used to identify vmsbc.v?m/vmsbc.v? uop in the same uop_funct6(6'b010011).   
   logic                               vm;               
-  // rounding mode 
   RVVXRM                              vxrm;       
-  // when the uop is vmadc.v?m/vmsbc.v?m, the uop will use v0_data as the third vector operand. EEW_v0=1.
   logic   [`VLEN-1:0]                 v0_data;
   logic                               v0_data_valid;
-  // when the uop is mask uop(vmandn,vmand,...), the uop will use vd_data as the third vector operand. EEW_vd=1.
   logic   [`VLEN-1:0]                 vd_data;
   logic                               vd_data_valid;
   EEW_e                               vd_eew;  
-  // when vs1_data_valid=0, vs1_data is used to decode some OPMVV uops
-  // when vs1_data_valid=1, vs1_data is valid as a vector operand
   logic   [`REGFILE_INDEX_WIDTH-1:0]  vs1;              
   logic   [`VLEN-1:0]                 vs1_data;           
   logic                               vs1_data_valid; 
+  logic        	                      rs1_data_valid;                                   
   logic   [`VLEN-1:0]                 vs2_data;	        
   logic                               vs2_data_valid;  
   EEW_e                               vs2_eew;
-  // rs1_data could be from X[rs1] and imm(inst[19:15]). If it is imm, the 5-bit imm(inst[19:15]) will be sign-extend or zero-extend(shift instructions...) to XLEN-bit.
-  logic   [`XLEN-1:0] 	              rs1_data;        
-  logic        	                      rs1_data_valid;                                   
-  logic   [`UOP_INDEX_WIDTH-1:0]      uop_index;      
+  logic                               first_uop_valid;     
+  logic                               last_uop_valid;
+  logic   [`UOP_INDEX_WIDTH_ALU-1:0]  uop_index;      
 } ALU_RS_t;    
 
 // DIV reservation station struct
@@ -443,16 +554,38 @@ typedef struct packed {
   logic   [`ROB_DEPTH_WIDTH-1:0]      rob_entry;
   FUNCT6_u                            uop_funct6;
   logic   [`FUNCT3_WIDTH-1:0]         uop_funct3;
-  // when vs1_data_valid=1, vs1_data is valid as a vector operand
+  logic                               is_div;
   logic   [`VLEN-1:0]                 vs1_data;           
   logic                               vs1_data_valid; 
+  logic        	                      rs1_data_valid;      
   logic   [`VLEN-1:0]                 vs2_data;	        
   logic                               vs2_data_valid;  
   EEW_e                               vs2_eew;
-  // rs1_data could be from X[rs1] and imm(inst[19:15]). If it is imm, the 5-bit imm(inst[19:15]) will be sign-extend or zero-extend(shift instructions...) to XLEN-bit.
-  logic   [`XLEN-1:0] 	              rs1_data;     
-  logic        	                      rs1_data_valid;                                   
+`ifdef ZVE32F_ON
+  RVFRM                               frm;
+  logic   [`REGFILE_INDEX_WIDTH-1:0]  vs1;              
+`endif
 } DIV_RS_t; 
+
+// DIV reservation station struct
+typedef struct packed {
+`ifdef TB_SUPPORT
+  logic   [`PC_WIDTH-1:0]             uop_pc;
+`endif
+  logic   [`ROB_DEPTH_WIDTH-1:0]      rob_entry;
+  FUNCT6_u                            uop_funct6;
+  logic   [`FUNCT3_WIDTH-1:0]         uop_funct3;
+  logic   [`VLEN-1:0]                 vs1_data;           
+  logic                               vs1_data_valid; 
+  logic        	                      rs1_data_valid;      
+  logic   [`VLEN-1:0]                 vs2_data;	        
+  logic                               vs2_data_valid;  
+  EEW_e                               vs2_eew;
+`ifdef ZVE32F_ON
+  RVFRM                               frm;
+  logic   [`REGFILE_INDEX_WIDTH-1:0]  vs1;              
+`endif
+} DIV_SUB_t;
 
 // MUL and MAC reservation station struct
 typedef struct packed {   
@@ -463,18 +596,15 @@ typedef struct packed {
   FUNCT6_u                            uop_funct6;
   logic   [`FUNCT3_WIDTH-1:0]         uop_funct3;
   RVVXRM                              vxrm;       
-  
   logic   [`VLEN-1:0]                 vs1_data;           
   logic                               vs1_data_valid; 
+  logic          	                    rs1_data_valid;   
   logic   [`VLEN-1:0]                 vs2_data;	        
   logic                               vs2_data_valid; 
-  EEW_e                               vs2_eew; //eew for vs1, vs2, rs1
-  logic   [`VLEN-1:0]                 vs3_data;	//vd, source for MAC add 
+  EEW_e                               vs2_eew; 
+  logic   [`VLEN-1:0]                 vs3_data;	
   logic                               vs3_data_valid; 
-  // rs1_data could be from X[rs1] and imm(inst[19:15]). If it is imm, the 5-bit imm(inst[19:15]) will be sign-extend or zero-extend(shift instructions...) to XLEN-bit.
-  logic   [`XLEN-1:0] 	              rs1_data;          
-  logic          	                    rs1_data_valid;   
-  logic   [`UOP_INDEX_WIDTH-1:0]      uop_index;//indicate using low/high when widen mul. 0:low, 1:high
+  logic                               uop_index;
 } MUL_RS_t;    
 
 // PMT and RDT reservation station struct
@@ -486,29 +616,26 @@ typedef struct packed {
   EXE_UNIT_e                          uop_exe_unit; 
   FUNCT6_u                            uop_funct6;
   logic   [`FUNCT3_WIDTH-1:0]         uop_funct3;
-  logic   [`VSTART_WIDTH-1:0]         vstart;
   logic   [`VL_WIDTH-1:0]             vl;       
+  logic                               vm;
   logic   [`VL_WIDTH-1:0]             vlmax;       
-  logic                               vm;               
-  // when the uop is producing-mask operation, the uop will use v0_data as the third vector operand when the uop is the last uop. EEW_v0=1.
   logic   [`VLEN-1:0]                 v0_data;
-  logic                               v0_data_valid;
-  logic   [`VLEN-1:0]                 vs1_data;          
   EEW_e                               vs1_eew;
+  logic   [`VLEN-1:0]                 vs1_data;          
   logic                               vs1_data_valid; 
-  logic   [`VLEN-1:0]                 vs2_data;	        
   EEW_e                               vs2_eew;
+  logic   [`VLEN-1:0]                 vs2_data;	        
   BYTE_TYPE_t                         vs2_type;
-  logic                               vs2_data_valid; 
-  logic   [`VLEN-1:0]                 vs3_data;	//vd, source for producing-mask instruction
-  logic                               vs3_data_valid; 
-  // rs1_data could be from X[rs1] and imm(inst[19:15]). If it is imm, the 5-bit imm(inst[19:15]) will be sign-extend or zero-extend(shift instructions...) to XLEN-bit.
-  // rs1_data could be from X[rs1] and imm(inst[19:15]). If it is imm, the 5-bit imm(inst[19:15]) will be sign-extend or zero-extend(shift instructions...) to XLEN-bit.
+  logic   [`REGFILE_INDEX_WIDTH-1:0]  vs2_index;
+  EEW_e                               vd_eew;  
+  logic   [`REGFILE_INDEX_WIDTH-1:0]  dst_index;
   logic   [`XLEN-1:0] 	              rs1_data;         
-  logic        	                      rs1_data_valid;
   logic                               first_uop_valid;     
   logic                               last_uop_valid;     
-  logic   [`UOP_INDEX_WIDTH-1:0]      uop_index;      
+  logic   [`UOP_INDEX_WIDTH_ALU-1:0]  uop_index;      
+`ifdef ZVE32F_ON
+  RVFRM                               frm;
+`endif
 } PMT_RDT_RS_t;    
 
 // LSU reservation station struct
@@ -528,18 +655,50 @@ typedef struct packed {
                                                             // v0[i]=1 means vd/vs3[8*i +: 8] data is valid. 
 } UOP_RVV2LSU_t;    
 
+ // FMA reservation station struct
+typedef struct packed {   
+`ifdef TB_SUPPORT
+  logic   [`PC_WIDTH-1:0]             uop_pc;
+`endif
+  logic   [`ROB_DEPTH_WIDTH-1:0]      rob_entry;
+  FUNCT6_u                            uop_funct6;
+  logic   [`FUNCT3_WIDTH-1:0]         uop_funct3;
+  EXE_UNIT_e                          uop_exe_unit; 
+  logic   [`VSTART_WIDTH-1:0]         vstart;
+  logic   [`VL_WIDTH-1:0]             vl;       
+  logic                               vm;               
+  RVFRM                               frm;
+  logic   [`VLENW*`EMUL_MAX-1:0]      v0_data;
+  logic                               v0_data_valid;
+  logic   [`REGFILE_INDEX_WIDTH-1:0]  vs1;              
+  logic   [`VLEN-1:0]                 vs1_data;           
+  logic                               vs1_data_valid; 
+  logic   [`VLEN-1:0]                 vs2_data;	        
+  logic                               vs2_data_valid; 
+  EEW_e                               vs2_eew; 
+  logic   [`VLEN-1:0]                 vs3_data;	
+  logic                               vs3_data_valid; 
+  logic   [`XLEN-1:0] 	              rs1_data;          
+  logic          	                    rs1_data_valid;   
+  logic                               last_uop_valid;
+  logic   [`UOP_INDEX_WIDTH_ALU-1:0]  uop_index;      
+} FMA_RS_t;  
+
 //
 // EX stage, 
 //
 // send PU's result to ROB
 typedef struct packed {
 `ifdef TB_SUPPORT
-  logic   [`PC_WIDTH-1:0]             uop_pc;
+  logic     [`PC_WIDTH-1:0]           uop_pc;
 `endif
-  logic   [`ROB_DEPTH_WIDTH-1:0]      rob_entry;
-  logic   [`VLEN-1:0]                 w_data;             // when w_type=XRF, w_data[`XLEN-1:0] will store the scalar result
+  logic     [`ROB_DEPTH_WIDTH-1:0]    rob_entry;
+  logic     [`VLEN-1:0]               w_data;             // when w_type=XRF, w_data[`XLEN-1:0] will store the scalar result
   logic                               w_valid;
-  logic   [`VLENB-1:0]                vsaturate;
+  logic     [`VLENB-1:0]              vsaturate;
+`ifdef ZVE32F_ON
+  RVFEXP_t  [`VLENB-1:0]              fpexp;
+`endif
 } PU2ROB_t;  
 
 // lsu uop info to remap rob_entry for UOP_LSU2RVV_t
@@ -568,10 +727,10 @@ typedef struct packed {
   logic                               lsu_vstore_last;
 } UOP_LSU2RVV_t;  
 
-typedef struct packed {
+typedef struct packed {   
   UOP_LSU2RVV_t                       uop_lsu2rvv;
   logic                               trap_valid;
-} UOP_LSU_t;
+} UOP_LSU_t;  
 
 typedef struct packed {
 `ifdef TB_SUPPORT
@@ -580,6 +739,9 @@ typedef struct packed {
   logic                               w_valid;            // write valid
   logic [`VLEN-1:0]                   w_data;             // write data; w_data[`XLEN-1:0] is scalar result if write type is XRF
   logic [`VLENB-1:0]                  vsaturate;
+`ifdef ZVE32F_ON
+  RVFEXP_t  [`VLENB-1:0]              fpexp;
+`endif
 } RES_ROB_t;
 
 // send uop to ROB
@@ -621,6 +783,9 @@ typedef struct packed {
   logic                               trap_flag;          //whether this entry in a trap
   RVVConfigState                      vector_csr;         //Receive Vstart, vlen,... And need to update vcsr when trap
   logic   [`VLENB-1:0]                vxsaturate;         //Update saturation bit
+`ifdef ZVE32F_ON
+  RVFEXP_t  [`VLENB-1:0]              fpexp;
+`endif
 } ROB2RT_t;  
 
 // the rob struct stored in ROB
@@ -636,16 +801,16 @@ typedef struct packed {
 } ROB_t;
 
 //
-// Retire stage, bypass and write back to VRF/XRF, trap handler
+// Retire stage
 //
-// write back to XRF
+// write back to XRF/FRF
 typedef struct packed {
 `ifdef TB_SUPPORT
   logic   [`PC_WIDTH-1:0]             uop_pc;
 `endif
   logic   [`REGFILE_INDEX_WIDTH-1:0]  rt_index; 
   logic   [`XLEN-1:0]                 rt_data; 
-}RT2XRF_t;
+}RT2RVS_t;
 
 // write back to VRF
 typedef struct packed {

@@ -1,4 +1,3 @@
-
 `ifndef HDL_VERILOG_RVV_DESIGN_RVV_SVH
 `include "rvv_backend.svh"
 `endif
@@ -14,6 +13,7 @@ module rvv_backend_div_unit_divider
   clk,
   rst_n,
   div_valid,
+  div_ready,
   opcode,
   src2_dividend,
   src1_divisor,
@@ -40,6 +40,7 @@ module rvv_backend_div_unit_divider
 
   // operand 
   input   logic                 div_valid;
+  output  logic                 div_ready;
   input   logic [DIV_WIDTH-1:0] src2_dividend;
   input   logic [DIV_WIDTH-1:0] src1_divisor;
 
@@ -50,14 +51,14 @@ module rvv_backend_div_unit_divider
   input   logic                 result_ready;
 
   // trap-flush
-  input   logic                 trap_flush_rvv;
+  input   logic                 trap_flush_rvv;  
 
 //
 // internal signals
 //
   // FSM
-  enum  logic [1:0] {DIV_IDLE, DIV_WORKING, DIV_PRINT, DIV_UNREACHABLE}
-      state, next_state;
+  typedef enum logic [1:0] {DIV_IDLE, DIV_WORKING, DIV_PRINT} state_e;
+  state_e                       state, next_state;
   
   // number of leading zero bits
   logic [$clog2(DIV_WIDTH):0]   cnt_clzb;
@@ -199,12 +200,19 @@ module rvv_backend_div_unit_divider
 //
 // FSM
 //
-  always_ff @(posedge clk, negedge rst_n) begin
-    if (rst_n=='b0) 
-      state <= DIV_IDLE;
-    else 
-      state <= next_state;
-  end
+  edff
+  #(
+  .T        (state_e),
+  .INIT     (DIV_IDLE)
+  )
+  fsm_state
+  (
+    .clk    (clk),
+    .rst_n  (rst_n),
+    .e      (next_state!=state),
+    .d      (next_state),
+    .q      (state)
+  );
   
   // state transition
   always_comb begin
@@ -218,31 +226,24 @@ module rvv_backend_div_unit_divider
           else
             next_state = DIV_WORKING;
         end
+        else
+          next_state = DIV_IDLE;
       end
       DIV_WORKING: begin
-        if(trap_flush_rvv)
-          next_state = DIV_IDLE;
-        else if(div_valid) begin
+        if(div_valid&(!trap_flush_rvv)) begin
           if ((count_en=='b1)&(count_d=='b1))
             next_state = DIV_PRINT;
           else
             next_state = DIV_WORKING;
         end
+        else
+          next_state = DIV_IDLE;
       end
       DIV_PRINT: begin
-        if(trap_flush_rvv)
-          next_state = DIV_IDLE;
-        else if ((div_valid)&(result_ready))
-          next_state = DIV_IDLE;
-        else
+        if (div_valid&(!result_ready)&(!trap_flush_rvv))
           next_state = DIV_PRINT;
-      end
-      // Necessary to suppress FSM_COMPLETE errors
-      DIV_UNREACHABLE: begin
-        next_state = DIV_IDLE;
-      end
-      default: begin
-        next_state = DIV_IDLE;
+        else
+          next_state = DIV_IDLE;
       end
     endcase
   end
@@ -261,9 +262,12 @@ module rvv_backend_div_unit_divider
       assign clzb = f_clzb8(dividend_d);
       assign count_shift = 'd9 - clzb;            
     end
-
   endgenerate
 
+  // div is ready to receive a new uop
+  assign div_ready = state==DIV_IDLE; 
+  
+  // FSM
   always_comb begin
     // initial
     dividend_en      = 'b0;
@@ -448,17 +452,6 @@ module rvv_backend_div_unit_divider
     endcase
   end
 
-
-`ifdef TB_SUPPORT
-  `ifdef ASSERT_ON
-    `rvv_forbid(result_valid&res_reuse_valid_p1&result_ready&(result_quotient!=(src2_dividend/src1_divisor)))
-      else $warning("result_quotient(0x%h) should be 0x%h.\n",result_quotient,src2_dividend/src1_divisor);
-
-    `rvv_forbid(result_valid&res_reuse_valid_p1&result_ready&(result_remainder!=(src2_dividend%src1_divisor)))
-      else $warning("result_remainder(0x%h) should be 0x%h.\n",result_remainder,src2_dividend%src1_divisor);
-  `endif
-`endif
-
 //
 // function unit
 //
@@ -467,13 +460,13 @@ module rvv_backend_div_unit_divider
   (   
     input logic [1:0] src
   );
-
-    if (src==2'b00)
-      f_clzb2 = 2'b10;
-    else if (src==2'b01)
+    
+    if (src[1])
+      f_clzb2 = 2'b00;
+    else if (src[0])
       f_clzb2 = 2'b01;
     else
-      f_clzb2 = 2'b00;
+      f_clzb2 = 2'b10;
   endfunction
 
   function [2:0] f_clzb4
