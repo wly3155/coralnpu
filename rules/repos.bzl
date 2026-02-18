@@ -183,10 +183,10 @@ filegroup(
 def cvfpu_repos():
     http_archive(
         name = "cvfpu",
-        sha256 = "fe9278105886ed23ee889c58b2c28f89732e06a0d12f7fa4a8ce60dd680290f6",
-        urls = ["https://github.com/openhwgroup/cvfpu/archive/refs/tags/v0.8.1.zip"],
+        urls = ["https://github.com/openhwgroup/cvfpu/archive/58ca3c376beb914b2b80b811d4b270c063d4e6f7.zip"],
+        sha256 = "1c31ca538f7624fe0abf082d784553ed5afe0cf209f34c26209fa2f9c4878521",
         build_file = "@coralnpu_hw//third_party/cvfpu:BUILD.bazel",
-        strip_prefix = "cvfpu-0.8.1",
+        strip_prefix = "cvfpu-58ca3c376beb914b2b80b811d4b270c063d4e6f7",
         patches = [
             "@coralnpu_hw//third_party/cvfpu:0001-Fix-max_num_lanes-issue-in-DC.patch",
             "@coralnpu_hw//third_party/cvfpu:0002-Remove-SVH-includes.patch",
