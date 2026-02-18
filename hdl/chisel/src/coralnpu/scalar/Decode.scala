@@ -674,7 +674,12 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
       ))
       val csr_bits_index = io.inst(0).bits.inst(31,20)
       val (csr_address, csr_address_valid) = CsrAddress.safe(csr_bits_index)
-      io.csr.valid := tryDispatch && csr.valid && csr_address_valid && (if (p.enableFloat) { io.float.get.ready } else { true.B })
+      // Stall reads of vxsat (0x009) and vcsr (0x00F) until the vector unit is
+      // idle. Only these CSRs can be modified by in-flight vector instructions
+      // (saturating arithmetic sets vxsat; vcsr contains vxsat as a bitfield).
+      val isVxsatOrVcsr = csr_bits_index === 0x009.U || csr_bits_index === 0x00F.U
+      val rvvIdleOrNotVxsat = io.rvvIdle.getOrElse(true.B) || !isVxsatOrVcsr
+      io.csr.valid := tryDispatch && csr.valid && csr_address_valid && (if (p.enableFloat) { io.float.get.ready } else { true.B }) && rvvIdleOrNotVxsat
       io.csr.bits.addr := rdAddr(i)
       io.csr.bits.index := csr_bits_index
       io.csr.bits.rs1 := rs1Addr(i)

@@ -94,7 +94,11 @@ module RvvCore #(parameter N = 4,
 
   // Trap output
   output logic trap_valid_o,
-  output RVVInstruction trap_data_o
+  output RVVInstruction trap_data_o,
+
+  // VXSAT update from backend (fixes C3 bug: previously dead-end wires)
+  output logic                            wr_vxsat_valid_o,
+  output logic    [`VCSR_VXSAT_WIDTH-1:0] wr_vxsat_o
 );
   logic [N-1:0] frontend_cmd_valid;
   RVVCmd [N-1:0] frontend_cmd_data;
@@ -249,5 +253,9 @@ module RvvCore #(parameter N = 4,
       .rvv_idle(rvv_backend_idle),
       .rd_rob2rt_o(rd_rob2rt)
   );
+
+  // Connect vxsat signals to outputs (fixes C3 bug)
+  assign wr_vxsat_valid_o = wr_vxsat_valid;
+  assign wr_vxsat_o = wr_vxsat;
 
 endmodule
