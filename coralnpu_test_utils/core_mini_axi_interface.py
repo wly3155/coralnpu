@@ -197,16 +197,12 @@ class CoreMiniAxiInterface:
     self.slave_bfifo = Queue()
 
   async def init(self):
-    cocotb.start_soon(self.master_awagent())
-    cocotb.start_soon(self.master_wagent())
-    cocotb.start_soon(self.master_bagent())
-    cocotb.start_soon(self.master_aragent())
+    cocotb.start_soon(self._monitor_agent())
     cocotb.start_soon(self.master_ragent())
+    cocotb.start_soon(self.master_bagent())
     cocotb.start_soon(self.slave_awagent())
     cocotb.start_soon(self.slave_wagent())
-    cocotb.start_soon(self.slave_bagent())
     cocotb.start_soon(self.slave_aragent())
-    cocotb.start_soon(self.slave_ragent())
     cocotb.start_soon(self.memory_write_agent())
     cocotb.start_soon(self.memory_read_agent())
 
@@ -233,96 +229,134 @@ class CoreMiniAxiInterface:
   async def slave_awagent(self, timeout=4096):
     self.axi_slave_write_addr.clear_valid()
     while True:
-      while True:
-        await RisingEdge(self.dut.io_aclk)
-        self.axi_slave_write_addr.clear_valid()
-        if self.slave_awfifo.qsize():
-          break
       awdata = await self.slave_awfifo.get()
+      await RisingEdge(self.dut.io_aclk)
       self.axi_slave_write_addr.set_valid(awdata)
-      await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.axi_slave_write_addr.ready_signal.value == 0:
+      while True:
         await FallingEdge(self.dut.io_aclk)
+        if self.axi_slave_write_addr.ready_signal.value:
+          break
         timeout_count += 1
         if timeout_count >= timeout:
           assert False, "timeout waiting for awready"
+        await RisingEdge(self.dut.io_aclk)
+      if self.slave_awfifo.empty():
+        await RisingEdge(self.dut.io_aclk)
+        self.axi_slave_write_addr.clear_valid()
 
   async def slave_wagent(self, timeout=4096):
     self.axi_slave_write_data.clear_valid()
     while True:
-      while True:
-        await RisingEdge(self.dut.io_aclk)
-        self.axi_slave_write_data.clear_valid()
-        if self.slave_wfifo.qsize():
-          break
       wdata = await self.slave_wfifo.get()
+      await RisingEdge(self.dut.io_aclk)
       self.axi_slave_write_data.set_valid(wdata)
-      await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.axi_slave_write_data.ready_signal.value == 0:
+      while True:
         await FallingEdge(self.dut.io_aclk)
+        if self.axi_slave_write_data.ready_signal.value:
+          break
         timeout_count += 1
         if timeout_count >= timeout:
           assert False, "timeout waiting for wready"
+        await RisingEdge(self.dut.io_aclk)
+      if self.slave_wfifo.empty():
+        await RisingEdge(self.dut.io_aclk)
+        self.axi_slave_write_data.clear_valid()
 
-  async def slave_bagent(self):
+  async def _monitor_agent(self):
     self.dut.io_axi_slave_write_resp_ready.value = 1
+    self.dut.io_axi_slave_read_data_ready.value = 1
+    self.dut.io_axi_master_read_addr_ready.value = 1
+    self.dut.io_axi_master_write_addr_ready.value = 1
+    self.dut.io_axi_master_write_data_ready.value = 1
     while True:
       await RisingEdge(self.dut.io_aclk)
-      try:
-        if self.dut.io_axi_slave_write_resp_valid.value:
+      # slave_bagent
+      if self.dut.io_axi_slave_write_resp_valid.value:
+        try:
           bdata = dict()
           bdata["id"] = self.dut.io_axi_slave_write_resp_bits_id
           bdata["resp"] = self.dut.io_axi_slave_write_resp_bits_resp
           await self.slave_bfifo.put(bdata)
-      except Exception as e:
-        print('X seen in slave_bagent: ' + str(e))
+        except Exception as e:
+          print("X seen in slave_bagent: " + str(e))
 
-  async def slave_aragent(self, timeout=4096):
-    self.axi_slave_read_addr.clear_valid()
-    while True:
-      while True:
-        await RisingEdge(self.dut.io_aclk)
-        self.axi_slave_read_addr.clear_valid()
-        if self.slave_arfifo.qsize():
-          break
-      ardata = await self.slave_arfifo.get()
-      self.axi_slave_read_addr.set_valid(ardata)
-      await FallingEdge(self.dut.io_aclk)
-      timeout_count = 0
-      while self.axi_slave_read_addr.ready_signal.value == 0:
-        await FallingEdge(self.dut.io_aclk)
-        timeout_count += 1
-        if timeout_count >= timeout:
-          assert False, "timeout waiting for arready"
-
-  async def slave_ragent(self):
-    self.dut.io_axi_slave_read_data_ready.value = 1
-    while True:
-      await RisingEdge(self.dut.io_aclk)
-      try:
-        if self.dut.io_axi_slave_read_data_valid.value:
+      # slave_ragent
+      if self.dut.io_axi_slave_read_data_valid.value:
+        try:
           rdata = dict()
-          # Parse binary string value, replacing "X" with zero
-          # TODO(derekjchow): Consider passing in a x mask for checking downstream
-          nonx_data = str(self.dut.io_axi_slave_read_data_bits_data.value).replace("X", "0")
-          nonx_data = [ int(nonx_data[i:i+8], 2) for i in range(0, len(nonx_data), 8)]
-          nonx_data = np.array(nonx_data, dtype=np.uint8)
-          rdata["data"] = nonx_data
+          val = self.dut.io_axi_slave_read_data_bits_data.value
+          if val.is_resolvable:
+            rdata["data"] = np.frombuffer(val.to_bytes(byteorder="big"), dtype=np.uint8)
+          else:
+            nonx_data = val.binstr.replace("X", "0").replace("z", "0")
+            rdata["data"] = np.array([int(nonx_data[i:i+8], 2) for i in range(0, len(nonx_data), 8)], dtype=np.uint8)
           rdata["id"] = self.dut.io_axi_slave_read_data_bits_id.value
           rdata["last"] = self.dut.io_axi_slave_read_data_bits_last.value
           rdata["resp"] = self.dut.io_axi_slave_read_data_bits_resp.value
           await self.slave_rfifo.put(rdata)
-      except Exception as e:
-        print('X seen in slave_ragent: ' + str(e))
+        except Exception as e:
+          print("X seen in slave_ragent: " + str(e))
+
+      # master_aragent
+      if self.dut.io_axi_master_read_addr_valid.value:
+        try:
+          ardata = dict()
+          ardata["id"] = self.dut.io_axi_master_read_addr_bits_id.value.to_unsigned()
+          ardata["addr"] = self.dut.io_axi_master_read_addr_bits_addr.value.to_unsigned()
+          ardata["size"] = self.dut.io_axi_master_read_addr_bits_size.value.to_unsigned()
+          ardata["len"] = self.dut.io_axi_master_read_addr_bits_len.value.to_unsigned()
+          ardata["burst"] = self.dut.io_axi_master_read_addr_bits_burst.value.to_unsigned()
+          await self.master_arfifo.put(ardata)
+        except Exception as e:
+          print("X seen in master_aragent: " + str(e))
+          raise e
+
+      # master_awagent
+      if self.dut.io_axi_master_write_addr_valid.value:
+        try:
+          awdata = dict()
+          awdata["id"] = self.dut.io_axi_master_write_addr_bits_id.value.to_unsigned()
+          awdata["addr"] = self.dut.io_axi_master_write_addr_bits_addr.value.to_unsigned()
+          awdata["size"] = self.dut.io_axi_master_write_addr_bits_size.value.to_unsigned()
+          awdata["len"] = self.dut.io_axi_master_write_addr_bits_len.value.to_unsigned()
+          await self.master_awfifo.put(awdata)
+        except Exception as e:
+          print("X seen in master_awagent: " + str(e))
+
+      # master_wagent
+      if self.dut.io_axi_master_write_data_valid.value:
+        try:
+          wdata = dict()
+          wdata["data"] = self.dut.io_axi_master_write_data_bits_data.value.to_bytes(byteorder="big")
+          wdata["strb"] = self.dut.io_axi_master_write_data_bits_strb.value
+          wdata["last"] = self.dut.io_axi_master_write_data_bits_last.value
+          await self.master_wfifo.put(wdata)
+        except Exception as e:
+          print("X seen in master_wagent: " + str(e))
+
+  async def slave_aragent(self, timeout=4096):
+    self.axi_slave_read_addr.clear_valid()
+    while True:
+      ardata = await self.slave_arfifo.get()
+      await RisingEdge(self.dut.io_aclk)
+      self.axi_slave_read_addr.set_valid(ardata)
+      timeout_count = 0
+      while True:
+        await FallingEdge(self.dut.io_aclk)
+        if self.axi_slave_read_addr.ready_signal.value:
+          break
+        timeout_count += 1
+        if timeout_count >= timeout:
+          assert False, "timeout waiting for arready"
+        await RisingEdge(self.dut.io_aclk)
+      if self.slave_arfifo.empty():
+        await RisingEdge(self.dut.io_aclk)
+        self.axi_slave_read_addr.clear_valid()
 
   async def memory_read_agent(self):
     while True:
-      while True:
-        await RisingEdge(self.dut.io_aclk)
-        if self.master_arfifo.qsize():
-          break
       ardata = await self.master_arfifo.get()
       data = self.read_memory(ardata)
       if data is None:
@@ -342,117 +376,69 @@ class CoreMiniAxiInterface:
           rdata["last"] = 1 if (i == ardata["len"]) else 0
           await self.master_rfifo.put(rdata)
 
-  async def master_aragent(self):
-    self.dut.io_axi_master_read_addr_ready.value = 1
-    while True:
-      await RisingEdge(self.dut.io_aclk)
-      try:
-        if self.dut.io_axi_master_read_addr_valid.value:
-          ardata = dict()
-          ardata["id"] = self.dut.io_axi_master_read_addr_bits_id.value.to_unsigned()
-          ardata["addr"] = self.dut.io_axi_master_read_addr_bits_addr.value.to_unsigned()
-          ardata["size"] = self.dut.io_axi_master_read_addr_bits_size.value.to_unsigned()
-          ardata["len"] = self.dut.io_axi_master_read_addr_bits_len.value.to_unsigned()
-          ardata["burst"] = self.dut.io_axi_master_read_addr_bits_burst.value.to_unsigned()
-          await self.master_arfifo.put(ardata)
-      except Exception as e:
-        print('X seen in master_aragent: ' + str(e))
-        raise e
-
   async def master_ragent(self, timeout=4096):
     self.axi_master_read_data.clear_valid()
     while True:
-      while True:
-        await RisingEdge(self.dut.io_aclk)
-        self.axi_master_read_data.clear_valid()
-        if self.master_rfifo.qsize():
-          break
       rdata = await self.master_rfifo.get()
+      await RisingEdge(self.dut.io_aclk)
       self.axi_master_read_data.set_valid(rdata)
-      await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.axi_master_read_data.ready_signal.value == 0:
+      while True:
         await FallingEdge(self.dut.io_aclk)
+        if self.axi_master_read_data.ready_signal.value:
+          break
         timeout_count += 1
         if timeout_count >= timeout:
           assert False, "timeout waiting for rready"
+        await RisingEdge(self.dut.io_aclk)
+      if self.master_rfifo.empty():
+        await RisingEdge(self.dut.io_aclk)
+        self.axi_master_read_data.clear_valid()
 
   async def memory_write_agent(self):
     while True:
-      while True:
-        await RisingEdge(self.dut.io_aclk)
-        if self.master_awfifo.qsize() and self.master_wfifo.qsize():
-          break
       awdata = await self.master_awfifo.get()
       data = []
       strb = []
       while True:
         wdata = await self.master_wfifo.get()
-        line = np.frombuffer(wdata['data'], dtype=np.uint8)
+        line = np.frombuffer(wdata["data"], dtype=np.uint8)
         data.append(list(reversed(line)))
-        strb.append(list(reversed(wdata['strb'])))
-        if wdata['last']:
+        strb.append(list(reversed(wdata["strb"])))
+        if wdata["last"]:
           break
-      assert len(data) == awdata['len'] + 1
-      assert len(strb) == awdata['len'] + 1
+      assert len(data) == awdata["len"] + 1
+      assert len(strb) == awdata["len"] + 1
       ret = self.write_memory({
-        'addr': awdata['addr'],
-        'size': awdata['size'],
-        'len': awdata['len'],
-        'data': data,
-        'strb': strb,
+          "addr": awdata["addr"],
+          "size": awdata["size"],
+          "len": awdata["len"],
+          "data": data,
+          "strb": strb,
       })
       bdata = dict()
       bdata["id"] = awdata["id"]
       bdata["resp"] = AxiResp.OKAY if ret else AxiResp.SLVERR
       await self.master_bfifo.put(bdata)
 
-  async def master_awagent(self):
-    self.dut.io_axi_master_write_addr_ready.value = 1
-    while True:
-      await RisingEdge(self.dut.io_aclk)
-      try:
-        if self.dut.io_axi_master_write_addr_valid.value:
-          awdata = dict()
-          awdata["id"] = self.dut.io_axi_master_write_addr_bits_id.value.to_unsigned()
-          awdata["addr"] = self.dut.io_axi_master_write_addr_bits_addr.value.to_unsigned()
-          awdata["size"] = self.dut.io_axi_master_write_addr_bits_size.value.to_unsigned()
-          awdata["len"] = self.dut.io_axi_master_write_addr_bits_len.value.to_unsigned()
-          await self.master_awfifo.put(awdata)
-      except Exception as e:
-        print('X seen in master_awagent: ' + str(e))
-
-  async def master_wagent(self):
-    self.dut.io_axi_master_write_data_ready.value = 1
-    while True:
-      await RisingEdge(self.dut.io_aclk)
-      try:
-        if self.dut.io_axi_master_write_data_valid.value:
-          wdata = dict()
-          wdata["data"] = self.dut.io_axi_master_write_data_bits_data.value.buff
-          wdata["strb"] = self.dut.io_axi_master_write_data_bits_strb.value
-          wdata["last"] = self.dut.io_axi_master_write_data_bits_last.value
-          await self.master_wfifo.put(wdata)
-      except Exception as e:
-        print('X seen in master_wagent: ' + str(e))
-
   async def master_bagent(self, timeout=4096):
     self.axi_master_write_resp.clear_valid()
     while True:
-      while True:
-        await RisingEdge(self.dut.io_aclk)
-        self.axi_master_write_resp.clear_valid()
-        if self.master_bfifo.qsize():
-          break
       bdata = await self.master_bfifo.get()
+      await RisingEdge(self.dut.io_aclk)
       self.axi_master_write_resp.set_valid(bdata)
-      await FallingEdge(self.dut.io_aclk)
       timeout_count = 0
-      while self.axi_master_write_resp.ready_signal.value == 0:
+      while True:
         await FallingEdge(self.dut.io_aclk)
+        if self.axi_master_write_resp.ready_signal.value:
+          break
         timeout_count += 1
         if timeout_count >= timeout:
           assert False, "timeout waiting for bready"
+        await RisingEdge(self.dut.io_aclk)
+      if self.master_bfifo.empty():
+        await RisingEdge(self.dut.io_aclk)
+        self.axi_master_write_resp.clear_valid()
 
   async def reset(self):
     self.dut.io_aresetn.setimmediatevalue(1)
@@ -756,9 +742,7 @@ class CoreMiniAxiInterface:
 
   async def _read_data(self, expected_resp=AxiResp.OKAY, axi_id=0):
     rdata = await self.slave_rfifo.get()
-    data = np.frombuffer(
-        rdata["data"],
-        dtype=np.uint8)
+    data = rdata["data"]
     last = rdata["last"]
     assert rdata["resp"] == expected_resp
     assert rdata["id"] == axi_id
@@ -887,8 +871,8 @@ class CoreMiniAxiInterface:
     await self.write_word(coralnpu_reset_csr_addr, 0)
 
   async def wait_for_wfi(self):
-    while self.dut.io_wfi.value != 1:
-      await ClockCycles(self.dut.io_aclk, 1)
+    if self.dut.io_wfi.value != 1:
+      await RisingEdge(self.dut.io_wfi)
 
   async def raise_irq(self, cycles=1):
     self.dut.io_irq.value = 1
@@ -909,7 +893,7 @@ class CoreMiniAxiInterface:
     assert tohost != None
     initial_rv = await self.read_word(tohost)
     while True:
-      await ClockCycles(self.dut.io_aclk, 1)
+      await RisingEdge(self.dut.io_aclk)
       rv = await self.read_word(tohost)
       if not (rv == initial_rv).all():
         assert np.sum(rv) == 1
