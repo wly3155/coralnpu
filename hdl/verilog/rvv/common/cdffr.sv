@@ -2,7 +2,7 @@
 
 module cdffr ( q, clk, rst_n, c, e, d ) ; 
   parameter type T = logic;
-  parameter T INIT  = '0;
+  parameter T INIT  = T'('0);
   input         clk;
   input         rst_n;
   input         e, c;
