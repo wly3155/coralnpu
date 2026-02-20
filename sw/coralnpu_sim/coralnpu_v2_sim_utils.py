@@ -61,6 +61,18 @@ class CoralNPUV2Simulator:
     """Steps the simulator."""
     return self.sim.Step(num_steps)
 
+  def set_sw_breakpoint(self, address):
+    """Sets a software breakpoint at the given address."""
+    self.sim.SetSwBreakpoint(address)
+
+  def clear_sw_breakpoint(self, address):
+    """Clears a software breakpoint at the given address."""
+    self.sim.ClearSwBreakpoint(address)
+
+  def halt(self):
+    """Halts the simulator."""
+    self.sim.Halt()
+
   def get_cycle_count(self):
     """Returns the cycle count."""
     return self.sim.GetCycleCount()
@@ -73,6 +85,14 @@ class CoralNPUV2Simulator:
     """Reads a register and returns the hex value of it."""
     return hex(self.sim.ReadRegister(name))
 
+  def write_register(self, name, value):
+    """Writes uint64 values to given register value."""
+    if not isinstance(name, str):
+      raise TypeError(f"Register name must be a string, got {type(name).__name__}")
+    if not isinstance(value, int):
+      raise TypeError(f"Register value must be an integer, got {type(value).__name__}")
+    return self.sim.WriteRegister(name, value)
+
   def write_memory(self, address, data):
     """Writes data to memory. Data must be a numpy array."""
     if not isinstance(data, np.ndarray):
@@ -80,6 +100,18 @@ class CoralNPUV2Simulator:
     if data.dtype != np.uint8:
       data = data.view(np.uint8)
     self.sim.WriteMemory(address, data, len(data))
+
+  def write_word(self, address, data):
+    if data.dtype != np.uint32:
+      raise TypeError('data must be a numpy uint32')
+    self.sim.WriteWord(address, data)
+
+  def write_ptr(self, address, ptr_address):
+    if not isinstance(address, int):
+      raise TypeError(f"address must be an integer, got {type(address).__name__}")
+    if not isinstance(ptr_address, int):
+      raise TypeError(f"ptr_address must be an integer, got {type(ptr_address).__name__}")
+    self.sim.WritePtr(address, ptr_address)
 
   def get_elf_entry_and_symbol(self, filename, symbol_names):
     """Returns the entry point and a dictionary of symbol addresses from an ELF file."""

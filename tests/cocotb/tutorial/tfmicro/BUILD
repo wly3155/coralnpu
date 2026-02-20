@@ -15,6 +15,7 @@
 load("//rules:coco_tb.bzl", "cocotb_test_suite", "verilator_cocotb_model")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
 load("//rules:utils.bzl", "generate_cc_arrays")
+load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
 
 load(
     "//tests/cocotb:build_defs.bzl",
@@ -143,4 +144,15 @@ cocotb_test_suite(
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
     verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
+)
+
+py_binary(
+    name = "npusim_depthwise_conv",
+    srcs = ["npusim_depthwise_conv.py"],
+    data = [":depthwise_conv_test"],
+    deps = [
+        "//sw/coralnpu_sim:coralnpu_v2_sim_utils_lib",
+        "@bazel_tools//tools/python/runfiles",
+        requirement("numpy"),
+    ],
 )
