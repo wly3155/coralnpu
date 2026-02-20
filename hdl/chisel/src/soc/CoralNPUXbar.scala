@@ -100,6 +100,7 @@ class CoralNPUXbar(val hostParams: Seq[bus.TLULParameters], val deviceParams: Se
   val commonParams = {
     val p = new Parameters
     p.lsuDataBits = 128
+    p.axi2IdBits = 8
     new bus.TLULParameters(p)
   }
   val commonWidth = 128
@@ -276,6 +277,7 @@ object CoralNPUXbarEmitter extends App {
   val deviceParams = CrossbarConfig().devices.map { device =>
     val p = new Parameters
     p.lsuDataBits = device.width
+    p.axi2IdBits = 10
     new bus.TLULParameters(p)
   }
 

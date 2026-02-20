@@ -233,13 +233,13 @@ module coralnpu_soc
 
   logic sram_req;
   logic sram_we;
-  logic [21 : 0] sram_addr;
+  logic [19 : 0] sram_addr;
   logic [31 : 0] sram_wdata;
-  logic [3 : 0] sram_wmask;
+  logic [31 : 0] sram_wmask_bits;
   logic [31 : 0] sram_rdata;
   logic sram_rvalid;
 
-  tlul_adapter_sram #(.SramAw(22),
+  tlul_adapter_sram #(.SramAw(20),
                       .SramDw(32),
                       .CmdIntgCheck(1'b1),
                       .EnableRspIntgGen(1'b1),
@@ -252,7 +252,7 @@ module coralnpu_soc
                      .we_o(sram_we),
                      .addr_o(sram_addr),
                      .wdata_o(sram_wdata),
-                     .wmask_o(sram_wmask),
+                     .wmask_o(sram_wmask_bits),
                      .rdata_i(sram_rdata),
                      .gnt_i(1'b1),
                      .rvalid_i(sram_rvalid),
@@ -274,7 +274,7 @@ module coralnpu_soc
              .we_i(sram_we),
              .addr_i(sram_addr),
              .wdata_i(sram_wdata),
-             .wmask_i(sram_wmask),
+             .wmask_i({sram_wmask_bits[24], sram_wmask_bits[16], sram_wmask_bits[8], sram_wmask_bits[0]}),
              .rdata_o(sram_rdata),
              .rvalid_o(sram_rvalid));
 

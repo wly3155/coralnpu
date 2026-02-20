@@ -131,6 +131,7 @@ py_binary(
     deps = [
         ":ftdi_spi_master_lib",
         requirement("numpy"),
+        "//utils/coralnpu_soc_loader:spi_driver",
     ],
 )
 

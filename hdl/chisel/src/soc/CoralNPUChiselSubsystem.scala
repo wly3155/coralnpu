@@ -140,6 +140,7 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
         case p: Spi2TlulParameters =>
           val spi_p = new Parameters
           spi_p.lsuDataBits = p.lsuDataBits
+          spi_p.axi2IdBits = 10
           Module(new Spi2TLUL(spi_p))
       }
     }
@@ -165,6 +166,7 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
     // --- Clock & Reset Connections ---
     instantiatedModules.foreach { case (name, module) =>
       modulePorts.get(s"$name.io.clk").foreach(_ := io.clk_i)
+      modulePorts.get(s"$name.io.clk_i").foreach(_ := io.clk_i)
       modulePorts.get(s"$name.io.clock").foreach(_ := io.clk_i)
       modulePorts.get(s"$name.io.rst_ni").foreach(_ := io.rst_ni)
       modulePorts.get(s"$name.io.reset").foreach(_ := (!io.rst_ni.asBool).asAsyncReset)
@@ -240,6 +242,7 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
     val ddr_mem_256_coralnpu_p = {
       val p = new Parameters
       p.lsuDataBits = 256
+      p.axi2IdBits = 10
       p
     }
     val ddr_mem_256_tlul_p = new bus.TLULParameters(ddr_mem_256_coralnpu_p)
@@ -307,6 +310,7 @@ object CoralNPUChiselSubsystemEmitter extends App {
     device =>
     val p = new Parameters
     p.lsuDataBits = device.width
+    p.axi2IdBits = 10
     new bus.TLULParameters(p)
   }
 

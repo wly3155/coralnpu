@@ -43,6 +43,11 @@ class FtdiSpiMaster:
         # Opcode: 0x8C = Enable 3-Phase Clocking
         self.ftdi.write_data(bytes([0x8C]))
 
+    def close(self):
+        if self.ftdi:
+            self.ftdi.close()
+            self.ftdi = None
+
     def _get_spi_exchange_cmd(self, write_data=b'', read_len=0, extra_cycles=0):
         """
         Generates the raw MPSSE command buffer for a complete SPI transaction.

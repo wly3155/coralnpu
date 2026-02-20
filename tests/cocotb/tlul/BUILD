@@ -332,6 +332,8 @@ CORALNPU_XBAR_TESTCASES = [
     "test_test_host_32_to_coralnpu_device_csr_read",
     "test_test_host_32_to_coralnpu_device_specific_addr",
     "test_wide_to_narrow_integrity",
+    "test_16bit_writes_to_sram",
+    "test_interleaved_hosts_to_sram",
 ]
 # END_TESTCASES_FOR_coralnpu_xbar_cocotb
 
@@ -407,6 +409,7 @@ CORALNPU_CHISEL_SUBSYSTEM_TESTCASES = [
     "test_program_execution_via_spi",
     "test_ddr_access",
     "test_ddr_access_via_spi",
+    "test_tlul_width_bridge_bug_reproduction",
 ]
 # END_TESTCASES_FOR_coralnpu_chisel_subsystem_cocotb
 
@@ -442,3 +445,4 @@ cocotb_test_suite(
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
 )
+

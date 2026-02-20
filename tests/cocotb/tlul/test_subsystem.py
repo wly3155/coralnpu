@@ -32,7 +32,7 @@ BUS_WIDTH_BYTES = 16
 async def setup_dut(dut):
     """Common setup logic for all tests."""
     # Default all TL-UL input signals to a safe state
-    for i in range(4): # 4 external device ports
+    for i in range(4): # 4 external device ports (rom, sram, uart0, uart1)
         getattr(dut, f"io_external_devices_ports_{i}_d_valid").value = 0
 
     getattr(dut, f"io_external_ports_5").value = 0 # DM req valid
@@ -534,3 +534,144 @@ async def test_ddr_access_via_spi(dut):
 
     assert (data0 == rdata0)
     assert (data1 == rdata1)
+
+
+@cocotb.test()
+async def test_tlul_width_bridge_bug_reproduction(dut):
+    """Reproduces the TlulWidthBridge bug by running a C++ program that performs 16-bit writes."""
+    clock = await setup_dut(dut)
+
+    # 1. Instantiate Host Interface (test_host_32)
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_ports_0",
+        clock_name="io_async_ports_hosts_clocks_0",
+        reset_name="io_async_ports_hosts_resets_0",
+        width=32,
+    )
+    await host_if.init()
+
+    # 2. Instantiate Device Interfaces
+    # SRAM responder (port 1)
+    sram_if = TileLinkULInterface(
+        dut,
+        device_if_name="io_external_devices_ports_1",
+        clock_name="io_clk_i",
+        reset_name="io_rst_ni",
+        width=32,
+    )
+    await sram_if.init()
+
+    # UART1 responder (port 3) for logging
+    uart1_if = TileLinkULInterface(
+        dut,
+        device_if_name="io_external_devices_ports_3",
+        clock_name="io_clk_i",
+        reset_name="io_rst_ni",
+        width=32,
+    )
+    await uart1_if.init()
+
+    # 3. Implement Responders
+    mem = {}
+
+    async def sram_responder():
+        while True:
+            req = await sram_if.device_get_request()
+            addr = int(req["address"])
+            if int(req["opcode"]) in [0, 1]:  # Put
+                data = int(req["data"])
+                mask = int(req["mask"])
+                for i in range(4):
+                    if (mask >> i) & 1:
+                        mem[addr + i] = (data >> (i * 8)) & 0xFF
+                await sram_if.device_respond(
+                    opcode=0, param=0, size=req["size"], source=req["source"]
+                )
+            elif int(req["opcode"]) == 4:  # Get
+                resp_data = 0
+                for i in range(4):
+                    resp_data |= mem.get(addr + i, 0) << (i * 8)
+                await sram_if.device_respond(
+                    opcode=1,
+                    param=0,
+                    size=req["size"],
+                    source=req["source"],
+                    data=resp_data,
+                )
+
+    async def uart1_responder():
+        while True:
+            req = await uart1_if.device_get_request()
+            if int(req["opcode"]) in [0, 1]:
+                # Simply ack writes to UART
+                char = int(req["data"]) & 0xFF
+                if char != 0:
+                    import sys
+
+                    sys.stdout.write(chr(char))
+                    sys.stdout.flush()
+                await uart1_if.device_respond(
+                    opcode=0, param=0, size=req["size"], source=req["source"]
+                )
+            elif int(req["opcode"]) == 4:
+                # Return status=0 (not full) for UART
+                await uart1_if.device_respond(
+                    opcode=1, param=0, size=req["size"], source=req["source"], data=0
+                )
+
+    cocotb.start_soon(sram_responder())
+    cocotb.start_soon(uart1_responder())
+
+    # 4. Load ELF
+    r = runfiles.Create()
+    elf_path = r.Rlocation(
+        "coralnpu_hw/tests/cocotb/rvv/arithmetics/rvv_add_int32_m1.elf"
+    )
+    assert elf_path, "Could not find tlul_bridge_test.elf"
+
+    with open(elf_path, "rb") as f:
+        entry_point = await load_elf(dut, f, host_if)
+
+    dut._log.info(f"Program loaded. Entry point: 0x{entry_point:08x}")
+
+    # 5. Execute Program
+    coralnpu_pc_csr_addr = 0x30004
+    coralnpu_reset_csr_addr = 0x30000
+
+    await host_if.host_put(
+        create_a_channel_req(
+            address=coralnpu_pc_csr_addr, data=entry_point, mask=0xF, width=32
+        )
+    )
+    await host_if.host_get_response()
+
+    await host_if.host_put(
+        create_a_channel_req(
+            address=coralnpu_reset_csr_addr, data=1, mask=0xF, width=32
+        )
+    )
+    await host_if.host_get_response()
+
+    await ClockCycles(dut.io_clk_i, 1)
+
+    await host_if.host_put(
+        create_a_channel_req(
+            address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=32
+        )
+    )
+    await host_if.host_get_response()
+
+    # 6. Wait for Completion
+    dut._log.info("Waiting for program to halt...")
+    timeout_cycles = 1000000  # Larger timeout for bug reproduction
+    for i in range(timeout_cycles):
+        if dut.io_external_ports_0.value == 1:
+            break
+        await ClockCycles(dut.io_clk_i, 1)
+    else:
+        assert False, f"Timeout: Program did not halt within {timeout_cycles} cycles."
+
+    dut._log.info("Program halted.")
+    # Check fault (port 1)
+    assert dut.io_external_ports_1.value == 0, "Program halted with fault!"

@@ -98,6 +98,7 @@ enum SpiFsmState {
   WRITE_REG_16B_WAIT_SETUP,
   WRITE_REG_16B_SHIFT,
   WRITE_REG_16B_END_BYTE,
+  WRITE_REG_16B_WAIT_RESTART,
   WRITE_REG_16B_END,
   POLL_REG_START,
   POLL_REG_CHECK,
@@ -114,6 +115,7 @@ enum SpiFsmState {
   READ_SPI_DOMAIN_16B_PREPARE,
   READ_SPI_DOMAIN_16B_SHIFT,
   READ_SPI_DOMAIN_16B_END_BYTE,
+  READ_SPI_DOMAIN_16B_WAIT_RESTART,
   READ_SPI_DOMAIN_16B_END,
   BULK_READ_START,
   BULK_READ_SHIFT_CMD_L,
@@ -480,9 +482,18 @@ void handle_write_reg_16b(unsigned char miso, struct SpiDpiFsmState* ctx) {
       if (ctx->write_16b_sub_idx >= 4) {
         ctx->state = WRITE_REG_16B_END;
       } else {
-        // In packed mode, there are no delays between bytes.
+        // Toggle CSB to restart the transaction for the next register.
+        ctx->signal_state.csb = 1;
+        ctx->state = WRITE_REG_16B_WAIT_RESTART;
+        ctx->cycle_wait_count = 2; // Wait a few cycles with CSB high
+      }
+      break;
+
+    case WRITE_REG_16B_WAIT_RESTART:
+      if (--ctx->cycle_wait_count <= 0) {
+        ctx->signal_state.csb = 0;
         ctx->state = WRITE_REG_16B_WAIT_SETUP;
-        ctx->cycle_wait_count = 0; // Go straight to next byte
+        ctx->cycle_wait_count = 1;
       }
       break;
 
@@ -947,7 +958,18 @@ void handle_read_spi_domain_reg_16b(unsigned char miso, struct SpiDpiFsmState* c
       if (ctx->read_16b_sub_idx >= 4) {
         ctx->state = READ_SPI_DOMAIN_16B_END;
       } else {
+        // Toggle CSB to restart the transaction for the next register.
+        ctx->signal_state.csb = 1;
+        ctx->state = READ_SPI_DOMAIN_16B_WAIT_RESTART;
+        ctx->cycle_wait_count = 2; // Wait a few cycles with CSB high
+      }
+      break;
+
+    case READ_SPI_DOMAIN_16B_WAIT_RESTART:
+      if (--ctx->cycle_wait_count <= 0) {
+        ctx->signal_state.csb = 0;
         ctx->state = READ_SPI_DOMAIN_16B_PREPARE;
+        ctx->cycle_wait_count = 1;
       }
       break;
 
@@ -1074,6 +1096,7 @@ void spi_dpi_tick(struct SpiDpiFsmState* ctx, unsigned char* sck, unsigned char*
     case WRITE_REG_16B_WAIT_SETUP:
     case WRITE_REG_16B_SHIFT:
     case WRITE_REG_16B_END_BYTE:
+    case WRITE_REG_16B_WAIT_RESTART:
     case WRITE_REG_16B_END:
       handle_write_reg_16b(miso, ctx);
       break;
@@ -1082,6 +1105,7 @@ void spi_dpi_tick(struct SpiDpiFsmState* ctx, unsigned char* sck, unsigned char*
     case READ_SPI_DOMAIN_16B_PREPARE:
     case READ_SPI_DOMAIN_16B_SHIFT:
     case READ_SPI_DOMAIN_16B_END_BYTE:
+    case READ_SPI_DOMAIN_16B_WAIT_RESTART:
     case READ_SPI_DOMAIN_16B_END:
       handle_read_spi_domain_reg_16b(miso, ctx);
       break;
