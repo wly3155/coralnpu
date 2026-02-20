@@ -236,66 +236,6 @@ cc_binary(
     ],
 )
 
-cc_binary(
-    name = "coralnpu_tb",
-    srcs = [
-        "matcha/coralnpu_if.h",
-        "matcha/coralnpu_tb.cc",
-        "@coralnpu_hw//hdl/chisel/src/matcha:VCoralNPU_parameters.h",
-    ],
-    defines = [
-        "VERILATOR_MODEL=VCoralNPU",
-    ],
-    deps = [
-        ":coralnpu_if",
-        ":sim_libs",
-        "//hdl/chisel/src/matcha:coralnpu_cc_library",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/flags:usage",
-    ],
-)
-
-cc_binary(
-    name = "coralnpu_scalar_tb",
-    srcs = [
-        "matcha/coralnpu_if.h",
-        "matcha/coralnpu_tb.cc",
-        "@coralnpu_hw//hdl/chisel/src/matcha:VCoralNPUScalar_parameters.h",
-    ],
-    defines = [
-        "VERILATOR_MODEL=VCoralNPUScalar",
-    ],
-    deps = [
-        ":coralnpu_if",
-        ":sim_libs",
-        "//hdl/chisel/src/matcha:coralnpu_scalar_cc_library",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/flags:usage",
-    ],
-)
-
-cc_binary(
-    name = "coralnpu_mini_tb",
-    srcs = [
-        "matcha/coralnpu_if.h",
-        "matcha/coralnpu_tb.cc",
-        "@coralnpu_hw//hdl/chisel/src/matcha:VCoralNPUMini_parameters.h",
-    ],
-    defines = [
-        "VERILATOR_MODEL=VCoralNPUMini",
-    ],
-    deps = [
-        "coralnpu_if",
-        ":sim_libs",
-        "//hdl/chisel/src/matcha:coralnpu_mini_cc_library",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:parse",
-        "@com_google_absl//absl/flags:usage",
-    ],
-)
-
 cc_test(
     name = "dbus2axi_tb",
     srcs = [
