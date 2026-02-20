@@ -138,10 +138,23 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
           Module(new CoreTlul(core_p, config.name))
 
         case p: Spi2TlulParameters =>
+          val spi2tlul_p = new Parameters
+          spi2tlul_p.lsuDataBits = p.lsuDataBits
+          spi2tlul_p.axi2IdBits = 8
+          Module(new Spi2TLUL(spi2tlul_p))
+
+        case p: SpiMasterParameters =>
           val spi_p = new Parameters
           spi_p.lsuDataBits = p.lsuDataBits
           spi_p.axi2IdBits = 10
-          Module(new Spi2TLUL(spi_p))
+          Module(new SpiMaster(spi_p))
+
+        case p: GPIOModuleParameters =>
+          val gpio_p = new Parameters
+          gpio_p.lsuDataBits = 32
+          gpio_p.axi2IdBits = 10
+          val gp = bus.GPIOParameters(width = p.width)
+          Module(new bus.GPIO(gpio_p, gp))
       }
     }
 

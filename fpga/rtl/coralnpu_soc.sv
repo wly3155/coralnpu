@@ -21,6 +21,14 @@ module coralnpu_soc
      input spi_csb_i,
      input spi_mosi_i,
      output logic spi_miso_o,
+     output logic spim_sclk_o,
+     output logic spim_csb_o,
+     output logic spim_mosi_o,
+     input spim_miso_i,
+     input spim_clk_i,
+     output [7:0] gpio_o,
+     output [7:0] gpio_en_o,
+     input [7:0] gpio_i,
      input prim_mubi_pkg::mubi4_t scanmode_i,
      input top_pkg::uart_sideband_i_t[1 : 0] uart_sideband_i,
      output top_pkg::uart_sideband_o_t[1 : 0] uart_sideband_o,
@@ -392,22 +400,27 @@ module coralnpu_soc
     .io_external_ports_2(),               // wfi (unused)
     .io_external_ports_3(1'b0),           // irq (tied off)
     .io_external_ports_4(1'b0),           // te (tied off)
-
     .io_external_ports_5(io_dm_req_valid),
     .io_external_ports_6(io_dm_req_ready),
     .io_external_ports_7(io_dm_req_bits_address),
     .io_external_ports_8(io_dm_req_bits_data),
     .io_external_ports_9(io_dm_req_bits_op),
-
     .io_external_ports_10(io_dm_rsp_valid),
     .io_external_ports_11(io_dm_rsp_ready),
     .io_external_ports_12(io_dm_rsp_bits_data),
     .io_external_ports_13(io_dm_rsp_bits_op),
-
     .io_external_ports_14(spi_clk_i),      // spi_clk
     .io_external_ports_15(spi_csb_i),      // spi_csb
     .io_external_ports_16(spi_mosi_i),     // spi_mosi
-    .io_external_ports_17(spi_miso_o),      // spi_miso
+    .io_external_ports_17(spi_miso_o),     // spi_miso
+    .io_external_ports_18(spim_sclk_o),
+    .io_external_ports_19(spim_csb_o),
+    .io_external_ports_20(spim_mosi_o),
+    .io_external_ports_21(spim_miso_i),
+    .io_external_ports_22(spim_clk_i),
+    .io_external_ports_23(gpio_o),
+    .io_external_ports_24(gpio_en_o),
+    .io_external_ports_25(gpio_i),
 
     .io_async_ports_devices_clocks_0(ddr_clk_i),
     .io_async_ports_devices_resets_0(ddr_rst),

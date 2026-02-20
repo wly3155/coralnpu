@@ -22,16 +22,17 @@ module chip_nexus
      input spi_csb_i,
      input spi_mosi_i,
      output logic spi_miso_o,
+     output logic spim_sclk_o,
+     output logic spim_csb_o,
+     output logic spim_mosi_o,
+     input spim_miso_i,
+     inout wire [3:0] gpio,
      output [1 : 0] uart_tx_o,
      input [1 : 0] uart_rx_i,
      output logic io_halted,
      output logic io_fault,
      output logic io_ddr_mem_axi_aw_ready,
      output logic io_ddr_mem_axi_ar_ready,
-     output logic spi_clk_probe_o,
-     output logic spi_csb_probe_o,
-     output logic spi_mosi_probe_o,
-     output logic spi_miso_probe_o,
      output logic c0_ddr4_act_n,
      output logic [16:0] c0_ddr4_adr,
      output logic [1:0] c0_ddr4_ba,
@@ -62,6 +63,7 @@ module chip_nexus
   logic rst_n;
   logic clk_48MHz;
   logic clk_aon;
+  logic clk_spim;
   logic locked;
   logic eos;
   logic mig_sys_rst;
@@ -69,10 +71,6 @@ module chip_nexus
   logic c0_ddr4_ui_clk;
   logic c0_ddr4_ui_clk_sync_rst;
 
-  assign spi_clk_probe_o = spi_clk_i;
-  assign spi_csb_probe_o = spi_csb_i;
-  assign spi_mosi_probe_o = spi_mosi_i;
-  assign spi_miso_probe_o = spi_miso_o;
   assign ddr_ui_clk = c0_ddr4_ui_clk;
   assign ddr_ui_clk_sync_rst = c0_ddr4_ui_clk_sync_rst;
 
@@ -108,6 +106,23 @@ module chip_nexus
   assign uart_sideband_i[1].cio_rx = uart_rx_i[1];
   assign uart_tx_o[0] = uart_sideband_o[0].cio_tx;
   assign uart_tx_o[1] = uart_sideband_o[1].cio_tx;
+
+  wire [7:0] gpio_out;
+  wire [7:0] gpio_en;
+  wire [7:0] gpio_in;
+
+  genvar i;
+  generate
+    for (i = 0; i < 4; i = i + 1) begin : gen_gpio_iobuf
+      IOBUF i_iobuf (
+        .O(gpio_in[i]),
+        .IO(gpio[i]),
+        .I(gpio_out[i]),
+        .T(~gpio_en[i]) // T is active low enable (Tristate)
+      );
+    end
+  endgenerate
+  assign gpio_in[7:4] = 4'b0;
 
   assign ddr_cal_complete_o = c0_init_calib_complete;
   logic dbg_clk;
@@ -295,6 +310,7 @@ module chip_nexus
                .clk_main_o(clk),
                .clk_48MHz_o(clk_48MHz),
                .clk_aon_o(clk_aon),
+               .clk_spim_o(clk_spim),
                .rst_no(rst_n),
                .locked_o(locked));
 
@@ -331,6 +347,14 @@ module chip_nexus
     .spi_csb_i(spi_csb_i),
     .spi_mosi_i(spi_mosi_i),
     .spi_miso_o(spi_miso_o),
+    .spim_sclk_o(spim_sclk_o),
+    .spim_csb_o(spim_csb_o),
+    .spim_mosi_o(spim_mosi_o),
+    .spim_miso_i(spim_miso_i),
+    .spim_clk_i(clk_spim),
+    .gpio_o(gpio_out),
+    .gpio_en_o(gpio_en),
+    .gpio_i(gpio_in),
     .scanmode_i('0),
     .uart_sideband_i(uart_sideband_i),
     .uart_sideband_o(uart_sideband_o),

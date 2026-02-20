@@ -52,6 +52,16 @@ case class Spi2TlulParameters(
   lsuDataBits: Int
 ) extends ModuleParameters
 
+/** Parameters for the SpiMaster module. */
+case class SpiMasterParameters(
+  lsuDataBits: Int
+) extends ModuleParameters
+
+/** Parameters for the GPIO module. */
+case class GPIOModuleParameters(
+  width: Int
+) extends ModuleParameters
+
 
 /**
  * Defines the parameters for a Chisel module to be instantiated within the subsystem.
@@ -138,6 +148,30 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         ExternalPort("spi_csb",  Bool, In,  "io.spi.csb"),
         ExternalPort("spi_mosi", Bool, In,  "io.spi.mosi"),
         ExternalPort("spi_miso", Bool, Out, "io.spi.miso")
+      )
+    ),
+    ChiselModuleConfig(
+      name = "spi_master",
+      moduleClass = "bus.SpiMaster",
+      params = SpiMasterParameters(lsuDataBits = 32),
+      deviceConnections = Map("io.tl" -> "spi_master"),
+      externalPorts = Seq(
+        ExternalPort("spim_sclk", Bool,  Out, "io.spi.sclk"),
+        ExternalPort("spim_csb",  Bool, Out, "io.spi.csb"),
+        ExternalPort("spim_mosi", Bool, Out, "io.spi.mosi"),
+        ExternalPort("spim_miso", Bool, In,  "io.spi.miso"),
+        ExternalPort("spim_clk_i", Clk, In, "io.spi_clk_i")
+      )
+    ),
+    ChiselModuleConfig(
+      name = "gpio",
+      moduleClass = "bus.GPIO",
+      params = GPIOModuleParameters(width = 8),
+      deviceConnections = Map("io.tl" -> "gpio"),
+      externalPorts = Seq(
+        ExternalPort("gpio_o",    Logic(8), Out, "io.gpio_o"),
+        ExternalPort("gpio_en_o", Logic(8), Out, "io.gpio_en_o"),
+        ExternalPort("gpio_i",    Logic(8), In,  "io.gpio_i")
       )
     )
   )

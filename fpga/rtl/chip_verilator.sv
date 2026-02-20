@@ -32,6 +32,30 @@ module chip_verilator
     .miso_i(miso)
   );
 
+  logic spim_sclk, spim_csb, spim_mosi, spim_miso;
+
+  display_dpi i_display_dpi (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .sck_i(spim_sclk),
+    .csb_i(spim_csb),
+    .mosi_i(spim_mosi),
+    .dc_i(gpio_o[0]),
+    .rst_i(gpio_o[1]),
+    .miso_o(spim_miso)
+  );
+
+  wire [7:0] gpio_o;
+  wire [7:0] gpio_en_o;
+  wire [7:0] gpio_i;
+
+  gpio_dpi i_gpio_dpi (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .gpio_o(gpio_o),
+    .gpio_en_o(gpio_en_o),
+    .gpio_i(gpio_i)
+  );
 
   logic uart0_rx;
   logic uart0_tx;
@@ -112,6 +136,14 @@ module chip_verilator
       .spi_csb_i(csb),
       .spi_mosi_i(mosi),
       .spi_miso_o(miso),
+      .spim_sclk_o(spim_sclk),
+      .spim_csb_o(spim_csb),
+      .spim_mosi_o(spim_mosi),
+      .spim_miso_i(spim_miso),
+      .spim_clk_i(clk_i),
+      .gpio_o(gpio_o),
+      .gpio_en_o(gpio_en_o),
+      .gpio_i(gpio_i),
       .scanmode_i('0),
       .uart_sideband_i(uart_sideband_i),
       .uart_sideband_o(uart_sideband_o),

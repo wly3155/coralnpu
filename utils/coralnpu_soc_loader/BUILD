@@ -26,6 +26,7 @@ py_library(
 py_binary(
     name = "loader",
     srcs = ["loader.py"],
+    imports = ["."],
     deps = [
         ":spi_driver",
         "//coralnpu_test_utils:spi_constants",

@@ -27,6 +27,8 @@ filegroup(
     name = "rtl_files",
     srcs = glob(["**/*.sv"]) + glob(["**/*.core"]) + [
         "//fpga/ip/spi_dpi_master:rtl_files",
+        "//fpga/ip/display_dpi:rtl_files",
+        "//fpga/ip/gpio_dpi:rtl_files",
         "//fpga/ip/coralnpu_tlul:rtl_files",
         "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
         "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
@@ -86,6 +88,18 @@ coralnpu_v2_binary(
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
 )
 
+coralnpu_v2_binary(
+    name = "spi_test",
+    srcs = ["sw/spi_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+)
+
+coralnpu_v2_binary(
+    name = "gpio_test",
+    srcs = ["sw/gpio_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+)
+
 filegroup(
     name = "add_uint32_m1_bin",
     srcs = [":add_uint32_m1"],
@@ -127,12 +141,16 @@ fusesoc_build(
     name = "build_chip_verilator",
     srcs = CORALNPU_SOC_SRCS + [
         "//fpga/ip/spi_dpi_master:dpi_files",
+        "//fpga/ip/display_dpi:dpi_files",
+        "//fpga/ip/gpio_dpi:dpi_files",
         "@lowrisc_opentitan_gh//hw:dpi_files",
     ],
     cores = CORALNPU_SOC_CORES + [
         ":chip_verilator.core",
         "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
+        "//fpga/ip/display_dpi:display_dpi.core",
+        "//fpga/ip/gpio_dpi:gpio_dpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi.core",
@@ -155,12 +173,15 @@ fusesoc_build(
     name = "build_chip_verilator_highmem",
     srcs = CORALNPU_SOC_SRCS + [
         "//fpga/ip/spi_dpi_master:dpi_files",
+        "//fpga/ip/display_dpi:dpi_files",
+        "//fpga/ip/gpio_dpi:dpi_files",
         "@lowrisc_opentitan_gh//hw:dpi_files",
     ],
     cores = CORALNPU_SOC_CORES + [
         ":chip_verilator.core",
         "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
+        "//fpga/ip/gpio_dpi:gpio_dpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
     ],
