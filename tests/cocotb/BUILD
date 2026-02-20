@@ -54,14 +54,6 @@ verilator_cocotb_model(
 )
 
 verilator_cocotb_model(
-    name = "core_mini_debug_axi_model",
-    trace = False,
-    cflags = VERILATOR_BUILD_ARGS,
-    hdl_toplevel = "CoreMiniDebugAxi",
-    verilog_source = "//hdl/chisel/src/coralnpu:CoreMiniDebugAxi.sv",
-)
-
-verilator_cocotb_model(
     name = "rvv_core_mini_axi_model",
     trace = False,
     cflags = VERILATOR_BUILD_ARGS,
@@ -83,14 +75,6 @@ verilator_cocotb_model(
     cflags = VERILATOR_BUILD_ARGS,
     hdl_toplevel = "RvvCoreMini_ITCM512KB_DTCM512KBAxi",
     verilog_source = "//hdl/chisel/src/coralnpu:RvvCoreMini_ITCM512KB_DTCM512KBAxi.sv",
-)
-
-verilator_cocotb_model(
-    name = "rvv_core_mini_debug_axi_model",
-    trace = False,
-    cflags = VERILATOR_BUILD_ARGS,
-    hdl_toplevel = "RvvCoreMiniDebugAxi",
-    verilog_source = "//hdl/chisel/src/coralnpu:RvvCoreMiniDebugAxi.sv",
 )
 
 # BEGIN_TESTCASES_FOR_core_mini_axi_sim_cocotb
@@ -338,18 +322,18 @@ template_rule(
         "core_mini_axi_debug_cocotb": {
             "tests_kwargs": dict(
                 CORE_MINI_AXI_DEBUG_COMMON_TEST_KWARGS,
-                hdl_toplevel = "CoreMiniDebugAxi",
+                hdl_toplevel = "CoreMiniAxi",
             ),
-            "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:core_mini_axi_debug_cc_library_verilog"],
-            "verilator_model": ":core_mini_debug_axi_model",
+            "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:core_mini_axi_cc_library_verilog"],
+            "verilator_model": ":core_mini_axi_model",
         },
         "rvv_core_mini_axi_debug_cocotb": {
             "tests_kwargs": dict(
                 CORE_MINI_AXI_DEBUG_COMMON_TEST_KWARGS,
-                hdl_toplevel = "RvvCoreMiniDebugAxi",
+                hdl_toplevel = "RvvCoreMiniAxi",
             ),
-            "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:rvv_core_mini_axi_debug_cc_library_verilog"],
-            "verilator_model": ":rvv_core_mini_debug_axi_model",
+            "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_verilog"],
+            "verilator_model": ":rvv_core_mini_axi_model",
         },
     },
     simulators = [

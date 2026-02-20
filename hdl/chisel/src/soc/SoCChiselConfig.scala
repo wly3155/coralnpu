@@ -44,7 +44,6 @@ case class CoreTlulParameters(
   fetchDataBits: Int,
   enableFloat: Boolean,
   memoryRegions: Seq[MemoryRegion],
-  enableDebug: Boolean,
 ) extends ModuleParameters
 
 /** Parameters for the Spi2TLUL module. */
@@ -117,7 +116,6 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         fetchDataBits = 128,
         enableFloat = true,
         memoryRegions = memoryRegions,
-        enableDebug = true,
       ),
       hostConnections = Map("io.tl_host" -> "coralnpu_core"),
       deviceConnections = Map("io.tl_device" -> "coralnpu_device"),

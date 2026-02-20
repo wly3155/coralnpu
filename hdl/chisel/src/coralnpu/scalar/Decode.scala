@@ -288,8 +288,8 @@ class Dispatch(p: Parameters) extends Module {
     val retirement_buffer_nSpace = Input(UInt(5.W))
     val retirement_buffer_empty = Input(Bool())
     val retirement_buffer_trap_pending = Input(Bool())
-    val single_step = Option.when(p.useDebugModule)(Input(Bool()))
-    val debug_mode = Option.when(p.useDebugModule)(Input(Bool()))
+    val single_step = Input(Bool())
+    val debug_mode = Input(Bool())
     val branch = Output(Vec(p.instructionLanes, Bool()))
     val jump = Output(Vec(p.instructionLanes, Bool()))
   })
@@ -475,7 +475,7 @@ class DispatchV2(p: Parameters) extends Dispatch(p) {
   // ---------------------------------------------------------------------------
   // Single step
   val singleStepInterlock = (0 until p.instructionLanes).map(i =>
-    !io.single_step.getOrElse(false.B) || ((i == 0).B && coreIdle))
+    !io.single_step || ((i == 0).B && coreIdle))
 
   // ---------------------------------------------------------------------------
   // MPAUSE

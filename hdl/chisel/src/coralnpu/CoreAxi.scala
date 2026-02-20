@@ -37,7 +37,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     val irq = Input(Bool())
     // Debug data interface
     val debug = new DebugIO(p)
-    val dm = Option.when(p.useDebugModule)(new DebugModuleIO(p))
+    val dm = new DebugModuleIO(p)
     // String logging interface
     val slog = new SLogIO(p)
     val te = Input(Bool())
@@ -61,44 +61,42 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     cg.io.clk_i := rst_sync.io.clk_o
     cg.io.te := io.te
 
-    val dm = Option.when(p.useDebugModule)(Module(new DebugModule(p)))
-    if (p.useDebugModule) {
-      dontTouch(dm.get.io)
-      val dmEnable = RegInit(false.B)
-      dmEnable := true.B
-      val dmReqArbiter = Module(new CoralNPURRArbiter(new DebugModuleReqIO(p), 2))
-      dmReqArbiter.io.in(0) <> GateDecoupled(io.dm.get.req, dmEnable)
-      dmReqArbiter.io.in(1) <> GateDecoupled(csr.io.debug.get.req, dmEnable)
+    val dm = Module(new DebugModule(p))
+        dontTouch(dm.io)
+    val dmEnable = RegInit(false.B)
+    dmEnable := true.B
+    val dmReqArbiter = Module(new CoralNPURRArbiter(new DebugModuleReqIO(p), 2))
+    dmReqArbiter.io.in(0) <> GateDecoupled(io.dm.req, dmEnable)
+    dmReqArbiter.io.in(1) <> GateDecoupled(csr.io.debug.req, dmEnable)
 
-      // Queue source ID of the request to route the response later.
-      val inflight = Module(new Queue(UInt(1.W), 1))
+    // Queue source ID of the request to route the response later.
+    val inflight = Module(new Queue(UInt(1.W), 1))
 
-      dm.get.io.ext.req.bits := dmReqArbiter.io.out.bits
-      dm.get.io.ext.req.valid := dmReqArbiter.io.out.valid && inflight.io.enq.ready
-      dmReqArbiter.io.out.ready := dm.get.io.ext.req.ready && inflight.io.enq.ready
+    dm.io.ext.req.bits := dmReqArbiter.io.out.bits
+    dm.io.ext.req.valid := dmReqArbiter.io.out.valid && inflight.io.enq.ready
+    dmReqArbiter.io.out.ready := dm.io.ext.req.ready && inflight.io.enq.ready
 
-      inflight.io.enq.bits := dmReqArbiter.io.chosen
-      inflight.io.enq.valid := dmReqArbiter.io.out.valid && dm.get.io.ext.req.ready
+    inflight.io.enq.bits := dmReqArbiter.io.chosen
+    inflight.io.enq.valid := dmReqArbiter.io.out.valid && dm.io.ext.req.ready
 
-      val rspId = inflight.io.deq.bits
-      inflight.io.deq.ready := dm.get.io.ext.rsp.fire
+    val rspId = inflight.io.deq.bits
+    inflight.io.deq.ready := dm.io.ext.rsp.fire
 
-      csr.io.debug.get.rsp.bits := dm.get.io.ext.rsp.bits
-      io.dm.get.rsp.bits := dm.get.io.ext.rsp.bits
+    csr.io.debug.rsp.bits := dm.io.ext.rsp.bits
+    io.dm.rsp.bits := dm.io.ext.rsp.bits
 
-      csr.io.debug.get.rsp.valid := dm.get.io.ext.rsp.valid && inflight.io.deq.valid && (rspId === 1.U)
-      io.dm.get.rsp.valid := dm.get.io.ext.rsp.valid && inflight.io.deq.valid && (rspId === 0.U)
+    csr.io.debug.rsp.valid := dm.io.ext.rsp.valid && inflight.io.deq.valid && (rspId === 1.U)
+    io.dm.rsp.valid := dm.io.ext.rsp.valid && inflight.io.deq.valid && (rspId === 0.U)
 
-      dm.get.io.ext.rsp.ready := inflight.io.deq.valid && Mux(rspId === 1.U, csr.io.debug.get.rsp.ready, io.dm.get.rsp.ready)
-    }
-
-    val core_reset = Mux(io.te, (!io.aresetn.asBool).asAsyncReset, (csr.io.reset || dm.map(_.io.ndmreset).getOrElse(false.B)).asAsyncReset)
+    dm.io.ext.rsp.ready := inflight.io.deq.valid && Mux(rspId === 1.U, csr.io.debug.rsp.ready, io.dm.rsp.ready)
+    
+    val core_reset = Mux(io.te, (!io.aresetn.asBool).asAsyncReset, (csr.io.reset || dm.io.ndmreset).asAsyncReset)
     val core = withClockAndReset(cg.io.clk_o, core_reset) { Core(p, coreModuleName) }
-    cg.io.enable := io.irq || (!csr.io.cg && !core.io.wfi) || dm.map(_.io.haltreq(0)).getOrElse(false.B)
+    cg.io.enable := io.irq || (!csr.io.cg && !core.io.wfi) || dm.io.haltreq(0)
     io.halted := core.io.halted
     io.fault := core.io.fault
     io.wfi := core.io.wfi
-    core.io.irq := io.irq || dm.map(_.io.haltreq(0)).getOrElse(false.B)
+    core.io.irq := io.irq || dm.io.haltreq(0)
     csr.io.halted := core.io.halted
     csr.io.fault := core.io.fault
     csr.io.coralnpu_csr := core.io.csr.out
@@ -114,27 +112,25 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     core.io.iflush.ready := true.B
 
 
-    if (p.useDebugModule) {
-      core.io.dm.get.debug_req := dm.get.io.haltreq(0)
-      core.io.dm.get.resume_req := dm.get.io.resumereq(0)
-      dm.get.io.resumeack(0) := !core.io.dm.get.debug_mode && RegNext(core.io.dm.get.debug_mode, false.B)
-      dm.get.io.halted(0) := core.io.dm.get.debug_mode
-      dm.get.io.running(0) := !core.io.dm.get.debug_mode
-      dm.get.io.havereset(0) := false.B
-      core.io.dm.get.csr := dm.get.io.csr
-      core.io.dm.get.csr_rs1 := dm.get.io.csr_rs1
-      dm.get.io.csr_rd := core.io.dm.get.csr_rd
-      dm.get.io.scalar_rd <> core.io.dm.get.scalar_rd
-      dm.get.io.scalar_rs <> core.io.dm.get.scalar_rs
-      if (p.enableFloat) {
-        dm.get.io.float_rd.get <> core.io.dm.get.float_rd.get
-        dm.get.io.float_rs.get <> core.io.dm.get.float_rs.get
-      }
+    core.io.dm.debug_req := dm.io.haltreq(0)
+    core.io.dm.resume_req := dm.io.resumereq(0)
+    dm.io.resumeack(0) := !core.io.dm.debug_mode && RegNext(core.io.dm.debug_mode, false.B)
+    dm.io.halted(0) := core.io.dm.debug_mode
+    dm.io.running(0) := !core.io.dm.debug_mode
+    dm.io.havereset(0) := false.B
+    core.io.dm.csr := dm.io.csr
+    core.io.dm.csr_rs1 := dm.io.csr_rs1
+    dm.io.csr_rd := core.io.dm.csr_rd
+    dm.io.scalar_rd <> core.io.dm.scalar_rd
+    dm.io.scalar_rs <> core.io.dm.scalar_rs
+    if (p.enableFloat) {
+      dm.io.float_rd.get <> core.io.dm.float_rd.get
+      dm.io.float_rs.get <> core.io.dm.float_rs.get
     }
 
     // TCMs are arbitrated between the core ({i|d}bus), the AXI slave interface,
-    // and optionally the debug module.
-    val tcmPortCount = 2 + Option.when(p.useDebugModule)(1).getOrElse(0)
+    // and the debug module.
+    val tcmPortCount = 3
 
     // Build ITCM and connect to ibus
     val itcmSizeBytes: Int = 1024 * p.itcmSizeKBytes
@@ -201,10 +197,9 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     fabricMux.io.ports(2) <> csr.io.fabric
     fabricMux.io.periBusy(2) := false.B
 
-    if (p.useDebugModule) {
-      itcmArbiter.io.source(2) <> dm.get.io.itcm
-      dtcmArbiter.io.source(2) <> dm.get.io.dtcm
-    }
+    
+      itcmArbiter.io.source(2) <> dm.io.itcm
+      dtcmArbiter.io.source(2) <> dm.io.dtcm
 
     // Create AXI Slave interface and connect internal fabric to AXI
     val axiSlave = Module(new AxiSlave(p))

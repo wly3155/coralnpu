@@ -163,6 +163,9 @@ class CoreMiniAxiInterface:
     self.dut.io_aclk.value = 0
     self.dut.io_irq.value = 0
     self.dut.io_te.value = 0
+    # We drive the DM directly via the CSR route.
+    self.dut.io_dm_req_valid.value = 0
+    self.dut.io_dm_rsp_ready.value = 0
     self.axi_slave_read_addr = ReadyValidInterface(
         self.dut, "io_axi_slave_read_addr")
     self.axi_slave_read_addr.clear_valid()
@@ -452,12 +455,15 @@ class CoreMiniAxiInterface:
     coralnpu_reset_csr_addr = self.csr_base_addr
     await self.write_word(coralnpu_reset_csr_addr, 3)
 
-  async def _poll_dm_status(self, bit, value):
+  async def _poll_dm_status(self, bit, value, retries=100):
     while True:
       status = await self.read_csr(DebugCsrAddr.STATUS)
       if (status[0] & (1 << bit)) == value:
         break
       await ClockCycles(self.dut.io_aclk, 10)
+      retries -= 1
+      if retries == 0:
+        assert False, "Failed to reach requested DMSTATUS"
 
   async def dm_read(self, addr):
     await self._poll_dm_status(0, 1)

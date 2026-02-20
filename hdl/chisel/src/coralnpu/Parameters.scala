@@ -120,8 +120,6 @@ class Parameters(var m: Seq[MemoryRegion] = Seq(), val hartId: Int = 0) {
   def lsuDataBytes: Int = { lsuDataBits / 8 }
   val lsuDelayPipelineLen = 1
   def dbusSize: Int = { log2Ceil(lsuDataBits / 8) + 1 }
-  var enableDebug = false
-  def useDebugModule: Boolean = { enableDebug }
 
   // TCM Size Configuration
   var itcmSizeKBytes = Parameters.itcmSizeKBytesDefault
@@ -189,7 +187,6 @@ object EmitParametersHeader {
     builder = builder.append(s"#define KP_dbusSize ${p.dbusSize}\n")
     builder = builder.append(s"#define KP_useRetirementBuffer ${p.useRetirementBuffer}\n")
     builder = builder.append(s"#define KP_retirementBufferIdxWidth ${p.retirementBufferIdxWidth}\n")
-    builder = builder.append(s"#define KP_useDebugModule ${p.useDebugModule}\n")
     builder = builder.append("#endif\n")
     builder.result()
   }

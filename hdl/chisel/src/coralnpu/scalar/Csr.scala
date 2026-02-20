@@ -203,7 +203,7 @@ class Csr(p: Parameters) extends Module {
     val fault  = Output(Bool())
     val wfi    = Output(Bool())
     val irq    = Input(Bool())
-    val dm = Option.when(p.useDebugModule)(new Bundle {
+    val dm = new Bundle {
       val debug_req = Input(Bool())
       val resume_req = Input(Bool())
       val debug_mode = Output(Bool())
@@ -212,7 +212,7 @@ class Csr(p: Parameters) extends Module {
       val current_pc = Input(UInt(32.W))
       val next_pc = Input(UInt(32.W))
       val debug_pc = Valid(UInt(p.fetchAddrBits.W))
-    })
+    }
     val trace = Output(new CsrTraceIO(p))
   })
 
@@ -258,16 +258,16 @@ class Csr(p: Parameters) extends Module {
   val mcontext7 = RegInit(0.U(32.W))
 
   // Debug mode CSRs
-  val dcsr      = Option.when(p.useDebugModule)(RegInit(0.U.asTypeOf(new Dcsr)))
-  val dpc       = Option.when(p.useDebugModule)(RegInit(0.U(32.W)))
-  val dscratch0 = Option.when(p.useDebugModule)(RegInit(0.U(32.W)))
-  val dscratch1 = Option.when(p.useDebugModule)(RegInit(0.U(32.W)))
+  val dcsr      = RegInit(0.U.asTypeOf(new Dcsr))
+  val dpc       = RegInit(0.U(32.W))
+  val dscratch0 = RegInit(0.U(32.W))
+  val dscratch1 = RegInit(0.U(32.W))
   // Trigger CSRs
-  val tselect   = Option.when(p.useDebugModule)(RegInit(0.U(32.W)))
-  val tdata1    = Option.when(p.useDebugModule)(RegInit("x60000000".U.asTypeOf(new Tdata1)))
-  val tdata2    = Option.when(p.useDebugModule)(RegInit(0.U(32.W)))
+  val tselect   = RegInit(0.U(32.W))
+  val tdata1    = RegInit("x60000000".U.asTypeOf(new Tdata1))
+  val tdata2    = RegInit(0.U(32.W))
   /* For details, see The RISC-V Debug Specification v1.0, chapter 5.7.5 */
-  val tinfo     = Option.when(p.useDebugModule)(RegInit(0x01000040.U(32.W)))
+  val tinfo     = RegInit(0x01000040.U(32.W))
 
   // CSRs with initialization.
   val fflags    = RegInit(0.U(5.W))
@@ -327,14 +327,14 @@ class Csr(p: Parameters) extends Module {
   val mcauseEn    = csr_address === CsrAddress.MCAUSE
   val mtvalEn     = csr_address === CsrAddress.MTVAL
   // Debug CSRs.
-  val tselectEn   = Option.when(p.useDebugModule)(csr_address === CsrAddress.TSELECT)
-  val tdata1En    = Option.when(p.useDebugModule)(csr_address === CsrAddress.TDATA1)
-  val tdata2En    = Option.when(p.useDebugModule)(csr_address === CsrAddress.TDATA2)
-  val tinfoEn     = Option.when(p.useDebugModule)(csr_address === CsrAddress.TINFO)
-  val dcsrEn      = Option.when(p.useDebugModule)(csr_address === CsrAddress.DCSR)
-  val dpcEn       = Option.when(p.useDebugModule)(csr_address === CsrAddress.DPC)
-  val dscratch0En = Option.when(p.useDebugModule)(csr_address === CsrAddress.DSCRATCH0)
-  val dscratch1En = Option.when(p.useDebugModule)(csr_address === CsrAddress.DSCRATCH1)
+  val tselectEn   = csr_address === CsrAddress.TSELECT
+  val tdata1En    = csr_address === CsrAddress.TDATA1
+  val tdata2En    = csr_address === CsrAddress.TDATA2
+  val tinfoEn     = csr_address === CsrAddress.TINFO
+  val dcsrEn      = csr_address === CsrAddress.DCSR
+  val dpcEn       = csr_address === CsrAddress.DPC
+  val dscratch0En = csr_address === CsrAddress.DSCRATCH0
+  val dscratch1En = csr_address === CsrAddress.DSCRATCH1
   val mcontext0En = csr_address === CsrAddress.MCONTEXT0
   val mcontext1En = csr_address === CsrAddress.MCONTEXT1
   val mcontext2En = csr_address === CsrAddress.MCONTEXT2
@@ -433,18 +433,16 @@ class Csr(p: Parameters) extends Module {
         )
       }.getOrElse(Seq())
       ++
-      Option.when(p.useDebugModule) {
-        Seq(
-          tselectEn.get   -> tselect.get,
-          tdata1En.get    -> tdata1.get.asWord,
-          tdata2En.get    -> tdata2.get,
-          tinfoEn.get     -> tinfo.get,
-          dcsrEn.get      -> dcsr.get.asWord,
-          dpcEn.get       -> dpc.get,
-          dscratch0En.get -> dscratch0.get,
-          dscratch1En.get -> dscratch1.get,
-        )
-      }.getOrElse(Seq())
+      Seq(
+        tselectEn   -> tselect,
+        tdata1En    -> tdata1.asWord,
+        tdata2En    -> tdata2,
+        tinfoEn     -> tinfo,
+        dcsrEn      -> dcsr.asWord,
+        dpcEn       -> dpc,
+        dscratch0En -> dscratch0,
+        dscratch1En -> dscratch1,
+      )
   )
 
   val wdata = MuxLookup(req.bits.op, 0.U)(Seq(
@@ -475,12 +473,10 @@ class Csr(p: Parameters) extends Module {
     when (mcontext5En)  { mcontext5 := wdata }
     when (mcontext6En)  { mcontext6 := wdata }
     when (mcontext7En)  { mcontext7 := wdata }
-    if (p.useDebugModule) {
-      when (dscratch0En.get)  { dscratch0.get := wdata }
-      when (dscratch1En.get)  { dscratch1.get := wdata }
-      when (tdata1En.get)     { tdata1.get := LegalizeTdata1(wdata) }
-      when (tdata2En.get)     { tdata2.get := wdata }
-    }
+    when (dscratch0En)  { dscratch0 := wdata }
+    when (dscratch1En)  { dscratch1 := wdata }
+    when (tdata1En)     { tdata1 := LegalizeTdata1(wdata) }
+    when (tdata2En)     { tdata2 := wdata }
   }
 
   if (p.enableRvv) {
@@ -514,50 +510,44 @@ class Csr(p: Parameters) extends Module {
   val minstretThisCycle = io.counters.nRetired
   minstret := Mux(minstret_written, minstret_t, minstret + minstretThisCycle)
 
-  if (p.useDebugModule) {
-    val trigger_enabled = tdata1.get.isTrigger6 && tdata1.get.m
-    val trigger_match = trigger_enabled && io.dm.get.current_pc === tdata2.get
+  val trigger_enabled = tdata1.isTrigger6 && tdata1.m
+  val trigger_match = trigger_enabled && io.dm.current_pc === tdata2
 
-    val entering_debug_mode = (mode =/= CsrMode.Debug) && (io.dm.get.debug_req || trigger_match)
-    val exiting_debug_mode = (mode === CsrMode.Debug) && (io.dm.get.resume_req)
-    mode := MuxCase(mode, Seq(
-      entering_debug_mode -> CsrMode.Debug,
-      exiting_debug_mode -> Mux(dcsr.get.prv === 3.U, CsrMode.Machine, CsrMode.User),
-      io.bru.in.mode.valid -> io.bru.in.mode.bits,
-    ))
-    io.dm.get.debug_mode := (mode === CsrMode.Debug) || entering_debug_mode
-    val newCause = MuxCase(DebugCause.other, Seq(
-          (io.dm.get.debug_req && !io.dm.get.dcsr_step) -> DebugCause.haltreq,
-          trigger_match -> DebugCause.trigger,
-          io.dm.get.dcsr_step -> DebugCause.step,
-        ))
-    dcsr.get := MuxCase(dcsr.get, Seq(
-      entering_debug_mode -> {
-        val newDcsr = Wire(new Dcsr)
-        newDcsr := dcsr.get
-        newDcsr.extcause := false.B
-        newDcsr.cause := newCause
-        newDcsr.prv := Mux(mode === CsrMode.Machine, 3.U(2.W), 0.U(2.W))
-        newDcsr
-      },
-      (req.valid && dcsrEn.get) -> wdata.asTypeOf(new Dcsr),
-    ))
-    val dpc_value = Mux(newCause === DebugCause.step, io.dm.get.next_pc, io.dm.get.current_pc)
-    dpc.get := MuxCase(dpc.get, Seq(
-      (req.valid && dpcEn.get) -> wdata,
-      entering_debug_mode -> dpc_value,
-    ))
-    io.dm.get.debug_pc := MuxCase(MakeInvalid(UInt(p.fetchAddrBits.W)), Seq(
-      (req.valid && dpcEn.get && mode === CsrMode.Debug) -> MakeValid(wdata),
-    ))
+  val entering_debug_mode = (mode =/= CsrMode.Debug) && (io.dm.debug_req || trigger_match)
+  val exiting_debug_mode = (mode === CsrMode.Debug) && (io.dm.resume_req)
+  mode := MuxCase(mode, Seq(
+    entering_debug_mode -> CsrMode.Debug,
+    exiting_debug_mode -> Mux(dcsr.prv === 3.U, CsrMode.Machine, CsrMode.User),
+    io.bru.in.mode.valid -> io.bru.in.mode.bits,
+  ))
+  io.dm.debug_mode := (mode === CsrMode.Debug) || entering_debug_mode
+  val newCause = MuxCase(DebugCause.other, Seq(
+        (io.dm.debug_req && !io.dm.dcsr_step) -> DebugCause.haltreq,
+        trigger_match -> DebugCause.trigger,
+        io.dm.dcsr_step -> DebugCause.step,
+      ))
+  dcsr := MuxCase(dcsr, Seq(
+    entering_debug_mode -> {
+      val newDcsr = Wire(new Dcsr)
+      newDcsr := dcsr
+      newDcsr.extcause := false.B
+      newDcsr.cause := newCause
+      newDcsr.prv := Mux(mode === CsrMode.Machine, 3.U(2.W), 0.U(2.W))
+      newDcsr
+    },
+    (req.valid && dcsrEn) -> wdata.asTypeOf(new Dcsr),
+  ))
+  val dpc_value = Mux(newCause === DebugCause.step, io.dm.next_pc, io.dm.current_pc)
+  dpc := MuxCase(dpc, Seq(
+    (req.valid && dpcEn) -> wdata,
+    entering_debug_mode -> dpc_value,
+  ))
+  io.dm.debug_pc := MuxCase(MakeInvalid(UInt(p.fetchAddrBits.W)), Seq(
+    (req.valid && dpcEn && mode === CsrMode.Debug) -> MakeValid(wdata),
+  ))
 
-    io.dm.get.dcsr_step := dcsr.get.step
-    io.dm.get.single_step := trigger_enabled
-  } else {
-    when (io.bru.in.mode.valid) {
-      mode := io.bru.in.mode.bits
-    }
-  }
+  io.dm.dcsr_step := dcsr.step
+  io.dm.single_step := trigger_enabled
 
   // High bit of mcause is set for an external interrupt.
   val interrupt = mcause(31)

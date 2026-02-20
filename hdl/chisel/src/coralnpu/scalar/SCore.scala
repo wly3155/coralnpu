@@ -36,7 +36,7 @@ class SCore(p: Parameters) extends Module {
     val fault = Output(Bool())
     val wfi = Output(Bool())
     val irq = Input(Bool())
-    val dm = Option.when(p.useDebugModule)(new CoreDMIO(p))
+    val dm = new CoreDMIO(p)
 
     val ibus = new IBusIO(p)
     val dbus = new DBusIO(p)
@@ -86,11 +86,9 @@ class SCore(p: Parameters) extends Module {
   rob_io.fault := fault_manager.io.out
   rob_io.storeComplete := lsu.io.storeComplete
 
-  if (p.useDebugModule) {
-    dispatch.io.single_step.get := csr.io.dm.get.single_step || csr.io.dm.get.dcsr_step
-    dispatch.io.debug_mode.get := csr.io.dm.get.debug_mode
-    fetch.io.debug_pc.get := csr.io.dm.get.debug_pc
-  }
+  dispatch.io.single_step := csr.io.dm.single_step || csr.io.dm.dcsr_step
+  dispatch.io.debug_mode := csr.io.dm.debug_mode
+  fetch.io.debug_pc := csr.io.dm.debug_pc
 
   val alu = Seq.fill(p.instructionLanes)(Alu(p))
   val bru = (0 until p.instructionLanes).map(x => Seq(Bru(p, x == 0))).reduce(_ ++ _)
@@ -128,7 +126,7 @@ class SCore(p: Parameters) extends Module {
   // Decode
   // Decode/Dispatch
   dispatch.io.inst <> fetch.io.inst.lanes
-  dispatch.io.halted := csr.io.halted || csr.io.wfi || csr.io.dm.map(_.debug_mode).getOrElse(false.B)
+  dispatch.io.halted := csr.io.halted || csr.io.wfi || csr.io.dm.debug_mode
   dispatch.io.mactive := false.B
   dispatch.io.lsuActive := lsu.io.active
   dispatch.io.lsuQueueCapacity := lsu.io.queueCapacity
@@ -194,45 +192,36 @@ class SCore(p: Parameters) extends Module {
   csr.io.csr.in.value(12) := fetch.io.pc
 
   // Arbitrate requests from Dispatch and DM
-  if (p.useDebugModule) {
-    val csrReqArbiter = Module(new Arbiter(new CsrCmd, 2))
-    csrReqArbiter.io.in(0).bits := dispatch.io.csr.bits
-    csrReqArbiter.io.in(0).valid := dispatch.io.csr.valid
-    csrReqArbiter.io.in(1).valid := io.dm.get.csr.valid
-    csrReqArbiter.io.in(1).bits := io.dm.get.csr.bits
-    csrReqArbiter.io.out.ready := true.B
-    csr.io.req.bits := csrReqArbiter.io.out.bits
-    csr.io.req.valid := csrReqArbiter.io.out.valid
-  } else {
-    csr.io.req.bits := dispatch.io.csr.bits
-    csr.io.req.valid := dispatch.io.csr.valid
-  }
+  val csrReqArbiter = Module(new Arbiter(new CsrCmd, 2))
+  csrReqArbiter.io.in(0).bits := dispatch.io.csr.bits
+  csrReqArbiter.io.in(0).valid := dispatch.io.csr.valid
+  csrReqArbiter.io.in(1).valid := io.dm.csr.valid
+  csrReqArbiter.io.in(1).bits := io.dm.csr.bits
+  csrReqArbiter.io.out.ready := true.B
+  csr.io.req.bits := csrReqArbiter.io.out.bits
+  csr.io.req.valid := csrReqArbiter.io.out.valid
 
-  if (p.useDebugModule) {
-    val dmRs1 = Wire(new RegfileReadDataIO)
-    dmRs1.valid := true.B
-    dmRs1.data := io.dm.get.csr_rs1
-    csr.io.rs1 := Mux(RegNext(dispatch.io.csr.valid, false.B), regfile.io.readData(0), dmRs1)
-    io.dm.get.csr_rd := MakeValid(csr.io.rd.valid, csr.io.rd.bits.data)
-    val bruTaken = bru(0).io.actually_taken
-    val realTarget = bru(0).io.real_target
-    // In single-step mode, we break *before* the instruction at `dispatch.io.inst(0).bits.addr`
-    // executes. Therefore, `nextInstPC` should point to this address so that upon resumption,
-    // this instruction is executed.
-    val nextInstPC = Mux(bruTaken, realTarget, dispatch.io.inst(0).bits.addr)
+  val dmRs1 = Wire(new RegfileReadDataIO)
+  dmRs1.valid := true.B
+  dmRs1.data := io.dm.csr_rs1
+  csr.io.rs1 := Mux(RegNext(dispatch.io.csr.valid, false.B), regfile.io.readData(0), dmRs1)
+  io.dm.csr_rd := MakeValid(csr.io.rd.valid, csr.io.rd.bits.data)
+  val bruTaken = bru(0).io.actually_taken
+  val realTarget = bru(0).io.real_target
+  // In single-step mode, we break *before* the instruction at `dispatch.io.inst(0).bits.addr`
+  // executes. Therefore, `nextInstPC` should point to this address so that upon resumption,
+  // this instruction is executed.
+  val nextInstPC = Mux(bruTaken, realTarget, dispatch.io.inst(0).bits.addr)
 
-    csr.io.dm.get.current_pc := dispatch.io.inst(0).bits.addr
-    csr.io.dm.get.next_pc := nextInstPC
+  csr.io.dm.current_pc := dispatch.io.inst(0).bits.addr
+  csr.io.dm.next_pc := nextInstPC
 
-    val stepTriggered = (!csr.io.dm.get.debug_mode && csr.io.dm.get.dcsr_step && dispatch.io.inst(0).fire)
-    val stepTriggeredReg = RegNext(stepTriggered, false.B)
-    csr.io.dm.get.debug_req := io.dm.get.debug_req || /* Request from external debugger */
-                               stepTriggeredReg /* Single-step via CSR */
-    csr.io.dm.get.resume_req := io.dm.get.resume_req
-    io.dm.get.debug_mode := csr.io.dm.get.debug_mode
-  } else {
-    csr.io.rs1 := regfile.io.readData(0)
-  }
+  val stepTriggered = (!csr.io.dm.debug_mode && csr.io.dm.dcsr_step && dispatch.io.inst(0).fire)
+  val stepTriggeredReg = RegNext(stepTriggered, false.B)
+  csr.io.dm.debug_req := io.dm.debug_req || /* Request from external debugger */
+                             stepTriggeredReg /* Single-step via CSR */
+  csr.io.dm.resume_req := io.dm.resume_req
+  io.dm.debug_mode := csr.io.dm.debug_mode
 
   // ---------------------------------------------------------------------------
   // Status
@@ -281,9 +270,7 @@ class SCore(p: Parameters) extends Module {
     regfile.io.writeAddr(i) := dispatch.io.rdMark(i)
     regfile.io.busAddr(i) := dispatch.io.busRead(i)
 
-    if (p.useDebugModule) {
-      regfile.io.debugBusPort.get <> io.dm.get.scalar_rs
-    }
+    regfile.io.debugBusPort <> io.dm.scalar_rs
 
     val csr0Valid = if (i == 0) csr.io.rd.valid else false.B
     val csr0Addr  = if (i == 0) csr.io.rd.bits.addr else 0.U
@@ -333,35 +320,33 @@ class SCore(p: Parameters) extends Module {
     floatCore.get.io.write_ports <> fRegfile.get.io.write_ports
     fRegfile.get.io.scoreboard_set :=
       MuxOR(dispatch.io.rdMark_flt.get.valid, UIntToOH(dispatch.io.rdMark_flt.get.addr))
-    if (p.useDebugModule) {
-      // Mux input to read port
-      fRegfile.get.io.read_ports(0).valid := MuxCase(false.B, Seq(
-        io.dm.get.float_rs.get.valid -> true.B,
-        floatCore.get.io.read_ports(0).valid -> true.B,
-      ))
-      fRegfile.get.io.read_ports(0).addr := MuxCase(0.U, Seq(
-        io.dm.get.float_rs.get.valid -> io.dm.get.float_rs.get.addr,
-        floatCore.get.io.read_ports(0).valid -> floatCore.get.io.read_ports(0).addr,
-      ))
-      // Broadcast data back from read port
-      io.dm.get.float_rs.get.data := fRegfile.get.io.read_ports(0).data
-      floatCore.get.io.read_ports(0).data := fRegfile.get.io.read_ports(0).data
+    // Mux input to read port
+    fRegfile.get.io.read_ports(0).valid := MuxCase(false.B, Seq(
+      io.dm.float_rs.get.valid -> true.B,
+      floatCore.get.io.read_ports(0).valid -> true.B,
+    ))
+    fRegfile.get.io.read_ports(0).addr := MuxCase(0.U, Seq(
+      io.dm.float_rs.get.valid -> io.dm.float_rs.get.addr,
+      floatCore.get.io.read_ports(0).valid -> floatCore.get.io.read_ports(0).addr,
+    ))
+    // Broadcast data back from read port
+    io.dm.float_rs.get.data := fRegfile.get.io.read_ports(0).data
+    floatCore.get.io.read_ports(0).data := fRegfile.get.io.read_ports(0).data
 
-      // Mux input to write port
-      fRegfile.get.io.write_ports(0).valid := MuxCase(false.B, Seq(
-        io.dm.get.float_rd.get.valid -> true.B,
-        floatCore.get.io.write_ports(0).valid -> true.B,
-      ))
-      fRegfile.get.io.write_ports(0).addr := MuxCase(0.U, Seq(
-        io.dm.get.float_rd.get.valid -> io.dm.get.float_rd.get.addr,
-        floatCore.get.io.write_ports(0).valid -> floatCore.get.io.write_ports(0).addr,
-      ))
-      fRegfile.get.io.write_ports(0).data := MuxCase(Fp32.Zero(false.B), Seq(
-        io.dm.get.float_rd.get.valid -> io.dm.get.float_rd.get.data,
-        floatCore.get.io.write_ports(0).valid -> floatCore.get.io.write_ports(0).data,
-      ))
-      fRegfile.get.io.dm_write_valid.get := io.dm.get.float_rd.get.valid
-    }
+    // Mux input to write port
+    fRegfile.get.io.write_ports(0).valid := MuxCase(false.B, Seq(
+      io.dm.float_rd.get.valid -> true.B,
+      floatCore.get.io.write_ports(0).valid -> true.B,
+    ))
+    fRegfile.get.io.write_ports(0).addr := MuxCase(0.U, Seq(
+      io.dm.float_rd.get.valid -> io.dm.float_rd.get.addr,
+      floatCore.get.io.write_ports(0).valid -> floatCore.get.io.write_ports(0).addr,
+    ))
+    fRegfile.get.io.write_ports(0).data := MuxCase(Fp32.Zero(false.B), Seq(
+      io.dm.float_rd.get.valid -> io.dm.float_rd.get.data,
+      floatCore.get.io.write_ports(0).valid -> floatCore.get.io.write_ports(0).data,
+    ))
+    fRegfile.get.io.dm_write_valid := io.dm.float_rd.get.valid
 
     // TODO(derekjchow): Stub-off scalar fp writeback
     if (p.enableRvv) {
@@ -391,7 +376,7 @@ class SCore(p: Parameters) extends Module {
   val mluDvuInputs = Seq(mlu.io.rd, dvu.io.rd) ++
                      io.rvvcore.map(x => Seq(x.async_rd)).getOrElse(Seq()) ++
                      floatCore.map(x => Seq(x.io.scalar_rd)).getOrElse(Seq()) ++
-                     io.dm.map(x => Seq(io.dm.get.scalar_rd)).getOrElse(Seq())
+                     Seq(io.dm.scalar_rd)
 
   val arb = Module(new Arbiter(new RegfileWriteDataIO, mluDvuInputs.length))
   arb.io.in <> mluDvuInputs
@@ -412,9 +397,7 @@ class SCore(p: Parameters) extends Module {
   for (i <- 0 until p.instructionLanes) {
     regfile.io.writeMask(i).valid := writeMask(i)
   }
-  if (p.useDebugModule) {
-    regfile.io.debugWriteValid.get := io.dm.get.scalar_rd.valid
-  }
+  regfile.io.debugWriteValid := io.dm.scalar_rd.valid
 
   // ---------------------------------------------------------------------------
   // Rvv Extension
