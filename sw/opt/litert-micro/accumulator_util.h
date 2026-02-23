@@ -17,7 +17,11 @@
 
 #include <riscv_vector.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
+
+#include "tensorflow/lite/kernels/internal/common.h"
 
 #if TFLITE_SINGLE_ROUNDING
 #error "TFLITE_SINGLE_ROUNDING is not supported"
@@ -70,14 +74,14 @@ inline void PostprocessAcc(const int32_t* accs, const int32_t* bias_data,
       vint32m8_t acc = __riscv_vle32_v_i32m8(&accs[out_x * out_d + out_ch], vl);
       // Apply bias
       acc = __riscv_vadd_vv_i32m8(acc, bias_val, vl);
-      // Ref kernel doesn't handle overflowing here.
+      // int8 uses left shift BEFORE multiplier
       acc = __riscv_vsll_vv_i32m8(acc, lsh32, vl);
       acc = __riscv_vsmul_vv_i32m8(acc, mul_val, vxrm, vl);
+      // int8 uses rounding right shift
       acc = __riscv_vssra_vv_i32m8(acc, rsh32, vxrm, vl);
       // Apply offset
       acc = __riscv_vadd_vx_i32m8(acc, out_offset, vl);
       // Narrow down, saturating
-      // We're not doing shifting so rounding is nop
       const vint16m4_t out16 = __riscv_vnclip_wx_i16m4(acc, 0, vxrm, vl);
       vint8m2_t out8 = __riscv_vnclip_wx_i8m2(out16, 0, vxrm, vl);
       // Apply clamping
@@ -88,6 +92,31 @@ inline void PostprocessAcc(const int32_t* accs, const int32_t* bias_data,
     }
     out_ch += vl;
     out_ch_rem -= vl;
+  }
+}
+
+inline void PostprocessAcc16(const int32_t* accs, const int32_t* bias_data,
+                             const uint8_t* lshift, const int32_t* multiplier,
+                             const uint8_t* rshift, int32_t out_offset,
+                             int16_t out_min, int16_t out_max,
+                             int16_t* out_data, int out_w, int out_d) {
+  // Scalar post-processing to ensure absolute bit-exactness with TFLM.
+  // The user requested correctness over performance for this stage.
+  for (int out_x = 0; out_x < out_w; ++out_x) {
+    for (int c = 0; c < out_d; ++c) {
+      int64_t acc = (int64_t)accs[out_x * out_d + c];
+      if (bias_data) {
+        acc += (int64_t)bias_data[c];
+      }
+
+      int shift = (int8_t)lshift[c] - (int8_t)rshift[c];
+      int32_t result =
+          tflite::MultiplyByQuantizedMultiplier(acc, multiplier[c], shift);
+
+      result = std::max<int32_t>(result, out_min);
+      result = std::min<int32_t>(result, out_max);
+      out_data[out_x * out_d + c] = (int16_t)result;
+    }
   }
 }
 }  // namespace coralnpu_v2::opt::litert_micro

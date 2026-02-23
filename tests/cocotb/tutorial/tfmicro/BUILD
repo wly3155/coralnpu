@@ -124,17 +124,6 @@ coralnpu_v2_binary(
     ],
 )
 
-coralnpu_v2_binary(
-    name = "conv2d_test",
-    srcs = ["conv2d_test.cc"],
-    dtcm_size_kbytes = 1024,  # Highmem
-    itcm_size_kbytes = 1024,  # Highmem
-    deps = [
-        "//sw/opt/litert-micro:conv",
-        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
-    ],
-)
-
 cocotb_test_suite(
     name = "cocotb_depthwise_conv",
     simulators = [
@@ -197,6 +186,17 @@ py_binary(
     ],
 )
 
+coralnpu_v2_binary(
+    name = "conv2d_test",
+    srcs = ["conv2d_test.cc"],
+    dtcm_size_kbytes = 1024,  # Highmem
+    itcm_size_kbytes = 1024,  # Highmem
+    deps = [
+        "//sw/opt/litert-micro:conv",
+        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
+    ],
+)
+
 cocotb_test_suite(
     name = "cocotb_conv2d",
     simulators = [
@@ -237,3 +237,118 @@ cocotb_test_suite(
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
     verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
 )
+
+coralnpu_v2_binary(
+    name = "pooling_test",
+    srcs = ["pooling_test.cc"],
+    dtcm_size_kbytes = 1024,
+    itcm_size_kbytes = 1024,
+    deps = [
+        "//sw/opt/litert-micro:pooling",
+        "//sw/utils",
+        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
+    ],
+)
+
+cocotb_test_suite(
+    name = "cocotb_pooling",
+    simulators = [
+        "verilator",
+        "vcs",
+    ],
+    testcases = [
+        "test_maxpool16stride2",
+        "test_maxpool32stride2",
+        "test_maxpool64stride2",
+    ],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "RvvCoreMiniHighmemAxi",
+        "size": "enormous",
+        "test_module": ["cocotb_pooling.py"],
+        "deps": [
+            "//coralnpu_test_utils:core_mini_axi_sim_interface",
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@rules_python//python/runfiles",
+        ],
+        "data": ["pooling_test.elf"],
+    },
+    vcs_build_args = VCS_BUILD_ARGS,
+    vcs_data = glob(["**/*.elf"]) + [
+        "//tests/cocotb:coverage_exclude.cfg",
+    ],
+    vcs_defines = VCS_DEFINES,
+    vcs_test_args = VCS_TEST_ARGS,
+    vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
+    verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
+)
+
+coralnpu_v2_binary(
+    name = "fully_connected_test",
+    srcs = ["fully_connected_test.cc"],
+    dtcm_size_kbytes = 1024,
+    itcm_size_kbytes = 1024,
+    deps = [
+        "//sw/opt/litert-micro:fully_connected",
+        "//sw/utils",
+        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
+    ],
+)
+
+cocotb_test_suite(
+    name = "cocotb_fully_connected",
+    simulators = ["verilator"],
+    testcases = [
+        "test_fc_16_16",
+        "test_fc_64_64",
+        "test_fc_256_256",
+    ],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "RvvCoreMiniHighmemAxi",
+        "size": "enormous",
+        "test_module": ["cocotb_fully_connected.py"],
+        "deps": [
+            "//coralnpu_test_utils:core_mini_axi_sim_interface",
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@rules_python//python/runfiles",
+        ],
+        "data": ["fully_connected_test.elf"],
+    },
+    verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
+)
+
+coralnpu_v2_binary(
+    name = "logistic_test",
+    srcs = ["logistic_test.cc"],
+    dtcm_size_kbytes = 1024,
+    itcm_size_kbytes = 1024,
+    deps = [
+        "//sw/opt/litert-micro:logistic",
+        "//sw/utils",
+        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
+    ],
+)
+
+cocotb_test_suite(
+    name = "cocotb_logistic",
+    simulators = ["verilator"],
+    testcases = [
+        "test_logistic_256",
+        "test_logistic_1024",
+    ],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "RvvCoreMiniHighmemAxi",
+        "size": "enormous",
+        "test_module": ["cocotb_logistic.py"],
+        "deps": [
+            "//coralnpu_test_utils:core_mini_axi_sim_interface",
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@rules_python//python/runfiles",
+        ],
+        "data": ["logistic_test.elf"],
+    },
+    verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
+)
+
