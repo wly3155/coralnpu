@@ -21,6 +21,7 @@ cc_library(
         "coralnpu_exceptions.cc",
         "coralnpu_gloss.cc",
         "coralnpu_start.S",
+        "cxx_guards.cc",
     ],
     target_compatible_with = [
         "//platforms/cpu:coralnpu_v2"

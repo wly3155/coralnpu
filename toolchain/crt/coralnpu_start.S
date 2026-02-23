@@ -17,6 +17,8 @@
 // A starting functions for simple coralnpu programs.
 
 .extern coralnpu_exception_handler
+.extern __fini_array_start__
+.extern __fini_array_end__
 
 /**
  * Entry point.
@@ -37,6 +39,7 @@ _start:
         la   sp, __stack_end__
         la   gp, _global_pointer
 .option relax
+
         mv   tp, zero
         mv   t1, zero
         mv   t2, zero
@@ -69,7 +72,7 @@ _start:
         la   a1, __bss_end__
         call crt_section_clear
 
-        # Initialize arrays
+        # Run constructors
         la   s0, __init_array_start__
         la   s1, __init_array_end__
         bgeu s0, s1, init_array_loop_end
@@ -106,7 +109,26 @@ init_array_loop_end:
         li   a1, 0  # argc
         la   ra, main
         jalr ra, ra
-        # Store the application's return value at _ret
+        # Save return value
+        mv   s2, a0
+
+        # Call C++ finalizers
+        call __cxa_finalize
+
+        # Initialize finalization arrays (destructors)
+        # These are called in reverse order.
+        la   s0, __fini_array_start__
+        la   s1, __fini_array_end__
+        beq  s0, s1, fini_array_loop_end
+fini_array_loop:
+        addi s1, s1, -0x4
+        lw   t0, 0(s1)
+        jalr t0
+        bne  s0, s1, fini_array_loop
+fini_array_loop_end:
+
+        # Restore the application's return value
+        mv   a0, s2
         la   t0, _ret
         sw   a0, 0(t0)
         beqz a0, success
@@ -121,3 +143,4 @@ success:
         .word 0x08000073 # mpause
 loop:
         j    loop
+
