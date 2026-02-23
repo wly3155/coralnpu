@@ -428,3 +428,13 @@ def install_deps():
             ],
         ),
     )
+
+    http_archive(
+        name = "coralnpu_pip_deps_pillow",
+        urls = [
+            "https://files.pythonhosted.org/packages/5c/1f/8e66ab9be3aaf1435bc03edd1ebdf58ffcd17f7349c1d970cafe87af27d9/pillow-12.1.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        ],
+        sha256 = "1f345e7bc9d7f368887c712aa5054558bad44d2a301ddf9248599f4161abc7c0",
+        type = "zip",
+        build_file_content = _build_file_content(pypi_name = "Pillow", pypi_version = "12.1.0"),
+    )

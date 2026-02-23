@@ -316,10 +316,13 @@ class FtdiSpiMaster:
             elf_file = ELFFile(f)
             entry_point = elf_file.header["e_entry"]
             for segment in elf_file.iter_segments(type="PT_LOAD"):
-                paddr = segment.header.p_paddr
+                paddr = segment.header.p_vaddr
                 data = segment.data()
+                if not data:
+                    continue
                 total_bytes_transferred += len(data)
                 data_ptr = 0
+                print(f'vaddr: {paddr:x} len: {len(data)}')
 
                 for i in range(0, len(data), 256):
                     prep_start_time = time.time()
@@ -492,7 +495,7 @@ class FtdiSpiMaster:
         print("Timed out waiting for core to halt.")
         return False
 
-    def read_data(self, address, size):
+    def read_data(self, address, size, verbose=True):
         """
         Reads a block of data of a given size from a memory address using
         efficient, chunked bulk TileLink transactions.
@@ -599,7 +602,7 @@ class FtdiSpiMaster:
         total_duration = (total_prep_duration + total_setup_duration +
                           total_hw_wait_duration + total_spi_read_duration +
                           total_ack_duration)
-        if total_duration > 0:
+        if verbose and total_duration > 0:
             rate_kbs = (size / 1024) / total_duration
             print(f"Read complete. Transferred {size} bytes "
                   f"in {total_duration:.2f} seconds ({rate_kbs:.2f} KB/s).")

@@ -151,6 +151,15 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "run_binary",
+    srcs = ["run_binary.py"],
+    deps = [
+        ":ftdi_spi_master_lib",
+        requirement("pyelftools"),
+    ],
+)
+
 genrule(
     name = "rvv_cpp_util_header",
     srcs = [],
