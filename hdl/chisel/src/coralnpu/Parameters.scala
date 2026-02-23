@@ -127,11 +127,6 @@ class Parameters(var m: Seq[MemoryRegion] = Seq(), val hartId: Int = 0) {
   var itcmSizeKBytes = Parameters.itcmSizeKBytesDefault
   var dtcmSizeKBytes = Parameters.dtcmSizeKBytesDefault
 
-  // [External] Core AXI interface.
-  val axiSysIdBits = 7
-  val axiSysAddrBits = 32
-  def axiSysDataBits: Int = { lsuDataBits }
-
   // [Internal] L1ICache interface.
   val l1islots = 256
   val l1iassoc = 4
@@ -143,7 +138,7 @@ class Parameters(var m: Seq[MemoryRegion] = Seq(), val hartId: Int = 0) {
   val l1dslots = 256  // (x2 banks)
   val axi1IdBits = 4  // (x2 banks, 3 bits unused)
   val axi1AddrBits = 32
-  def axi1DataBits: Int = { lsuDataBits } /* axiSysDataBits */ /* vectorBits */
+  def axi1DataBits: Int = { lsuDataBits }
 
   // [Internal] TCM[Vector,Scalar] interface.
   var axi2IdBits = 6

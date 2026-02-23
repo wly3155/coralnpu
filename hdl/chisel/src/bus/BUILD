@@ -34,7 +34,6 @@ chisel_library(
         "TlulIdRemapper.scala",
         "TLUL2Axi.scala",
         "Axi2TLUL.scala",
-        "CoralNPUMemIO.scala",
         "SecdedEncoderTestbench.scala",
         "Spi2TLUL.scala",
         "TileLinkUL.scala",
