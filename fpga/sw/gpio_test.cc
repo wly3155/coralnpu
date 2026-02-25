@@ -22,30 +22,11 @@
 
 #define REG32(addr) (*(volatile uint32_t*)(addr))
 
+#include "fpga/sw/uart.h"
+
 int main() {
-  // Configure UART1.
-  // The NCO is calculated as: (baud_rate * 2^20) / clock_frequency
-  // In our case: (115200 * 2^20) / (CLOCK_FREQUENCY_MHZ * 1000000)
-  volatile unsigned int* uart_ctrl =
-      reinterpret_cast<volatile unsigned int*>(0x40010010);
-  const uint64_t uart_ctrl_nco =
-      ((uint64_t)115200 << 20) / (CLOCK_FREQUENCY_MHZ * 1000000);
-  // Enable TX and RX, and set the NCO value.
-  *uart_ctrl = (uart_ctrl_nco << 16) | 3;
+  uart_init(CLOCK_FREQUENCY_MHZ);
 
-  auto uart_print = [](const char* str) {
-    volatile char* uart_wdata = reinterpret_cast<volatile char*>(0x4001001c);
-    volatile unsigned int* uart_status =
-        reinterpret_cast<volatile unsigned int*>(0x40010014);
-
-    while (*str) {
-      // Wait until TX FIFO is not full.
-      while (*uart_status & 1) {
-        asm volatile("nop");
-      }
-      *uart_wdata = *str++;
-    }
-  };
   // 1. Configure all pins as output
   REG32(GPIO_OUT_EN) = 0xFF;
 
@@ -55,7 +36,7 @@ int main() {
   // 3. Read back from output register
   volatile uint32_t val = REG32(GPIO_DATA_OUT);
   if ((val & 0xFF) != 0xAA) {
-    uart_print("GPIO test FAIL!");
+    uart_puts("GPIO test FAIL!");
     return 1;  // Fail
   }
 
@@ -65,7 +46,7 @@ int main() {
   // 5. Read back
   val = REG32(GPIO_DATA_OUT);
   if ((val & 0xFF) != 0x55) {
-    uart_print("GPIO test FAIL!");
+    uart_puts("GPIO test FAIL!");
     return 2;  // Fail
   }
 
@@ -74,11 +55,11 @@ int main() {
   // So reading DATA_IN should match DATA_OUT.
   val = REG32(GPIO_DATA_IN);
   if ((val & 0xFF) != 0x55) {
-    uart_print("GPIO test FAIL!");
+    uart_puts("GPIO test FAIL!");
     return 3;  // Fail: Loopback mismatch
   }
 
-  uart_print("GPIO test PASS!");
+  uart_puts("GPIO test PASS!");
 
   return 0;  // Pass
 }

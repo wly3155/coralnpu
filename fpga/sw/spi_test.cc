@@ -25,30 +25,10 @@
 
 #define REG32(addr) (*(volatile uint32_t*)(addr))
 
+#include "fpga/sw/uart.h"
+
 int main() {
-  // Configure UART1.
-  // The NCO is calculated as: (baud_rate * 2^20) / clock_frequency
-  // In our case: (115200 * 2^20) / (CLOCK_FREQUENCY_MHZ * 1000000)
-  volatile unsigned int* uart_ctrl =
-      reinterpret_cast<volatile unsigned int*>(0x40010010);
-  const uint64_t uart_ctrl_nco =
-      ((uint64_t)115200 << 20) / (CLOCK_FREQUENCY_MHZ * 1000000);
-  // Enable TX and RX, and set the NCO value.
-  *uart_ctrl = (uart_ctrl_nco << 16) | 3;
-
-  auto uart_print = [](const char* str) {
-    volatile char* uart_wdata = reinterpret_cast<volatile char*>(0x4001001c);
-    volatile unsigned int* uart_status =
-        reinterpret_cast<volatile unsigned int*>(0x40010014);
-
-    while (*str) {
-      // Wait until TX FIFO is not full.
-      while (*uart_status & 1) {
-        asm volatile("nop");
-      }
-      *uart_wdata = *str++;
-    }
-  };
+  uart_init(CLOCK_FREQUENCY_MHZ);
 
   // 1. Enable SPI Master
   // Div = 20, CPOL=0, CPHA=0, Enable=1
@@ -69,7 +49,7 @@ int main() {
   // Wait for TX FIFO to empty (Status bit 2 is TX Full, bit 0 is Busy)
   while (REG32(SPI_REG_STATUS) & 1);
 
-  uart_print("SPI transmit complete!\n");
+  uart_puts("SPI transmit complete!\n");
 
   // Signal completion (using a known address or just loop)
   return 0;

@@ -82,22 +82,31 @@ cc_embed_data(
     var_name = "add_uint32_m1_bin",
 )
 
+cc_library(
+    name = "uart",
+    srcs = ["sw/uart.c"],
+    hdrs = ["sw/uart.h"],
+)
+
 coralnpu_v2_binary(
     name = "add_uint32_m1",
     srcs = ["sw/add_uint32_m1.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
 )
 
 coralnpu_v2_binary(
     name = "spi_test",
     srcs = ["sw/spi_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
 )
 
 coralnpu_v2_binary(
     name = "gpio_test",
     srcs = ["sw/gpio_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
 )
 
 filegroup(
