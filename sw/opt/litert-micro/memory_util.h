@@ -19,8 +19,13 @@
 #include <memory>
 
 #include "tensorflow/lite/kernels/internal/compatibility.h"
+#include "tensorflow/lite/micro/kernels/conv.h"
 
 namespace coralnpu_v2::opt::litert_micro {
+
+struct OpDataConvCustom : public tflite::OpDataConv {
+  int accs_buffer_index;
+};
 
 struct AlignedFree {
   void operator()(void* ptr) const { std::free(ptr); }

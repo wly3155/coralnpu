@@ -16,12 +16,9 @@
 #define SW_OPT_LITERT_MICRO_CONV_H_
 
 #include "tensorflow/lite/micro/kernels/conv.h"
+#include "sw/opt/litert-micro/memory_util.h"
 
 namespace coralnpu_v2::opt::litert_micro {
-
-struct OpDataConvCustom : public tflite::OpDataConv {
-  int accs_buffer_index;
-};
 
 void ConvPerChannel(
     const tflite::ConvParams& params, const OpDataConvCustom& data,
