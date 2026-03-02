@@ -67,6 +67,9 @@ case class DmaParameters(
   deviceDataBits: Int
 ) extends ModuleParameters
 
+/** Parameters for the CLINT module. */
+case object ClintParameters extends ModuleParameters
+
 
 /**
  * Defines the parameters for a Chisel module to be instantiated within the subsystem.
@@ -199,6 +202,13 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         ExternalPort("spim_flash_miso",  Bool, In,  "io.spi.miso"),
         ExternalPort("spim_flash_clk_i", Clk,  In,  "io.spi_clk_i")
       )
+    ),
+    ChiselModuleConfig(
+      name = "clint",
+      moduleClass = "bus.Clint",
+      params = ClintParameters,
+      deviceConnections = Map("io.tl" -> "clint"),
+      externalPorts = Seq.empty
     )
   )
 }

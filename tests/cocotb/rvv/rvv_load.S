@@ -49,6 +49,8 @@ main:
             addi t1, t1, 1
             j loop8
     loop8_exit:
+    li t5, 0x800
+    csrs mie, t5
     wfi
 
 

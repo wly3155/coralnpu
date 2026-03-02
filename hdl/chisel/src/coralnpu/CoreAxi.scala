@@ -37,6 +37,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     val irq = Input(Bool())
     // Boot address (loaded into pcStartReg on reset)
     val boot_addr = Input(UInt(p.fetchAddrBits.W))
+    val timer_irq = Input(Bool())
     // Debug data interface
     val debug = new DebugIO(p)
     val dm = new DebugModuleIO(p)
@@ -90,14 +91,20 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     io.dm.rsp.valid := dm.io.ext.rsp.valid && inflight.io.deq.valid && (rspId === 0.U)
 
     dm.io.ext.rsp.ready := inflight.io.deq.valid && Mux(rspId === 1.U, csr.io.debug.rsp.ready, io.dm.rsp.ready)
-    
+
     val core_reset = Mux(io.te, (!io.aresetn.asBool).asAsyncReset, (csr.io.reset || dm.io.ndmreset).asAsyncReset)
     val core = withClockAndReset(cg.io.clk_o, core_reset) { Core(p, coreModuleName) }
-    cg.io.enable := io.irq || (!csr.io.cg && !core.io.wfi) || dm.io.haltreq(0)
+
+    // Register interrupts at the boundary to break timing paths to ibus.
+    val irq_reg = RegNext(io.irq, false.B)
+    val timer_irq_reg = RegNext(io.timer_irq, false.B)
+
+    cg.io.enable := irq_reg || timer_irq_reg || (!csr.io.cg && !core.io.wfi) || dm.io.haltreq(0)
     io.halted := core.io.halted
     io.fault := core.io.fault
     io.wfi := core.io.wfi
-    core.io.irq := io.irq || dm.io.haltreq(0)
+    core.io.irq := irq_reg || dm.io.haltreq(0)
+    core.io.timer_irq := timer_irq_reg
     csr.io.halted := core.io.halted
     csr.io.fault := core.io.fault
     csr.io.coralnpu_csr := core.io.csr.out

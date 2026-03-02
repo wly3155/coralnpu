@@ -126,6 +126,8 @@ __attribute__((used, retain, noreturn)) void unimp() {
 
 __attribute__((used, retain, noreturn)) void wfi() {
   asm volatile(
+      "li t0, 0x800;"
+      "csrs mie, t0;"
       "wfi;"
       "j -0x1000;");
   while (true) {

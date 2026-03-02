@@ -41,5 +41,7 @@ main:
 
     vse8.v v1, (t1)
 
+    li t5, 0x800
+    csrs mie, t5
     wfi
     ret

@@ -111,6 +111,7 @@ void CoreMiniAxi_tb::Connect() {
   core_->io_fault(io_fault);
   core_->io_wfi(io_wfi);
   core_->io_irq(io_irq);
+  core_->io_timer_irq(io_timer_irq);
   core_->io_te(io_te);
   core_->io_boot_addr(io_boot_addr);
 

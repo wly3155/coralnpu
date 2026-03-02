@@ -59,6 +59,8 @@ main:
             addi t4, t4, 1
             j loop8
     loop8_exit:
+    li t5, 0x800
+    csrs mie, t5
     wfi
 
     la t1, input_1
@@ -79,6 +81,8 @@ main:
             addi t4, t4, 1
             j loop16
     loop16_exit:
+    li t5, 0x800
+    csrs mie, t5
     wfi
 
 
@@ -100,5 +104,7 @@ main:
             addi t4, t4, 1
             j loop32
     loop32_exit:
+    li t5, 0x800
+    csrs mie, t5
     wfi
     ret

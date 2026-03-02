@@ -31,6 +31,7 @@ chisel_library(
     srcs = [
         "Axi.scala",
         "Axi2TLUL.scala",
+        "Clint.scala",
         "DmaEngine.scala",
         "GPIO.scala",
         "SecdedEncoderTestbench.scala",

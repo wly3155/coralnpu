@@ -172,6 +172,11 @@ class Bru(p: Parameters, first: Boolean) extends Module {
   }
 
   // This mux contains the subset of ops that are only emitted in pipeline slot 0.
+  val interrupt_taken = if (first) {
+    val interruptible = !op.isOneOf(BruOp.ECALL, BruOp.MRET, BruOp.EBREAK, BruOp.FAULT)
+    stateReg.valid && io.csr.get.out.interrupt && interruptible
+  } else { false.B }
+
   val pipeline0Taken = if (first) {
     MuxLookup(op, false.B)(Seq(
       BruOp.EBREAK -> false.B,
@@ -179,7 +184,7 @@ class Bru(p: Parameters, first: Boolean) extends Module {
       BruOp.MPAUSE -> false.B,
       BruOp.MRET   -> true.B,
       BruOp.WFI    -> true.B,
-    ))
+    )) || interrupt_taken
   } else { false.B }
 
   val isTaken = MuxLookup(op, pipeline0Taken)(Seq(
@@ -194,7 +199,7 @@ class Bru(p: Parameters, first: Boolean) extends Module {
     BruOp.FAULT  -> true.B,
   ))
 
-  io.taken.valid := stateReg.valid && MuxLookup(op, pipeline0Taken)(Seq(
+  io.taken.valid := stateReg.valid && (interrupt_taken || MuxLookup(op, pipeline0Taken)(Seq(
     BruOp.JAL    -> (true.B =/= stateReg.bits.fwd),
     BruOp.JALR   -> (true.B =/= stateReg.bits.fwd),
     BruOp.BEQ    -> (eq  =/= stateReg.bits.fwd),
@@ -204,7 +209,7 @@ class Bru(p: Parameters, first: Boolean) extends Module {
     BruOp.BLTU   -> (ltu =/= stateReg.bits.fwd),
     BruOp.BGEU   -> (geu =/= stateReg.bits.fwd),
     BruOp.FAULT  -> true.B,
-  ))
+  )))
   io.actually_taken := stateReg.valid && isTaken
   io.real_target := Mux(stateReg.bits.fwd,
                         Mux(stateReg.bits.op === BruOp.JALR,
@@ -213,7 +218,7 @@ class Bru(p: Parameters, first: Boolean) extends Module {
                         stateReg.bits.target)
   io.pc := stateReg.bits.pcEx
 
-  io.taken.value := stateReg.bits.target
+  io.taken.value := Mux(interrupt_taken, mtvec, stateReg.bits.target)
 
   io.rd.valid := stateReg.valid && stateReg.bits.linkValid
   io.rd.bits.addr := stateReg.bits.linkAddr
@@ -232,6 +237,7 @@ class Bru(p: Parameters, first: Boolean) extends Module {
 
     io.csr.get.in.mepc.valid :=
       (stateReg.valid && (op === BruOp.ECALL)) ||
+      interrupt_taken ||
       io.fault_manager.get.valid
     io.csr.get.in.mepc.bits := MuxCase(stateReg.bits.pcEx, Seq(
       io.fault_manager.get.valid -> io.fault_manager.get.bits.mepc,
@@ -241,7 +247,7 @@ class Bru(p: Parameters, first: Boolean) extends Module {
       (
         usageFault ||
         (op === BruOp.ECALL)
-      ) || io.fault_manager.get.valid
+      ) || interrupt_taken || io.fault_manager.get.valid
     )
 
     io.csr.get.in.mcause.bits := MuxCase(0.U, Seq(
@@ -250,6 +256,8 @@ class Bru(p: Parameters, first: Boolean) extends Module {
         (op === BruOp.ECALL)  -> 11.U,
         // CoralNPU-specific things, use the custom reserved region of the encoding space.
         usageFault            -> (24 + 1).U,
+        // Asynchronous, so lowest priority.
+        interrupt_taken       -> io.csr.get.out.interrupt_cause,
     ))
 
     io.csr.get.in.mtval.valid :=

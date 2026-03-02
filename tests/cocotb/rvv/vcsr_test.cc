@@ -32,5 +32,9 @@ int main(int argc, char **argv) {
         [vtype] "=r" (vtype)
       : [vl] "r"(vl),
         [vtype_to_write] "r"(vtype_to_write));
+
+  // Enable external interrupts in MIE (bit 11) so WFI can wake up
+  asm volatile("li t0, 0x800; csrs mie, t0;");
+
   return 0;
 }

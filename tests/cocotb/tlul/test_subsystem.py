@@ -676,6 +676,88 @@ async def test_tlul_width_bridge_bug_reproduction(dut):
     # Check fault (port 1)
     assert dut.io_external_ports_fault.value == 0, "Program halted with fault!"
 
+
+@cocotb.test()
+async def test_timer_interrupt(dut):
+    """Loads and executes the timer interrupt test. Verifies CLINT mtime/mtimecmp
+    triggers a machine timer interrupt that is handled via mtvec."""
+    clock = await setup_dut(dut)
+
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32)
+    await host_if.init()
+
+    # --- Sanity check: read CLINT mtime via test host ---
+    CLINT_MTIME_LO = 0x0200BFF8
+    read_txn = create_a_channel_req(
+        address=CLINT_MTIME_LO, width=host_if.width, is_read=True)
+    await host_if.host_put(read_txn)
+    resp = await host_if.host_get_response()
+    dut._log.info(f"CLINT mtime_lo read: data=0x{int(resp['data']):08x}, error={resp['error']}")
+    assert resp["error"] == 0, "CLINT mtime read failed"
+    mtime_val1 = resp["data"]
+
+    await ClockCycles(dut.io_clk_i, 10)
+
+    read_txn = create_a_channel_req(
+        address=CLINT_MTIME_LO, width=host_if.width, is_read=True)
+    await host_if.host_put(read_txn)
+    resp = await host_if.host_get_response()
+    dut._log.info(f"CLINT mtime_lo read (2nd): data=0x{int(resp['data']):08x}, error={resp['error']}")
+    assert int(resp["data"]) > int(mtime_val1), "CLINT mtime is not incrementing"
+
+    r = runfiles.Create()
+    elf_path = r.Rlocation("coralnpu_hw/tests/cocotb/timer_interrupt_test.elf")
+    assert elf_path, "Could not find timer_interrupt_test.elf"
+
+    with open(elf_path, "rb") as f:
+        entry_point = await load_elf(dut, f, host_if)
+
+    dut._log.info(f"Timer interrupt test loaded. Entry point: 0x{entry_point:08x}")
+
+    # Program start PC, release clock gate, release reset
+    coralnpu_pc_csr_addr = 0x30004
+    coralnpu_reset_csr_addr = 0x30000
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_pc_csr_addr, data=entry_point, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=1, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    await ClockCycles(dut.io_clk_i, 1)
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    dut._log.info("Waiting for timer interrupt test to complete...")
+    timeout_cycles = 1_000_000
+    for i in range(timeout_cycles):
+        if dut.io_external_ports_halted.value == 1:
+            break
+        await ClockCycles(dut.io_clk_i, 1)
+    else:
+        assert False, f"Timeout: Program did not halt within {timeout_cycles} cycles."
+
+    dut._log.info("Program halted.")
+    # Check fault (port 1)
+    assert dut.io_external_ports_fault.value == 0, "Program halted with fault!"
+    dut._log.info("Timer interrupt test passed.")
+
+
 @cocotb.test()
 async def test_ibus_fetch_from_sram(dut):
     """Tests instruction fetch via AXI bus from SRAM (execute from external memory).

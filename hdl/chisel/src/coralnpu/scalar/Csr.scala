@@ -57,6 +57,7 @@ object CsrAddress extends ChiselEnum {
   val MEPC      = Value(0x341.U(12.W))
   val MCAUSE    = Value(0x342.U(12.W))
   val MTVAL     = Value(0x343.U(12.W))
+  val MIP       = Value(0x344.U(12.W))
   val TSELECT   = Value(0x7A0.U(12.W))
   val TDATA1    = Value(0x7A1.U(12.W))
   val TDATA2    = Value(0x7A2.U(12.W))
@@ -172,11 +173,15 @@ class CsrBruIO(p: Parameters) extends Bundle {
     val mode  = Input(CsrMode())
     val mepc  = Input(UInt(32.W))
     val mtvec = Input(UInt(32.W))
+    val interrupt = Input(Bool())
+    val interrupt_cause = Input(UInt(32.W))
   }
   def defaults() = {
     out.mode := CsrMode.Machine
     out.mepc := 0.U
     out.mtvec := 0.U
+    out.interrupt := false.B
+    out.interrupt_cause := 0.U
   }
 }
 
@@ -212,6 +217,7 @@ class Csr(p: Parameters) extends Module {
       val next_pc = Input(UInt(32.W))
       val debug_pc = Valid(UInt(p.fetchAddrBits.W))
     }
+    val timer_irq = Input(Bool())
     val trace = Output(new CsrTraceIO(p))
   })
 
@@ -271,7 +277,9 @@ class Csr(p: Parameters) extends Module {
   // CSRs with initialization.
   val fflags    = RegInit(0.U(5.W))
   val frm       = RegInit(0.U(3.W))
-  val mie       = RegInit(0.U(1.W))
+  val mstatus_mie  = RegInit(false.B)
+  val mstatus_mpie = RegInit(false.B)
+  val mie       = RegInit(0.U(32.W))
   val mtvec     = RegInit(0.U(32.W))
   val mscratch  = RegInit(0.U(32.W))
   val mepc      = RegInit(0.U(32.W))
@@ -323,6 +331,7 @@ class Csr(p: Parameters) extends Module {
   val mepcEn      = csr_address === CsrAddress.MEPC
   val mcauseEn    = csr_address === CsrAddress.MCAUSE
   val mtvalEn     = csr_address === CsrAddress.MTVAL
+  val mipEn       = csr_address === CsrAddress.MIP
   // Debug CSRs.
   val tselectEn   = csr_address === CsrAddress.TSELECT
   val tdata1En    = csr_address === CsrAddress.TDATA1
@@ -371,7 +380,9 @@ class Csr(p: Parameters) extends Module {
     fault := true.B
   }
 
-  wfi := Mux(wfi, !io.irq, io.bru.in.wfi)
+  val mtip_pending = io.timer_irq && mie(7)
+  val meip_pending = io.irq && mie(11)
+  wfi := Mux(wfi, !(mtip_pending || meip_pending || io.dm.debug_req), io.bru.in.wfi)
 
   io.halted := halted
   io.fault  := fault
@@ -386,9 +397,10 @@ class Csr(p: Parameters) extends Module {
       fflagsEn    -> Cat(0.U(27.W), fflags),
       frmEn       -> Cat(0.U(29.W), frm),
       fcsrEn      -> Cat(0.U(24.W), fcsr),
-      mstatusEn   -> Cat(0.U(17.W), fs, 3.U(2.W), vs, 0.U(9.W)),
+      mstatusEn   -> Cat(0.U(17.W), fs, 3.U(2.W), vs, 0.U(1.W), mstatus_mpie, 0.U(3.W), mstatus_mie, 0.U(3.W)),
       misaEn      -> misa,
-      mieEn       -> Cat(0.U(31.W), mie),
+      mieEn       -> mie,
+      mipEn       -> Cat(0.U(20.W), io.irq, 0.U(3.W), io.timer_irq, 0.U(7.W)),
       mtvecEn     -> mtvec,
       mscratchEn  -> mscratch,
       mepcEn      -> mepc,
@@ -453,7 +465,8 @@ class Csr(p: Parameters) extends Module {
     when (frmEn)        { frm       := wdata }
     when (fcsrEn)       { fflags    := wdata(4,0)
                           frm       := wdata(7,5) }
-    when (mieEn)        { mie       := wdata }
+    when (mstatusEn)    { mstatus_mie := wdata(3); mstatus_mpie := wdata(7) }
+    when (mieEn)        { mie       := wdata & "h880".U }
     when (mtvecEn)      { mtvec     := wdata }
     when (mscratchEn)   { mscratch  := wdata }
     when (mepcEn)       { mepc      := wdata }
@@ -564,6 +577,29 @@ class Csr(p: Parameters) extends Module {
     when (io.float.get.in.fflags.valid) {
       fflags := io.float.get.in.fflags.bits | fflags
     }
+  }
+
+  // Interrupt generation
+  val in_debug = mode === CsrMode.Debug
+  val interrupt_pending = (mtip_pending || meip_pending) && mstatus_mie && !in_debug
+
+  io.bru.out.interrupt := interrupt_pending
+  io.bru.out.interrupt_cause := MuxCase(0.U, Seq(
+    meip_pending -> "x8000000B".U(32.W),
+    mtip_pending -> "x80000007".U(32.W),
+  ))
+
+  // Trap entry: save mstatus on trap (ecall, ebreak-trap, fault, or interrupt)
+  val trap_taken = io.bru.in.mcause.valid
+  when (trap_taken) {
+    mstatus_mpie := mstatus_mie
+    mstatus_mie  := false.B
+  }
+
+  // MRET: restore mstatus
+  when (io.bru.in.mode.valid) {
+    mstatus_mie  := mstatus_mpie
+    mstatus_mpie := true.B
   }
 
   // Forwarding.

@@ -155,6 +155,13 @@ coralnpu_v2_binary(
     deps = [":uart"],
 )
 
+coralnpu_v2_binary(
+    name = "timer",
+    srcs = ["sw/timer.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
+)
+
 filegroup(
     name = "add_uint32_m1_bin",
     srcs = [":add_uint32_m1"],

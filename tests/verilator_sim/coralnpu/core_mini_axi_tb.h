@@ -187,6 +187,7 @@ struct CoreMiniAxi_tb : Sysc_tb {
   sc_signal<bool> io_fault;
   sc_signal<bool> io_wfi;
   sc_signal<bool> io_irq;
+  sc_signal<bool> io_timer_irq;
   sc_signal<bool> io_te;
   sc_signal<sc_bv<32>> io_boot_addr;
   bool tohost_halt = false;

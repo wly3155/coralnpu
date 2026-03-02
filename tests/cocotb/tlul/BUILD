@@ -413,6 +413,7 @@ CORALNPU_CHISEL_SUBSYSTEM_TESTCASES = [
     "test_ibus_fetch_from_sram",
     "test_boot_addr_sram",
     "test_boot_addr_override",
+    "test_timer_interrupt",
 ]
 # END_TESTCASES_FOR_coralnpu_chisel_subsystem_cocotb
 
@@ -435,6 +436,7 @@ cocotb_test_suite(
         ],
         "data": [
             "//tests/cocotb/rvv/arithmetics:rvv_add_int32_m1.elf",
+            "//tests/cocotb:timer_interrupt_test.elf",
         ],
         "default_testcase_size": "small",
         "size": "enormous",
@@ -443,6 +445,7 @@ cocotb_test_suite(
     vcs_verilog_sources = ["//hdl/chisel/src/soc:coralnpu_chisel_subsystem_testharness_cc_library_emit_verilog"],
     vcs_data = [
         "//tests/cocotb/rvv/arithmetics:rvv_add_int32_m1.elf",
+        "//tests/cocotb:timer_interrupt_test.elf",
     ],
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
