@@ -160,6 +160,19 @@ exports_files(["diplomacy/src/diplomacy/nodes/HeterogeneousBag.scala"])
     )
 
     http_archive(
+        name = "srecord",
+        urls = ["https://sourceforge.net/projects/srecord/files/srecord/1.65/srecord-1.65.0-Source.tar.gz/download"],
+        type = "tar.gz",
+        sha256 = "81c3d07cf15ce50441f43a82cefd0ac32767c535b5291bcc41bd2311d1337644",
+        strip_prefix = "srecord-1.65.0-Source",
+        build_file = "@coralnpu_hw//third_party/srecord:srecord.BUILD",
+        patches = [
+            "@coralnpu_hw//third_party/srecord:0001-Disable-docs-and-tests.patch",
+        ],
+        patch_args = ["-p1"],
+    )
+
+    http_archive(
         name = "riscv-tests",
         urls = ["https://github.com/riscv-software-src/riscv-tests/archive/fd4e6cdd033d9075632be9dd207c848181ca474c.zip"],
         sha256 = "e7d84eaa149b57c0e5ff69a76c80f35f4ee64c5dc985dbba5c287adf8b56ec5d",

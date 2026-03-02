@@ -141,28 +141,38 @@ def _coralnpu_v2_binary_impl(ctx):
 
     out_vmem = ctx.actions.declare_file("{}.vmem".format(ctx.label.name))
     word_size = ctx.attr.word_size
-    srec_cat_vmem_args = [
-        out_bin.path,
-        "-binary",
-        "-byte-swap",
-        str(word_size // 8),
-        "-fill",
-        "0xff",
-        "-within",
-        out_bin.path,
-        "-binary",
-        "-range-pad",
-        str(word_size // 8),
-        "-o",
-        out_vmem.path,
-        "-vmem",
-        str(word_size),
-    ]
+
+    srec_cat_files = ctx.attr._srec_cat[DefaultInfo].files.to_list()
+    srec_cat_bin = None
+    for f in srec_cat_files:
+        if f.path.endswith("/bin/srec_cat"):
+            srec_cat_bin = f
+            break
+    if not srec_cat_bin:
+        fail("Could not find srec_cat binary in @srecord//:srecord outputs")
+
     ctx.actions.run(
         outputs = [out_vmem],
         inputs = [out_bin],
-        executable = "srec_cat",
-        arguments = srec_cat_vmem_args,
+        executable = srec_cat_bin,
+        tools = srec_cat_files,
+        arguments = [
+            out_bin.path,
+            "-binary",
+            "-byte-swap",
+            str(word_size // 8),
+            "-fill",
+            "0xff",
+            "-within",
+            out_bin.path,
+            "-binary",
+            "-range-pad",
+            str(word_size // 8),
+            "-o",
+            out_vmem.path,
+            "-vmem",
+            str(word_size),
+        ],
         mnemonic = "SrecCat",
     )
 
@@ -192,6 +202,7 @@ _coralnpu_v2_binary = _coralnpu_v2_rule(
         "semihosting": attr.bool(),
         "word_size": attr.int(default = 32),
         "_cc_toolchain": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")),
+        "_srec_cat": attr.label(default = Label("@srecord//:srecord"), cfg = "exec"),
     },
     fragments = ["cpp"],
     toolchains = ["@rules_cc//cc:toolchain_type"],
