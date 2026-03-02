@@ -1,23 +1,23 @@
-From a63f37595a06cb328c1e53b53989d61764d3fefe Mon Sep 17 00:00:00 2001
+From 12a360ec38a25caf623518c40d08445462ba8dd6 Mon Sep 17 00:00:00 2001
 From: Derek Chow <derekjchow@google.com>
 Date: Thu, 27 Feb 2025 20:56:54 +0000
-Subject: [PATCH 2/2] Update cocotb script to support newer version.
+Subject: [PATCH] Update cocotb script to support newer version.
 
 Target: ddb9634ec4fdd19f2464e5926252b262d0779fab
 ---
  cocotb/cocotb.bzl                             |  2 +-
  cocotb/cocotb_wrapper.py                      | 20 +++++++++--
- ...-Remove-autodetect-of-VERILATOR_ROOT.patch | 34 +++++++++++++++++++
+ ...-Remove-autodetect-of-VERILATOR_ROOT.patch | 35 +++++++++++++++++++
  .../verilator/verilator.BUILD.bazel           |  8 +++--
  dependency_support/verilator/verilator.bzl    | 10 ++++--
- 5 files changed, 66 insertions(+), 8 deletions(-)
+ 5 files changed, 67 insertions(+), 8 deletions(-)
  create mode 100644 dependency_support/verilator/0001-Remove-autodetect-of-VERILATOR_ROOT.patch
 
 diff --git a/cocotb/cocotb.bzl b/cocotb/cocotb.bzl
-index cde681b..a99e220 100644
+index 6cddd81..3a3dd13 100644
 --- a/cocotb/cocotb.bzl
 +++ b/cocotb/cocotb.bzl
-@@ -170,7 +170,7 @@ def _cocotb_test_impl(ctx):
+@@ -173,7 +173,7 @@ def _cocotb_test_impl(ctx):
      vhdl_files = _collect_vhdl_files(ctx).to_list()
  
      # create test script
@@ -73,28 +73,30 @@ index 03d0dbc..d6829c6 100644
 -    check_results_file(results_xml)
 diff --git a/dependency_support/verilator/0001-Remove-autodetect-of-VERILATOR_ROOT.patch b/dependency_support/verilator/0001-Remove-autodetect-of-VERILATOR_ROOT.patch
 new file mode 100644
-index 0000000..9e08372
+index 0000000..9022652
 --- /dev/null
 +++ b/dependency_support/verilator/0001-Remove-autodetect-of-VERILATOR_ROOT.patch
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,35 @@
 +From a5369fe645344bb80cad339fe0a77233b535e50c Mon Sep 17 00:00:00 2001
 +From: Alex Van Damme <atv@google.com>
 +Date: Mon, 3 Mar 2025 14:59:47 -0800
 +Subject: [PATCH] Remove autodetect of VERILATOR_ROOT
 +
 +---
-+ bin/verilator | 11 -----------
-+ 1 file changed, 11 deletions(-)
++ bin/verilator | 13 -------------
++ 1 file changed, 13 deletions(-)
 +
 +diff --git a/bin/verilator b/bin/verilator
-+index 264f0d6c2..a2df113ba 100755
++index 7e7c2f6b0..b1e88e2d0 100755
 +--- a/bin/verilator
 ++++ b/bin/verilator
-+@@ -69,17 +69,6 @@ if (! GetOptions(
++@@ -69,19 +69,6 @@ if (! GetOptions(
 +     pod2usage(-exitstatus => 2, -verbose => 0);
 + }
 + 
-+-my $verilator_root = realpath("$RealBin/..");
++-# WARNING: $verilator_pkgdatadir_relpath is substituted during Verilator 'make install'
++-my $verilator_pkgdatadir_relpath = "..";
++-my $verilator_root = realpath("$RealBin/$verilator_pkgdatadir_relpath");
 +-if (defined $ENV{VERILATOR_ROOT}) {
 +-    if ((!-d $ENV{VERILATOR_ROOT}) || $verilator_root ne realpath($ENV{VERILATOR_ROOT})) {
 +-        warn "%Error: verilator: VERILATOR_ROOT is set to inconsistent path. Suggest leaving it unset.\n";
@@ -110,12 +112,11 @@ index 0000000..9e08372
 +     warn "-Info: --gdbbt ignored: gdb doesn't seem to be working\n" if $Debug;
 +-- 
 +2.48.1.711.g2feabab25a-goog
-+
 diff --git a/dependency_support/verilator/verilator.BUILD.bazel b/dependency_support/verilator/verilator.BUILD.bazel
-index 3fadcca..b7322c2 100644
+index 3c6f975..77860d1 100644
 --- a/dependency_support/verilator/verilator.BUILD.bazel
 +++ b/dependency_support/verilator/verilator.BUILD.bazel
-@@ -251,7 +251,10 @@ verilator_bisonpre(
+@@ -252,7 +252,10 @@ verilator_bisonpre(
  
  cc_library(
      name = "verilatedos",
@@ -127,7 +128,7 @@ index 3fadcca..b7322c2 100644
      strip_include_prefix = "include/",
  )
  
-@@ -362,7 +365,6 @@ cc_library(
+@@ -363,7 +366,6 @@ cc_library(
          "include/verilated_vcd_sc.h",
          "include/verilated_vpi.h",
          "include/verilated.h",
@@ -135,7 +136,7 @@ index 3fadcca..b7322c2 100644
      ],
      # TODO: Remove these once upstream fixes these warnings
      copts = [
-@@ -390,6 +392,7 @@ cc_library(
+@@ -391,6 +393,7 @@ cc_library(
          "@accellera_systemc//:systemc",
          "@net_zlib//:zlib",
          ":vltstd",
@@ -143,7 +144,7 @@ index 3fadcca..b7322c2 100644
      ],
  )
  
-@@ -458,6 +461,7 @@ cc_binary(
+@@ -460,6 +463,7 @@ cc_binary(
          "include/verilated_vpi.h",
          "include/verilated.h",
          "include/verilatedos.h",
@@ -152,7 +153,7 @@ index 3fadcca..b7322c2 100644
          "include/vltstd/sv_vpi_user.h",
          "include/vltstd/vpi_user.h",
 diff --git a/dependency_support/verilator/verilator.bzl b/dependency_support/verilator/verilator.bzl
-index 376a24f..e574271 100644
+index 376a24f..427febb 100644
 --- a/dependency_support/verilator/verilator.bzl
 +++ b/dependency_support/verilator/verilator.bzl
 @@ -22,7 +22,11 @@ def verilator():
@@ -162,14 +163,14 @@ index 376a24f..e574271 100644
 -        urls = ["https://github.com/verilator/verilator/archive/refs/tags/v5.022.tar.gz"],
 -        sha256 = "3c2f5338f4b6ce7e2f47a142401acdd18cbf4c5da06092618d6d036c0afef12d",
 -        strip_prefix = "verilator-5.022",
-+        urls = ["https://github.com/verilator/verilator/archive/refs/tags/v5.026.tar.gz"],
-+        sha256 = "87fdecf3967007d9ee8c30191ff2476f2a33635d0e0c6e3dbf345cc2f0c50b78",
-+        strip_prefix = "verilator-5.026",
++        urls = ["https://github.com/verilator/verilator/archive/refs/tags/v5.032.tar.gz"],
++        sha256 = "5a262564b10be8bdb31ff4fb67d77bcf5f52fc1b4e6c88d5ca3264fb481f1e41",
++        strip_prefix = "verilator-5.032",
 +        patch_args = ["-p1"],
 +        patches = [
 +            Label("@rules_hdl//dependency_support/verilator:0001-Remove-autodetect-of-VERILATOR_ROOT.patch"),
 +        ],
      )
 -- 
-2.48.1.711.g2feabab25a-goog
+2.39.5
 

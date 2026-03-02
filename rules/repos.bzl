@@ -103,6 +103,7 @@ def coralnpu_repos2():
             "@coralnpu_hw//third_party/rules_hdl:0005-Use-num_failed-for-exit-code.patch",
             "@coralnpu_hw//third_party/rules_hdl:0006-Separate-build-from-test-for-Verilator.patch",
             "@coralnpu_hw//third_party/rules_hdl:0007-Suppress-skywater-pdk-loading.patch",
+            "@coralnpu_hw//third_party/rules_hdl:0008-Use-glob-for-verilator_bin-data-files.patch",
         ],
         patch_args = ["-p1"],
     )
@@ -246,6 +247,7 @@ def fpga_repos():
         strip_prefix = "opentitan-0e3cf62211004443d6d29f8f6120882376da499a",
         patches = [
             "@coralnpu_hw//fpga:0001-Export-hw-ip_templates.patch",
+            "@coralnpu_hw//fpga:0002-Use-hermetic-verilator-in-fusesoc-build.patch",
         ],
         patch_args = ["-p1"],
     )
