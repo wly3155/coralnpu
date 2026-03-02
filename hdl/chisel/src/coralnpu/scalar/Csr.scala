@@ -96,7 +96,6 @@ object CsrAddress extends ChiselEnum {
 
 object CsrMode extends ChiselEnum {
   val Machine = Value(0.U(2.W))
-  val User = Value(1.U(2.W))
   val Debug = Value(2.U(2.W))
 }
 
@@ -240,7 +239,7 @@ class Csr(p: Parameters) extends Module {
   val fault  = RegInit(false.B)
   val wfi    = RegInit(false.B)
 
-  // Machine(0)/User(1)/Debug(2) Mode.
+  // Machine(0)/Debug(2) Mode.
   val mode = RegInit(CsrMode.Machine)
 
   // CSRs parallel loaded when(reset).
@@ -276,8 +275,6 @@ class Csr(p: Parameters) extends Module {
   val mtvec     = RegInit(0.U(32.W))
   val mscratch  = RegInit(0.U(32.W))
   val mepc      = RegInit(0.U(32.W))
-  val mpp       = RegInit(0.U(2.W))
-
   val mhartid   = RegInit(p.hartId.U(32.W))
 
   val mcycle    = RegInit(0.U(64.W))
@@ -389,7 +386,7 @@ class Csr(p: Parameters) extends Module {
       fflagsEn    -> Cat(0.U(27.W), fflags),
       frmEn       -> Cat(0.U(29.W), frm),
       fcsrEn      -> Cat(0.U(24.W), fcsr),
-      mstatusEn   -> Cat(0.U(17.W), fs, mpp, vs, 0.U(9.W)),
+      mstatusEn   -> Cat(0.U(17.W), fs, 3.U(2.W), vs, 0.U(9.W)),
       misaEn      -> misa,
       mieEn       -> Cat(0.U(31.W), mie),
       mtvecEn     -> mtvec,
@@ -456,7 +453,6 @@ class Csr(p: Parameters) extends Module {
     when (frmEn)        { frm       := wdata }
     when (fcsrEn)       { fflags    := wdata(4,0)
                           frm       := wdata(7,5) }
-    when (mstatusEn)    { mpp       := wdata(12,11) }
     when (mieEn)        { mie       := wdata }
     when (mtvecEn)      { mtvec     := wdata }
     when (mscratchEn)   { mscratch  := wdata }
@@ -517,7 +513,7 @@ class Csr(p: Parameters) extends Module {
   val exiting_debug_mode = (mode === CsrMode.Debug) && (io.dm.resume_req)
   mode := MuxCase(mode, Seq(
     entering_debug_mode -> CsrMode.Debug,
-    exiting_debug_mode -> Mux(dcsr.prv === 3.U, CsrMode.Machine, CsrMode.User),
+    exiting_debug_mode -> CsrMode.Machine,
     io.bru.in.mode.valid -> io.bru.in.mode.bits,
   ))
   io.dm.debug_mode := (mode === CsrMode.Debug) || entering_debug_mode
@@ -532,7 +528,7 @@ class Csr(p: Parameters) extends Module {
       newDcsr := dcsr
       newDcsr.extcause := false.B
       newDcsr.cause := newCause
-      newDcsr.prv := Mux(mode === CsrMode.Machine, 3.U(2.W), 0.U(2.W))
+      newDcsr.prv := 3.U(2.W)
       newDcsr
     },
     (req.valid && dcsrEn) -> wdata.asTypeOf(new Dcsr),
