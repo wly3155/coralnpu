@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
   memutil.RegisterMemoryArea("dtcm", dtcm_addr, &dtcm);
   simctrl.RegisterExtension(&memutil);
 
-  simctrl.SetInitialResetDelay(2000);
+  simctrl.SetInitialResetDelay(20);
   simctrl.SetResetDuration(10);
 
   std::cout << "Simulation of CoralNPU SoC" << std::endl
