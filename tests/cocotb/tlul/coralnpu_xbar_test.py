@@ -44,7 +44,7 @@ async def setup_dut(dut):
     cocotb.start_soon(clock.start())
 
     # Start the asynchronous test clock
-    test_clock = Clock(dut.io_async_ports_hosts_0_clock, 10)
+    test_clock = Clock(dut.io_async_ports_hosts_test_clock, 10)
     cocotb.start_soon(test_clock.start())
 
     # Create a dictionary of TileLink interfaces for all hosts and devices
@@ -60,28 +60,28 @@ async def setup_dut(dut):
     interfaces = {
         "hosts": [
             TileLinkULInterface(dut,
-                                host_if_name=f"io_hosts_{i}",
-                                clock_name="clock" if name != "test_host_32" else "io_async_ports_hosts_0_clock",
-                                reset_name="reset" if name != "test_host_32" else "io_async_ports_hosts_0_reset",
+                                host_if_name=f"io_hosts_{name}",
+                                clock_name="clock" if name != "test_host_32" else "io_async_ports_hosts_test_clock",
+                                reset_name="reset" if name != "test_host_32" else "io_async_ports_hosts_test_reset",
                                 width=host_widths[name])
-            for name, i in HOST_MAP.items()
+            for name, _ in HOST_MAP.items()
         ],
         "devices": [
             TileLinkULInterface(dut,
-                                device_if_name=f"io_devices_{i}",
+                                device_if_name=f"io_devices_{name}",
                                 clock_name="clock",
                                 reset_name="reset",
                                 width=device_widths[name])
-            for name, i in DEVICE_MAP.items()
+            for name, _ in DEVICE_MAP.items()
         ],
     }
 
     # Reset the DUT
     dut.reset.value = 1
-    dut.io_async_ports_hosts_0_reset.value = 1
+    dut.io_async_ports_hosts_test_reset.value = 1
     await ClockCycles(dut.clock, 5)
     dut.reset.value = 0
-    dut.io_async_ports_hosts_0_reset.value = 0
+    dut.io_async_ports_hosts_test_reset.value = 0
     await ClockCycles(dut.clock, 5)
 
     return interfaces, clock

@@ -29,16 +29,6 @@ SPI_REG_RXDATA = SPI_MASTER_BASE + 0x0C
 SPI_REG_CSID = SPI_MASTER_BASE + 0x10
 SPI_REG_CSMODE = SPI_MASTER_BASE + 0x14
 
-# Port Indices (Calculated based on SoCChiselConfig.scala order)
-# rvv_core: 0-4
-# spi2tlul: 5-8
-# spi_master:
-PORT_SPIM_SCLK = 18
-PORT_SPIM_CSB = 19
-PORT_SPIM_MOSI = 20
-PORT_SPIM_MISO = 21
-PORT_SPIM_CLK_I = 22
-
 
 async def setup_dut(dut):
     """Common setup logic."""
@@ -47,20 +37,20 @@ async def setup_dut(dut):
     cocotb.start_soon(clock.start())
 
     # Start the asynchronous test clock (host)
-    test_clock = Clock(dut.io_async_ports_hosts_clocks_0, 20, "ns")
+    test_clock = Clock(dut.io_async_ports_hosts_test_clock, 20, "ns")
     cocotb.start_soon(test_clock.start())
 
     # Start the SPI Master peripheral clock
     # This clock drives the SPI logic in the SpiMaster module
-    spim_clock = Clock(dut.io_external_ports_22, 100, "ns")  # Slower clock
+    spim_clock = Clock(dut.io_external_ports_spim_clk_i, 100, "ns")  # Slower clock
     cocotb.start_soon(spim_clock.start())
 
     # Reset the DUT
     dut.io_rst_ni.value = 0
-    dut.io_async_ports_hosts_resets_0.value = 1
+    dut.io_async_ports_hosts_test_reset.value = 1
     await ClockCycles(dut.io_clk_i, 5)
     dut.io_rst_ni.value = 1
-    dut.io_async_ports_hosts_resets_0.value = 0
+    dut.io_async_ports_hosts_test_reset.value = 0
     await ClockCycles(dut.io_clk_i, 20)
 
     return clock
@@ -74,15 +64,15 @@ async def test_spi_master_basic_tx(dut):
     # Instantiate a TL-UL host to drive transactions
     host_if = TileLinkULInterface(
         dut,
-        host_if_name="io_external_hosts_ports_0",
-        clock_name="io_async_ports_hosts_clocks_0",
-        reset_name="io_async_ports_hosts_resets_0",
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
         width=32,
     )
     await host_if.init()
 
     # Log initial states
-    dut._log.info(f"Initial CSB: {dut.io_external_ports_19.value}")
+    dut._log.info(f"Initial CSB: {dut.io_external_ports_spim_csb.value}")
 
     # 1. Enable SPI Master
     # Div = 2 (approx), CPOL=0, CPHA=0, Enable=1
@@ -123,16 +113,16 @@ async def test_spi_master_basic_tx(dut):
 
     # 4. Monitor SPI Signals
     # Wait for CSB to go Low
-    dut._log.info(f"Current CSB: {dut.io_external_ports_19.value}")
-    if dut.io_external_ports_19.value == 1:
+    dut._log.info(f"Current CSB: {dut.io_external_ports_spim_csb.value}")
+    if dut.io_external_ports_spim_csb.value == 1:
         dut._log.info("Waiting for CSB low...")
         timeout_ns = 5000
         try:
-            await with_timeout(FallingEdge(dut.io_external_ports_19), timeout_ns, "ns")
+            await with_timeout(FallingEdge(dut.io_external_ports_spim_csb), timeout_ns, "ns")
             dut._log.info("CSB went low!")
         except Exception as e:
             dut._log.error(
-                f"CSB did not go low within {timeout_ns}ns. Current CSB: {dut.io_external_ports_19.value}"
+                f"CSB did not go low within {timeout_ns}ns. Current CSB: {dut.io_external_ports_spim_csb.value}"
             )
             raise e
     else:
@@ -143,8 +133,8 @@ async def test_spi_master_basic_tx(dut):
     # Sample on Rising Edge of SCLK
     received_val = 0
     for i in range(8):
-        await RisingEdge(dut.io_external_ports_18)  # SCLK Rising
-        bit = int(dut.io_external_ports_20.value)  # MOSI
+        await RisingEdge(dut.io_external_ports_spim_sclk)  # SCLK Rising
+        bit = int(dut.io_external_ports_spim_mosi.value)  # MOSI
         received_val = (received_val << 1) | bit
         dut._log.info(f"Bit {7 - i}: {bit}")
 
@@ -154,5 +144,5 @@ async def test_spi_master_basic_tx(dut):
     )
 
     # Wait for CSB to go High
-    await RisingEdge(dut.io_external_ports_19)
+    await RisingEdge(dut.io_external_ports_spim_csb)
     dut._log.info("CSB went high. Transaction complete.")

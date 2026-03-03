@@ -26,31 +26,21 @@ GPIO_DATA_IN = GPIO_BASE + 0x00
 GPIO_DATA_OUT = GPIO_BASE + 0x04
 GPIO_OUT_EN = GPIO_BASE + 0x08
 
-# Port Indices (Calculated based on SoCChiselConfig order)
-# rvv_core: 0-4
-# spi2tlul: 5-8
-# spi_master: 9-13
-# gpio:
-PORT_GPIO_O = 23
-PORT_GPIO_EN_O = 24
-PORT_GPIO_I = 25
-
-
 async def setup_dut(dut):
     """Common setup logic."""
     clock = Clock(dut.io_clk_i, 10, "ns")
     cocotb.start_soon(clock.start())
 
     # Start host clock
-    test_clock = Clock(dut.io_async_ports_hosts_clocks_0, 20, "ns")
+    test_clock = Clock(dut.io_async_ports_hosts_test_clock, 20, "ns")
     cocotb.start_soon(test_clock.start())
 
     dut.io_rst_ni.value = 0
-    dut.io_async_ports_hosts_resets_0.value = 1
-    dut.io_external_ports_25.value = 0
+    dut.io_async_ports_hosts_test_reset.value = 1
+    dut.io_external_ports_gpio_i.value = 0
     await ClockCycles(dut.io_clk_i, 5)
     dut.io_rst_ni.value = 1
-    dut.io_async_ports_hosts_resets_0.value = 0
+    dut.io_async_ports_hosts_test_reset.value = 0
     await ClockCycles(dut.io_clk_i, 20)
 
     return clock
@@ -63,9 +53,9 @@ async def test_gpio_integration(dut):
 
     host_if = TileLinkULInterface(
         dut,
-        host_if_name="io_external_hosts_ports_0",
-        clock_name="io_async_ports_hosts_clocks_0",
-        reset_name="io_async_ports_hosts_resets_0",
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
         width=32,
     )
     await host_if.init()
@@ -83,7 +73,7 @@ async def test_gpio_integration(dut):
 
     # Check external port
     # Note: cocotb reads UInt ports as integer values
-    gpio_o = int(dut.io_external_ports_23.value)
+    gpio_o = int(dut.io_external_ports_gpio_o.value)
     dut._log.info(f"GPIO Output: 0x{gpio_o:X}")
     assert gpio_o == expected_val
 
@@ -91,7 +81,7 @@ async def test_gpio_integration(dut):
     input_val = 0xCAFEBABE
     expected_input = 0xBE  # 8-bit LSB
     dut._log.info(f"Driving 0x{input_val:X} to GPIO Input")
-    dut.io_external_ports_25.value = expected_input
+    dut.io_external_ports_gpio_i.value = expected_input
     await ClockCycles(dut.io_clk_i, 5)
 
     dut._log.info(f"Host IF width: {host_if.width}")
