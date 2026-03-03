@@ -193,7 +193,6 @@ fusesoc_build(
     systems = ["com.google.coralnpu:fpga:chip_verilator:0.1"],
     target = "sim",
     verilator_options = ":verilator_options_default",
-    tags = ["manual"],
 )
 
 fusesoc_build(
@@ -223,7 +222,6 @@ fusesoc_build(
     systems = ["com.google.coralnpu:fpga:chip_verilator:0.1"],
     target = "sim",
     verilator_options = ":verilator_options_highmem",
-    tags = ["manual"],
 )
 
 _PREFIX = "../../../../../../../../.."
@@ -291,7 +289,6 @@ filegroup(
     name = "chip_verilator_binary",
     srcs = [":build_chip_verilator"],
     output_group = "binary",
-    tags = ["manual"],
 )
 
 genrule(
@@ -299,5 +296,4 @@ genrule(
     srcs = [":chip_verilator_binary"],
     outs = ["Vchip_verilator"],
     cmd = "cp $< $@",
-    tags = ["manual"],
 )

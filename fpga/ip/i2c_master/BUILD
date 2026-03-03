@@ -58,5 +58,4 @@ fusesoc_build(
     },
     systems = ["coralnpuv2:ip:i2c_master:0.1"],
     target = "sim",
-    tags = ["manual"],
 )
