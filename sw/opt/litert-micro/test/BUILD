@@ -29,11 +29,35 @@ coralnpu_v2_binary(
     ],
 )
 
+coralnpu_v2_binary(
+    name = "conv_test",
+    srcs = ["conv_test.cc"],
+    dtcm_size_kbytes = 1024,
+    itcm_size_kbytes = 1024,
+    deps = [
+        "//sw/opt/litert-micro:conv",
+        "//sw/utils",
+        "@tflite_micro//tensorflow/lite/kernels/internal:reference_base",
+    ],
+)
+
 py_test(
     name = "max_pool_sim_test",
     srcs = ["max_pool_test.py"],
     data = [":max_pool_test"],
     main = "max_pool_test.py",
+    deps = [
+        "//sw/coralnpu_sim:coralnpu_v2_sim_utils_lib",
+        "@bazel_tools//tools/python/runfiles",
+        requirement("numpy"),
+    ],
+)
+
+py_test(
+    name = "conv_sim_test",
+    srcs = ["conv_test.py"],
+    data = [":conv_test"],
+    main = "conv_test.py",
     deps = [
         "//sw/coralnpu_sim:coralnpu_v2_sim_utils_lib",
         "@bazel_tools//tools/python/runfiles",
