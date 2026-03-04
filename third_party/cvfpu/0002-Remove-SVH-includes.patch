@@ -7,11 +7,12 @@ Subject: [PATCH 2/2] Remove SVH includes
  src/fpnew_cast_multi.sv             | 2 +-
  src/fpnew_divsqrt_multi.sv          | 2 +-
  src/fpnew_divsqrt_th_32.sv          | 2 +-
+ src/fpnew_divsqrt_th_64_multi.sv    | 2 +-
  src/fpnew_fma.sv                    | 2 +-
  src/fpnew_fma_multi.sv              | 2 +-
  src/fpnew_noncomp.sv                | 2 +-
  src/fpnew_opgroup_multifmt_slice.sv | 2 +-
- 7 files changed, 7 insertions(+), 7 deletions(-)
+ 8 files changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/src/fpnew_cast_multi.sv b/src/fpnew_cast_multi.sv
 index 264334f..d3dc850 100644
@@ -52,6 +53,18 @@ index ddae0e3..cb5b5f2 100644
  
  module fpnew_divsqrt_th_32 #(
    // FP32-only DivSqrt
+diff --git a/src/fpnew_divsqrt_th_64_multi.sv b/src/fpnew_divsqrt_th_64_multi.sv
+index 0c0807d..183d3f2 100644
+--- a/src/fpnew_divsqrt_th_64_multi.sv
++++ b/src/fpnew_divsqrt_th_64_multi.sv
+@@ -15,6 +15,6 @@
+ //          Roman Marquart <maroman@student.ethz.ch>
+ 
+ 
+-`include "common_cells/registers.svh"
++
+ 
+ module fpnew_divsqrt_th_64_multi #(
 diff --git a/src/fpnew_fma.sv b/src/fpnew_fma.sv
 index d93d6e3..df0261a 100644
 --- a/src/fpnew_fma.sv
