@@ -37,8 +37,8 @@ cc_library(
     hdrs = ["conv.h"],
     target_compatible_with = ["//platforms/cpu:coralnpu_v2"],
     deps = [
-        ":memory_util",
         ":accumulator_util",
+        ":memory_util",
         "//sw/opt:rvv_opt",
         "@tflite_micro//tensorflow/lite/kernels/internal:common",
         "@tflite_micro//tensorflow/lite/micro:op_resolvers",

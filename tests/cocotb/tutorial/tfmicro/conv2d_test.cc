@@ -82,8 +82,11 @@ const int32_t bias[kMaxOutDepth] __attribute__((aligned(16))) = {
     -1136, -592, 697,   -848,  407,        -540,  -72};
 
 // Expecting model arena to be in dtcm.
-int8_t input_data[32 * 32 * 16] __attribute__((section(".data"), aligned(16)));
-int8_t output_data[32 * 32 * 16] __attribute__((section(".data"), aligned(16)));
+// Expecting model arena to be in dtcm.
+int8_t input_data[32 * 32 * kMaxInDepth]
+    __attribute__((section(".data"), aligned(16)));
+int8_t output_data[32 * 32 * kMaxOutDepth]
+    __attribute__((section(".data"), aligned(16)));
 
 void prep() {
   input_shape_.ReplaceWith(4, input_shape);
@@ -108,7 +111,8 @@ static coralnpu_v2::opt::litert_micro::OpDataConvCustom dummy_data;
 // Simple scratch buffer for testing
 // Use kMaxOutDepth (48) to allow testing larger output depths without overflow
 // Moving to .extdata to avoid overflowing DTCM (1MB)
-static int32_t scratch_buf[120 * 160 * kMaxOutDepth] __attribute__((section(".extdata"), aligned(16)));
+static int32_t scratch_buf[120 * 160 * kMaxOutDepth]
+    __attribute__((section(".extdata"), aligned(16)));
 static void* GetScratchBuffer(TfLiteContext* ctx, int idx) {
   return scratch_buf;
 }

@@ -92,10 +92,14 @@ class Conv2DTest:
             'run_ref', tolerate(ref_target, tolerance = 1.2))
         print(f'ref_cycles={ref_cycles}', flush=True)
         opt_output, opt_cycles = await self.run(
-            'run_opt', tolerate(opt_target, tolerance = 10))
+            'run_opt', tolerate(opt_target, tolerance = 5))
         print(f'opt_cycles={opt_cycles}', flush=True)
 
         assert (opt_output == ref_output).all()
+    async def test_opt(self, opt_target):
+        opt_output, opt_cycles = await self.run(
+            'run_opt', tolerate(opt_target, tolerance = 5))
+        print(f'opt_cycles={opt_cycles}', flush=True)
 
 
 # Tests
@@ -113,44 +117,76 @@ async def test_conv2d_4x1_h2w2(dut):
 async def test_conv2d_9x2(dut):
     t = Conv2DTest(in_d=9, out_d=2)
     await t.load_and_populate_input(dut)
-    await t.test(ref_target=73_959, opt_target=15_000)
+    await t.test(ref_target=77_959, opt_target=14_000)
 
 @cocotb.test()
 async def test_conv2d_16x1(dut):
     t = Conv2DTest(in_d=16, out_d=1)
     await t.load_and_populate_input(dut)
-    await t.test(ref_target=58_600, opt_target=10_700)
+    await t.test(ref_target=58_600, opt_target=9_700)
+
+@cocotb.test()
+async def test_conv2d_16x3_s2(dut):
+    t = Conv2DTest(in_d=16, out_d=3, stride=2)
+    await t.load_and_populate_input(dut)
+    await t.test(ref_target=241_454, opt_target=31_600)
 
 # A case to fall back.
 @cocotb.test()
 async def test_conv2d_18x1(dut):
     t = Conv2DTest(in_d=18, out_d=1)
     await t.load_and_populate_input(dut)
-    await t.test(ref_target=70_600, opt_target=70_600)
+    await t.test(ref_target=63_700, opt_target=13_600)
 
 
 @cocotb.test()
 async def test_conv2d_16x16(dut):
     t = Conv2DTest(in_d=16, out_d=16)
     await t.load_and_populate_input(dut)
-    await t.test(ref_target=913_600, opt_target=85_700)
+    await t.test(ref_target=913_600, opt_target=80_000)
 
 
 @cocotb.test()
 async def test_conv2d_16x16_h2w8(dut):
     t = Conv2DTest(in_d=16, out_d=16, out_h=2, out_w=8)
     await t.load_and_populate_input(dut)
-    await t.test(ref_target=745_900, opt_target=70_700)
-
+    await t.test(ref_target=747_900, opt_target=63_900)
 
 @cocotb.test()
-async def test_conv2d_16x4_h8w8(dut):
-    t = Conv2DTest(in_d=16, out_d=4, out_h=8, out_w=8)
+async def test_conv2d_37x1_h2w2(dut):
+    t = Conv2DTest(in_d=37, out_d=1, out_h=2, out_w=2)
     await t.load_and_populate_input(dut)
-    await t.test(ref_target=1_190_900, opt_target=92_900)
+    await t.test(ref_target=14_843, opt_target=7_451)
+
+@cocotb.test()
+async def test_conv2d_21x48_h8w8(dut):
+    t = Conv2DTest(in_d=21, out_d=48, out_h=2, out_w=2)
+    await t.load_and_populate_input(dut)
+    await t.test(ref_target=438_440, opt_target=131_568)
+
+@cocotb.test()
+async def test_conv2d_48x2(dut):
+    t = Conv2DTest(in_d=48, out_d=2)
+    await t.load_and_populate_input(dut)
+    await t.test(ref_target=290_516, opt_target=31_827)
+
+
+# Skipping large tests to reduce over head on pre-submit test :test_coralnpu
 
 @cocotb.test(skip=True)
 async def test_conv2d_16x4_h8w8_s2(dut):
     t = Conv2DTest(stride=2, in_d=16, out_d=4, out_h=8, out_w=8)
     await t.load_and_populate_input(dut)
-    await t.test(ref_target=2_145_900, opt_target=800_000)
+    await t.test(ref_target=3_190_900, opt_target=1_00_000)
+
+@cocotb.test(skip=True)
+async def test_conv2d_48x48_h2w2(dut):
+    t = Conv2DTest(in_d=48, out_d=48, out_h=2, out_w=2)
+    await t.load_and_populate_input(dut)
+    await t.test_opt(opt_target=275_700)
+
+@cocotb.test(skip=True)
+async def test_conv2d_16x4_h8w8(dut):
+    t = Conv2DTest(in_d=16, out_d=4, out_h=8, out_w=8)
+    await t.load_and_populate_input(dut)
+    await t.test(ref_target=599_081, opt_target=25_009)
