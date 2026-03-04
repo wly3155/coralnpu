@@ -3124,20 +3124,6 @@ module rvv_backend_decode_unit_ari
   // effect vstart
   always_comb begin
     evstart = {1'b0, csr_vstart};
-    
-    case(inst_funct3)
-      OPIVX: begin
-        case(inst_funct6)
-          VSLIDEUP_RGATHEREI16: if ((`XLEN)'(csr_vstart)<rs1) evstart = rs1[`VL_WIDTH-1:0];
-        endcase
-      end
-
-      OPIVI: begin
-        case(inst_funct6)
-          VSLIDEUP_RGATHEREI16: if (csr_vstart<(`VSTART_WIDTH)'(inst_imm)) evstart = (`VL_WIDTH)'(inst_imm);
-        endcase
-      end
-    endcase
   end
 
   // get evl
