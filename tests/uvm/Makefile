@@ -73,6 +73,8 @@ VCS_COMPILE_OPTS = \
 	-sverilog \
 	+define+UVM_NO_DEPRECATED \
 	+define+TB_SUPPORT \
+        +define+VLEN_128 \
+        +define+ZVE32F_ON \
 	-ntb_opts uvm-1.2 \
 	-debug_access+all \
 	-kdb \

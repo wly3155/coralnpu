@@ -91,6 +91,7 @@ module RvvCore #(parameter N = 4,
 
   // Writeback from reorder buffer
   output ROB2RT_t [`NUM_RT_UOP-1:0] rd_rob2rt_o,
+  output logic    [`NUM_RT_UOP-1:0] rd_valid_rob2rt_o,
 
   // Trap output
   output logic trap_valid_o,
@@ -201,9 +202,9 @@ module RvvCore #(parameter N = 4,
     rvv2rvs_frd_ready[0] = async_frd_ready;
     rvv2rvs_frd_ready[1] = 0;
   end
-  assign rvv2rvs_frd_valid[0] = async_frd_valid;
-  assign rvv2rvs_frd_addr[0] = async_frd_addr;
-  assign rvv2rvs_frd_data[0] = async_frd_data;
+  assign async_frd_valid = rvv2rvs_frd_valid[0];
+  assign async_frd_addr = rvv2rvs_frd_addr[0];
+  assign async_frd_data = rvv2rvs_frd_data[0];
 
   // Backpressure
   logic wr_vxsat_ready;
@@ -232,9 +233,6 @@ module RvvCore #(parameter N = 4,
     trap_valid_rvs2rvv = 0;
   end
 
-  ROB2RT_t [`NUM_RT_UOP-1:0] rd_rob2rt;
-  assign rd_rob2rt_o = rd_rob2rt;
-
   logic   [`ISSUE_LANE-1:0] insts_ready_cq2rvs;
   logic rvv_backend_idle;
   assign rvv_idle = rvv_backend_idle && (frontend_cmd_valid == 0);
@@ -258,30 +256,30 @@ module RvvCore #(parameter N = 4,
       .rt_xrf_valid_rvv2rvs(rt_xrf_valid_rvv2rvs),
       .rt_rvs_ready_rvs2rvv(rt_rvs_ready_rvs2rvv),
 
-      // Floating point
+`ifdef ZVE32F_ON
       .async_frd_valid(rvv2rvs_frd_valid),
       .async_frd_addr(rvv2rvs_frd_addr),
       .async_frd_data(rvv2rvs_frd_data),
       .async_frd_ready(rvv2rvs_frd_ready),
+`endif
 
       .wr_vxsat_valid(wr_vxsat_valid),
       .wr_vxsat(wr_vxsat),
       .wr_vxsat_ready(wr_vxsat_ready),
 
+`ifdef ZVE32F_ON
       .rt2fcsr_write_valid(rt2fcsr_write_valid),
       .rt2fcsr_write_data(rt2fcsr_write_data),
       .fcsr2rt_write_ready(fcsr2rt_write_ready),
-
+`endif
       .trap_valid_rvs2rvv(trap_valid_rvs2rvv),
       .trap_ready_rvv2rvs(trap_ready_rvv2rvs),
       .vcsr_valid(vcsr_valid),
       .vector_csr(vector_csr),
       .vcsr_ready(vcsr_ready),
-`ifdef TB_SUPPORT
-      .rd_valid_rob2rt_o(),
-`endif
+      .rd_valid_rob2rt_o(rd_valid_rob2rt_o),
       .rvv_idle(rvv_backend_idle),
-      .rd_rob2rt_o(rd_rob2rt)
+      .rd_rob2rt_o(rd_rob2rt_o)
   );
 
   // Connect vxsat signals to outputs (fixes C3 bug)

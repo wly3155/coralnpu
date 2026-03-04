@@ -93,6 +93,7 @@ class RvvCoreIO(p: Parameters) extends Bundle {
 
 
 class Rob2Rt(p: Parameters) extends Bundle {
+  val valid = Bool()
   val w_valid = Bool()
   val w_index = UInt(5.W)
   val w_data = UInt(p.rvvVlen.W)

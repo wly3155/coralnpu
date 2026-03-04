@@ -242,7 +242,7 @@ module rvv_backend_freduction(
       tag_reg     <= '0;
       vs2_type_reg<= '0;
       fpexp_reg   <= '0;
-      sub_rnd_reg <= '0;
+      sub_rnd_reg <= fpnew_pkg::roundmode_e'('0);
       mask_cur_reg<= '0;
       mask_tag_reg<= '0;
       vs1_in_reg  <= '0;

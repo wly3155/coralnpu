@@ -317,7 +317,7 @@ module rvv_backend_div_unit
 
   edff #(
     .T      (DIV_RES_t),
-    .INIT   (($bits(DIV_RES_t))'({'0,EEW_NONE}))
+    .INIT   ('0)
   ) res_information
   (
     .clk    (clk),

@@ -35,6 +35,7 @@ module rvv_backend_alu_unit_mask
   logic   [`VLEN-1:0]                 vstart_elements_tmp;
   logic   [`VLEN-1:0]                 vstart_elements;
   logic   [`VL_WIDTH-1:0]             vl;       
+  logic                               vm;
   logic   [`VLEN-1:0]                 v0_data;           
   logic   [`VLEN-1:0]                 vd_data;           
   EEW_e                               vd_eew;

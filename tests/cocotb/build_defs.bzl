@@ -21,6 +21,8 @@ VERILATOR_BUILD_ARGS = [
     "-Wno-SIDEEFFECT",
     "-Wno-MULTIDRIVEN",
     "-Wno-UNOPTFLAT",
+    "-Wno-BLKANDNBLK",
+    "-Wno-CASEX",
     # Warnings that we disable for fpnew
     "-Wno-ASCRANGE",
     "-Wno-WIDTHEXPAND",
@@ -56,4 +58,6 @@ VCS_TEST_ARGS = [
 VCS_DEFINES = {
     "USE_GENERIC": "",
     "TB_SUPPORT": "",
+    "ZVE32F_ON": "",
+    "VLEN_128": "",
 }

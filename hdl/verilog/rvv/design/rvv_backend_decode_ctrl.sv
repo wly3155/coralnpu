@@ -658,8 +658,12 @@ module rvv_backend_decode_ctrl
     i   = 0;
 
     for(int k=0;k<`NUM_DE_UOP;k++) begin
-      pop[i] = last_uop[k];
-      i      = i+last_uop[k];
+      if (i < `NUM_DE_INST) begin
+        if (last_uop[k]) begin
+          pop[i] = 1'b1;
+          i      = i + 1;
+        end
+      end
     end
   end
   

@@ -80,6 +80,11 @@
   `define NUM_ARI               (`NUM_ALU+`NUM_PMTRDT+`NUM_MUL+`NUM_DIV+`NUM_FMA)
   `define NUM_PU                (`NUM_ARI+`NUM_LSU)
 `else
+  // Define FP variables even if not used
+  // TODO(derekjchow): Remove FP modules from chisel build once float is
+  // configurable.
+  `define NUM_FMA               0
+
   `define NUM_ARI               (`NUM_ALU+`NUM_PMTRDT+`NUM_MUL+`NUM_DIV)
   `define NUM_PU                (`NUM_ARI+`NUM_LSU)
 `endif
@@ -107,6 +112,11 @@
   `else
     `define FP_RDT_TAG_WIDTH  (`LAST_UOP_VLD+`ROB_DEPTH_WIDTH)
   `endif
+`else
+  // Define FP variables even if not used
+  // TODO(derekjchow): Remove FP modules from chisel build once float is
+  // configurable.
+  `define FP_RDT_TAG_WIDTH    0
 `endif
 
 // ALU instruction will be split 8 uops at most

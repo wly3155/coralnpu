@@ -58,6 +58,10 @@ VERILATOR_OPTIONS_COMMON = [
     "-DUSE_GENERIC",
     "-DUSE_DPI_MEMORY",
     "-DTB_SUPPORT",
+    # RVV
+    "-DVLEN_128",
+    "-Wno-BLKANDNBLK",
+    "-Wno-CASEX",
 ]
 
 string_list_flag(

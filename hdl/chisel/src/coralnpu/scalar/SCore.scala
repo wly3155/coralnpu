@@ -75,7 +75,7 @@ class SCore(p: Parameters) extends Module {
   if (p.enableRvv) {
     rob_io.writeAddrVector.get := dispatch.io.rvvRdMark.get
     (0 until p.instructionLanes).foreach(i => {
-      rob_io.writeDataVector.get(i).valid := io.rvvcore.get.rd_rob2rt_o(i).w_valid
+      rob_io.writeDataVector.get(i).valid := io.rvvcore.get.rd_rob2rt_o(i).valid
       rob_io.writeDataVector.get(i).bits.addr := io.rvvcore.get.rd_rob2rt_o(i).w_index
       rob_io.writeDataVector.get(i).bits.data := io.rvvcore.get.rd_rob2rt_o(i).w_data
       rob_io.writeDataVector.get(i).bits.uop_pc := io.rvvcore.get.rd_rob2rt_o(i).uop_pc

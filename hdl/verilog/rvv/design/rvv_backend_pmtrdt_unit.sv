@@ -146,6 +146,7 @@ module rvv_backend_pmtrdt_unit
     end
   endgenerate
 
+`ifdef ZVE32F_ON
 // Float Reduction unit
   generate
     if (GEN_FRDT == 1'b1) begin
@@ -167,7 +168,7 @@ module rvv_backend_pmtrdt_unit
       assign frdt_res = '0;
     end
   endgenerate
-
+`endif
 
 // Permutation unit 
   generate

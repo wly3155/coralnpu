@@ -183,7 +183,7 @@ module rvv_backend_sqrt7_rec7(
       pip1_vld		    <='0;
       pip1_sqrt7_vld  <='0;
       pip1_sign       <='0;
-      pip1_rnd        <='0;
+      pip1_rnd        <= RVFRM'('0);
       pip1_exp        <='0;
       pip1_man        <='0;
       pip1_subn       <='0;
@@ -192,7 +192,7 @@ module rvv_backend_sqrt7_rec7(
       pip2_vld        <='0;
       pip2_sqrt7_vld  <='0;
       pip2_sign       <='0;
-      pip2_rnd        <='0;
+      pip2_rnd        <= RVFRM'('0);
       pip2_exp        <='0;
       pip2_man        <='0;
       pip2_infinite   <='0;
@@ -207,7 +207,7 @@ module rvv_backend_sqrt7_rec7(
       pip3_vld        <='0;
       pip3_sqrt7_vld  <='0;
       pip3_sign       <='0;
-      pip3_rnd        <='0;
+      pip3_rnd        <= RVFRM'('0);
       pip3_exp        <='0;
       pip3_man        <='0;
       pip3_infinite   <='0;

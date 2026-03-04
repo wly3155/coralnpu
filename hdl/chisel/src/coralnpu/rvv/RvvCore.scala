@@ -134,6 +134,7 @@ object GenerateCoreShimSource {
     // Add rd_rob2rt_o interface outputs
     for (i <- 0 until instructionLanes) {
         moduleInterface += """
+            |    output rd_rob2rt_o_GENI_valid,
             |    output rd_rob2rt_o_GENI_w_valid,
             |    output [4:0] rd_rob2rt_o_GENI_w_index,
             |    output [127:0] rd_rob2rt_o_GENI_w_data,
@@ -278,6 +279,7 @@ object GenerateCoreShimSource {
         |""".stripMargin
 
     coreInstantiation += "  ROB2RT_t [3:0] rd_rob2rt_o;\n"
+    coreInstantiation += "  logic [3:0] rd_valid_rob2rt_o;\n"
     coreInstantiation += "  RVVInstruction trap_data;\n"
 
     coreInstantiation += """  RvvCore#(.N (GENN)) core(
@@ -326,6 +328,7 @@ object GenerateCoreShimSource {
         |      .config_state(config_state),
         |      .rvv_idle(rvv_idle),
         |      .queue_capacity(queue_capacity),
+        |      .rd_valid_rob2rt_o(rd_valid_rob2rt_o),
         |      .rd_rob2rt_o(rd_rob2rt_o),
         |      .trap_valid_o(trap_valid),
         |      .trap_data_o(trap_data),
@@ -335,7 +338,8 @@ object GenerateCoreShimSource {
     coreInstantiation += "  );\n"
 
     for (i <- 0 until instructionLanes) {
-      coreInstantiation += """  assign rd_rob2rt_o_GENI_w_valid = rd_rob2rt_o[GENI].w_valid;
+      coreInstantiation += """  assign rd_rob2rt_o_GENI_valid = rd_valid_rob2rt_o[GENI];
+      |  assign rd_rob2rt_o_GENI_w_valid = rd_rob2rt_o[GENI].w_valid;
       |  assign rd_rob2rt_o_GENI_w_index = rd_rob2rt_o[GENI].w_index;
       |  assign rd_rob2rt_o_GENI_w_data = rd_rob2rt_o[GENI].w_data;
       |  assign rd_rob2rt_o_GENI_w_type = rd_rob2rt_o[GENI].w_type;
@@ -463,46 +467,56 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
   addResource("hdl/verilog/rvv/common/edff_2d.sv")
   addResource("hdl/verilog/rvv/common/multi_fifo.sv")
 
-  // FPnew 
-  // 1. Packages and Includes (Must be compiled first)
-  addResource("hdl/verilog/rvv/design/FPnew/common_cells/inc/assertions.svh")
-  addResource("hdl/verilog/rvv/design/FPnew/common_cells/inc/registers.svh")
-  addResource("hdl/verilog/rvv/design/FPnew/common_cells/src/cf_math_pkg.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_pkg.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/defs_div_sqrt_mvp.sv")
-  // 2. Base Modules (No internal dependencies other than packages)
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/gated_clk_cell.v")
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_ff1.v")
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_pack.v")
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_srt_radix16_bound_table.v")
-  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/iteration_div_sqrt_mvp.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/common_cells/src/lzc.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_classifier.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_rounding.sv")
-  // 3. Intermediate Modules (Depend on Base Modules)
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_ctrl.v")
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_prepare.v")
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_round.v")
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_scalar_dp.v")
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_srt_radix16_with_sqrt.v")
-  addResource("hdl/verilog/rvv/design/FPnew/common_cells/src/rr_arb_tree.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/control_mvp.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/preprocess_mvp.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/norm_div_sqrt_mvp.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_cast_multi.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_fma_multi.sv")
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_noncomp.sv")
-  // 4. Higher-Level Modules (Depend on Intermediate Modules)
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_srt.v")
-  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/nrbd_nrsc_mvp.sv")
-  // 5. Sub-System Modules (Depend on Higher-Level Modules)
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_double.v")
-  addResource("hdl/verilog/rvv/design/FPnew/fpu_div_sqrt_mvp/div_sqrt_top_mvp.sv")
-  // 6. Top-Level Integration Modules
-  addResource("hdl/verilog/rvv/design/FPnew/C910_DivSqrt/ct_vfdsu_top.v")
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_divsqrt_multi.sv")
-  // 7. Final Wrapper
-  addResource("hdl/verilog/rvv/design/FPnew/fpnew_divsqrt_th_64_multi.sv")
+  // FPnew
+  addResource("external/common_cells/include/common_cells/registers.svh")
+  addResource("external/common_cells/src/cf_math_pkg.sv")
+  addResource("external/common_cells/src/lzc.sv")
+  addResource("external/common_cells/src/rr_arb_tree.sv")
+  addResource("external/cvfpu/src/fpnew_pkg.sv")
+  addResource("external/cvfpu/src/fpnew_cast_multi.sv")
+  addResource("external/cvfpu/src/fpnew_classifier.sv")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/clk/rtl/gated_clk_cell.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_ctrl.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_ff1.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_pack_single.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_round_single.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_special.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_srt_single.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_top.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v")
+  addResource("external/cvfpu/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_src_type.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_ctrl.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_ff1.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_double.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_pack.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_prepare.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_round.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_scalar_dp.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_srt.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_srt_radix16_bound_table.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_srt_radix16_with_sqrt.v")
+  addResource("external/cvfpu/vendor/openc910/C910_RTL_FACTORY/gen_rtl/vfdsu/rtl/ct_vfdsu_top.v")
+  addResource("external/cvfpu/src/fpnew_divsqrt_th_32.sv")
+  addResource("external/cvfpu/src/fpnew_divsqrt_th_64_multi.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/defs_div_sqrt_mvp.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/iteration_div_sqrt_mvp.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/control_mvp.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/norm_div_sqrt_mvp.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/preprocess_mvp.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/nrbd_nrsc_mvp.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/div_sqrt_top_mvp.sv")
+  addResource("external/fpu_div_sqrt_mvp/hdl/div_sqrt_mvp_wrapper.sv")
+  addResource("external/cvfpu/src/fpnew_divsqrt_multi.sv")
+  addResource("external/cvfpu/src/fpnew_fma.sv")
+  addResource("external/cvfpu/src/fpnew_fma_multi.sv")
+  addResource("external/cvfpu/src/fpnew_noncomp.sv")
+  addResource("external/cvfpu/src/fpnew_opgroup_block.sv")
+  addResource("external/cvfpu/src/fpnew_opgroup_fmt_slice.sv")
+  addResource("external/cvfpu/src/fpnew_opgroup_multifmt_slice.sv")
+  addResource("external/cvfpu/src/fpnew_rounding.sv")
+  addResource("external/cvfpu/src/fpnew_top.sv")
 
   addResource("hdl/verilog/rvv/design/Aligner.sv")
   addResource("hdl/verilog/rvv/design/RvvFrontEnd.sv")
@@ -542,7 +556,7 @@ class RvvCoreWrapper(p: Parameters) extends BlackBox with HasBlackBoxInline
   addResource("hdl/verilog/rvv/design/rvv_backend_lsu_remap.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_mul_unit_mul8.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_mac_unit.sv")
-  addResource("hdl/verilog/rvv/design/rvv_backend_mul_unit.sv")
+//   addResource("hdl/verilog/rvv/design/rvv_backend_mul_unit.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_mulmac.sv")
   addResource("hdl/verilog/rvv/design/rvv_backend_freduction.sv")  // New
   addResource("hdl/verilog/rvv/design/rvv_backend_pmtrdt_unit_permutation.sv")  // New

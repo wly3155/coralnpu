@@ -663,6 +663,8 @@ template_rule(
         "-Wno-SIDEEFFECT",
         "-Wno-MULTIDRIVEN",
         "-Wno-UNOPTFLAT",
+        "-Wno-BLKANDNBLK",
+        "-Wno-CASEX",
         # FPNEW
         "-Wno-ASCRANGE",
         "-Wno-WIDTHEXPAND",
