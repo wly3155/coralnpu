@@ -46,6 +46,13 @@ rules_cc_toolchains()
 
 coralnpu_repos()
 
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+
+protobuf_deps()
+
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
+rules_pkg_dependencies()
+
 load("@rules_python//python:repositories.bzl", "py_repositories")
 
 py_repositories()
@@ -67,7 +74,7 @@ coralnpu_repos2()
 # Scala setup
 load("@io_bazel_rules_scala//:scala_config.bzl", "scala_config")
 
-scala_config(scala_version = "2.13.11")
+scala_config(scala_version = "2.13.12")
 
 load("@io_bazel_rules_scala//scala:scala.bzl", "rules_scala_setup", "rules_scala_toolchain_deps_repositories")
 
