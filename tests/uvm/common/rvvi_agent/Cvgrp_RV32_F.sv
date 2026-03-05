@@ -900,6 +900,21 @@ covergroup cvgrp_RV32_F;
       option.weight = 1;
     }
 
+    //10-bit mask for fclass
+    rd_val_mask: coverpoint rv32f_trans.rd_val iff(rv32f_trans.trap==0) {
+      bins b0 = {1};
+      bins b1 = {2};
+      bins b2 = {4};
+      bins b3 = {8};
+      bins b4 = {16};
+      bins b5 = {32};
+      bins b6 = {64};
+      bins b7 = {128};
+      bins b8 = {256};
+      bins b9 = {512};
+      option.weight = 1;
+    }
+
    //RS1 toggle bits
    rs1_val: coverpoint unsigned'(rv32f_trans.rs1_val) iff(rv32f_trans.trap==0) {
       wildcard bins b_1_0_0    = (32'b???????????????????????????????1=>32'b???????????????????????????????0);
@@ -1150,10 +1165,6 @@ covergroup cvgrp_RV32_F;
       option.weight = 1;
    }
 
-   cr_flw_rs1_sp_val: cross flw,rs1_sp_val {
-      option.weight = 1;
-   }
-
    cr_flw_imm: cross flw,imm_12bit {
       option.weight = 1;
    }
@@ -1224,10 +1235,6 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fsw_rs1_val: cross fsw,rs1_val {
-      option.weight = 1;
-   }
-
-   cr_fsw_rs1_sp_val: cross fsw,rs1_sp_val {
       option.weight = 1;
    }
 
@@ -1317,6 +1324,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fadd_s_fd_sp_val: cross fadd_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -1411,6 +1420,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fmul_s_fd_sp_val: cross fmul_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -1505,6 +1516,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fsub_s_fd_sp_val: cross fsub_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -1599,6 +1612,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fdiv_s_fd_sp_val: cross fdiv_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -1681,6 +1696,10 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fsqrt_s_fd_sp_val: cross fsqrt_s,fd_sp_val {
+      ignore_bins ignore_1=binsof(fd_sp_val.b1);//UF to 0
+      ignore_bins ignore_2=binsof(fd_sp_val.b2);//-nan, fd = qnan
+      ignore_bins ignore_3=binsof(fd_sp_val.b3);//+nan, fd = qnan
+      ignore_bins ignore_4=binsof(fd_sp_val.b5);//fd >= 0
       option.weight = 1;
    }
 
@@ -1766,6 +1785,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fmin_s_fd_sp_val: cross fmin_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -1863,6 +1884,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fmax_s_fd_sp_val: cross fmax_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -1972,6 +1995,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fmadd_s_fd_sp_val: cross fmadd_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -2108,6 +2133,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fmsub_s_fd_sp_val: cross fmsub_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -2243,6 +2270,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fnmsub_s_fd_sp_val: cross fnmsub_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -2379,6 +2408,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fnmadd_s_fd_sp_val: cross fnmadd_s,fd_sp_val {
+      ignore_bins ignore_0=binsof(fd_sp_val.b2);//qnan
+      ignore_bins ignore_1=binsof(fd_sp_val.b3);//qnan
       option.weight = 1;
    }
 
@@ -2495,6 +2526,7 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fcvt_w_s_rd_sp_val: cross fcvt_w_s,rd_sp_val {
+      ignore_bins ignore=binsof(rd_sp_val.b5);//0x80000001 would be rounding
       option.weight = 1;
    }
 
@@ -2526,11 +2558,6 @@ covergroup cvgrp_RV32_F;
 
    //frm csr register
    cr_fcvt_w_s_frm: cross fcvt_w_s,frm {
-      option.weight = 1;
-   }
-
-   //fcsr register
-   cr_fcvt_w_s_fcsr: cross fcvt_w_s,fcsr {
       option.weight = 1;
    }
 
@@ -2570,7 +2597,9 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fcvt_s_w_fd_sp_val: cross fcvt_s_w,fd_sp_val {
+      bins fcvt_s_w_fd_sp_val = binsof(fcvt_s_w) intersect {FCVT_S_W} && binsof(fd_sp_val) intersect {0};//could only be normalized number or zero
       option.weight = 1;
+      option.cross_auto_bin_max = 0;
    }
 
    cr_fcvt_s_w_fd_val_sign: cross fcvt_s_w,fd_val_sign {
@@ -2626,6 +2655,8 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fcvt_wu_s_rd_sp_val: cross fcvt_wu_s,rd_sp_val {
+      ignore_bins ignore_1=binsof(rd_sp_val.b3);//0x7fffffff,rd would be 0xffffffff
+      ignore_bins ignore_2=binsof(rd_sp_val.b5);//0x80000001
       option.weight = 1;
    }
 
@@ -2688,7 +2719,9 @@ covergroup cvgrp_RV32_F;
    }
 
    cr_fcvt_s_wu_fd_sp_val: cross fcvt_s_wu,fd_sp_val {
+      bins fcvt_s_w_fd_sp_val = binsof(fcvt_s_wu) intersect {FCVT_S_WU} && binsof(fd_sp_val) intersect {0};//could only be normalized number or zero
       option.weight = 1;
+      option.cross_auto_bin_max = 0;
    }
 
    cr_fcvt_s_wu_war_hazard: cross fcvt_s_wu,war_hazard_hit {
@@ -3354,17 +3387,17 @@ covergroup cvgrp_RV32_F;
       option.weight = 1;
    }
 
-   cr_fclass_rd_val: cross fclass,rd_val {
-      bins bit0 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {1};
-      bins bit1 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {2};
-      bins bit2 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {4};
-      bins bit3 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {8};
-      bins bit4 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {16};
-      bins bit5 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {32};
-      bins bit6 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {64};
-      bins bit7 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {128};
-      bins bit8 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {256};
-      bins bit9 = binsof(fclass) intersect {FCLASS} && binsof(rd_val) intersect {512};
+   cr_fclass_rd_val: cross fclass,rd_val_mask {
+      bins bit0 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {1};
+      bins bit1 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {2};
+      bins bit2 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {4};
+      bins bit3 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {8};
+      bins bit4 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {16};
+      bins bit5 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {32};
+      bins bit6 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {64};
+      bins bit7 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {128};
+      bins bit8 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {256};
+      bins bit9 = binsof(fclass) intersect {FCLASS} && binsof(rd_val_mask) intersect {512};
       option.weight = 1;
       option.cross_auto_bin_max = 0;
    }

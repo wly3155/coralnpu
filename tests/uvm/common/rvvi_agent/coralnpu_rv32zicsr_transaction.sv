@@ -35,4 +35,3 @@ class coralnpu_rv32zicsr_transaction extends coralnpu_rvvi_decode_transaction;
   endfunction : new
 
 endclass : coralnpu_rv32zicsr_transaction
-

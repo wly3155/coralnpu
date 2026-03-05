@@ -19,7 +19,7 @@ covergroup cvgrp_RV32_Zicsr;
 
    option.per_instance = 1;
 
-   //base cover
+   // base cover
    csrrw: coverpoint rv32zicsr_trans.inst_name iff(rv32zicsr_trans.trap==0) {
       bins b0 = {CSRRW};
       option.weight = 1;
@@ -162,65 +162,6 @@ covergroup cvgrp_RV32_Zicsr;
       bins b33 = {kscm2};
       bins b34 = {kscm3};
       bins b35 = {kscm4};
-      option.weight = 1;
-    }
-
-   //IS_IMM value
-   is_imm: coverpoint rv32zicsr_trans.is_imm iff(rv32zicsr_trans.trap==0) {
-      bins b0 = {0};
-      bins b1 = {1};
-      option.weight = 1;
-    }
-
-   //ZIMM toggle bits
-   zimm_val: coverpoint unsigned'(rv32zicsr_trans.zimm) iff(rv32zicsr_trans.is_imm==1&&rv32zicsr_trans.trap==0) {
-      wildcard bins b_1_0_0    = (5'b????1=>5'b????0);
-      wildcard bins b_1_0_1    = (5'b???1?=>5'b???0?);
-      wildcard bins b_1_0_2    = (5'b??1??=>5'b??0??);
-      wildcard bins b_1_0_3    = (5'b?1???=>5'b?0???);
-      wildcard bins b_1_0_4    = (5'b1????=>5'b0????);
-      wildcard bins b_0_1_0    = (5'b????0=>5'b????1);
-      wildcard bins b_0_1_1    = (5'b???0?=>5'b???1?);
-      wildcard bins b_0_1_2    = (5'b??0??=>5'b??1??);
-      wildcard bins b_0_1_3    = (5'b?0???=>5'b?1???);
-      wildcard bins b_0_1_4    = (5'b0????=>5'b1????);
-      option.weight = 1;
-    }
-
-   //ZIMM special values
-   zimm_sp_val: coverpoint unsigned'(rv32zicsr_trans.zimm) iff(rv32zicsr_trans.is_imm==1&&rv32zicsr_trans.trap==0) {
-      bins b0 = {0};
-      bins b1 = {1};
-      bins b2 = {2};
-      bins b3 = {3};
-      bins b4 = {4};
-      bins b5 = {5};
-      bins b6 = {6};
-      bins b7 = {7};
-      bins b8 = {8};
-      bins b9 = {9};
-      bins b10 = {10};
-      bins b11 = {11};
-      bins b12 = {12};
-      bins b13 = {13};
-      bins b14 = {14};
-      bins b15 = {15};
-      bins b16 = {16};
-      bins b17 = {17};
-      bins b18 = {18};
-      bins b19 = {19};
-      bins b20 = {20};
-      bins b21 = {21};
-      bins b22 = {22};
-      bins b23 = {23};
-      bins b24 = {24};
-      bins b25 = {25};
-      bins b26 = {26};
-      bins b27 = {27};
-      bins b28 = {28};
-      bins b29 = {29};
-      bins b30 = {30};
-      bins b31 = {31};
       option.weight = 1;
     }
 
@@ -699,7 +640,7 @@ covergroup cvgrp_RV32_Zicsr;
 
    //MISA special values
    misa_sp_val: coverpoint unsigned'(rv32zicsr_trans.csr_val) iff(rv32zicsr_trans.csr_addr==coralnpu_rvvi_agent_pkg::misa&&rv32zicsr_trans.trap==0) {
-      bins b0 = {32'b01000000001000000001000100100010};
+      bins b0 = {32'b01000000101000000001000100100000};
       option.weight = 1;
     }
 
@@ -2267,2047 +2208,2017 @@ covergroup cvgrp_RV32_Zicsr;
 
    // base cross
    //CSRRW instruction crosspoints
-   //Cross CSRRW instruction and register assignment
+   //Cross CSRRW instruction  and register assignment
    cr_csrrw_rs1_csr_rd: cross csrrw,rs1_addr,csr_addr,rd_addr {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and RS1 toggle bits
+   //Cross CSRRW instruction  and RS1 toggle bits
    cr_csrrw_rs1_val: cross csrrw,rs1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and RS1 special values
+   //Cross CSRRW instruction  and RS1 special values
    cr_csrrw_rs1_sp_val: cross csrrw,rs1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and FFLAGS toggle bits
+   //Cross CSRRW instruction  and FFLAGS toggle bits
    cr_csrrw_fflags_val: cross csrrw,fflags_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and FFLAGS special values
+   //Cross CSRRW instruction  and FFLAGS special values
    cr_csrrw_fflags_sp_val: cross csrrw,fflags_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and FRM toggle bits
+   //Cross CSRRW instruction  and FRM toggle bits
    cr_csrrw_frm_val: cross csrrw,frm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and FRM special values
+   //Cross CSRRW instruction  and FRM special values
    cr_csrrw_frm_sp_val: cross csrrw,frm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and FCSR toggle bits
+   //Cross CSRRW instruction  and FCSR toggle bits
    cr_csrrw_fcsr_val: cross csrrw,fcsr_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and FCSR special values
+   //Cross CSRRW instruction  and FCSR special values
    cr_csrrw_fcsr_sp_val: cross csrrw,fcsr_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MSTATUS toggle bits
+   //Cross CSRRW instruction  and MSTATUS toggle bits
    cr_csrrw_mstatus_val: cross csrrw,mstatus_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MSTATUS special values
+   //Cross CSRRW instruction  and MSTATUS special values
    cr_csrrw_mstatus_sp_val: cross csrrw,mstatus_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MISA special values
+   //Cross CSRRW instruction  and MISA special values
    cr_csrrw_misa_sp_val: cross csrrw,misa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MIE toggle bits
+   //Cross CSRRW instruction  and MIE toggle bits
    cr_csrrw_mie_val: cross csrrw,mie_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MIE special values
+   //Cross CSRRW instruction  and MIE special values
    cr_csrrw_mie_sp_val: cross csrrw,mie_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MTVEC toggle bits
+   //Cross CSRRW instruction  and MTVEC toggle bits
    cr_csrrw_mtvec_val: cross csrrw,mtvec_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MTVEC special values
+   //Cross CSRRW instruction  and MTVEC special values
    cr_csrrw_mtvec_sp_val: cross csrrw,mtvec_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MSCRATCH toggle bits
+   //Cross CSRRW instruction  and MSCRATCH toggle bits
    cr_csrrw_mscratch_val: cross csrrw,mscratch_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MSCRATCH special values
+   //Cross CSRRW instruction  and MSCRATCH special values
    cr_csrrw_mscratch_sp_val: cross csrrw,mscratch_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MEPC toggle bits
+   //Cross CSRRW instruction  and MEPC toggle bits
    cr_csrrw_mepc_val: cross csrrw,mepc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MEPC special values
+   //Cross CSRRW instruction  and MEPC special values
    cr_csrrw_mepc_sp_val: cross csrrw,mepc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCAUSE toggle bits
+   //Cross CSRRW instruction  and MCAUSE toggle bits
    cr_csrrw_mcause_val: cross csrrw,mcause_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCAUSE special values
+   //Cross CSRRW instruction  and MCAUSE special values
    cr_csrrw_mcause_sp_val: cross csrrw,mcause_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MTVAL toggle bits
+   //Cross CSRRW instruction  and MTVAL toggle bits
    cr_csrrw_mtval_val: cross csrrw,mtval_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MTVAL special values
+   //Cross CSRRW instruction  and MTVAL special values
    cr_csrrw_mtval_sp_val: cross csrrw,mtval_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCYCLE toggle bits
+   //Cross CSRRW instruction  and MCYCLE toggle bits
    cr_csrrw_mcycle_val: cross csrrw,mcycle_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCYCLE special values
+   //Cross CSRRW instruction  and MCYCLE special values
    cr_csrrw_mcycle_sp_val: cross csrrw,mcycle_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCYCLEH toggle bits
+   //Cross CSRRW instruction  and MCYCLEH toggle bits
    cr_csrrw_mcycleh_val: cross csrrw,mcycleh_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCYCLEH special values
+   //Cross CSRRW instruction  and MCYCLEH special values
    cr_csrrw_mcycleh_sp_val: cross csrrw,mcycleh_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MINSTRET toggle bits
+   //Cross CSRRW instruction  and MINSTRET toggle bits
    cr_csrrw_minstret_val: cross csrrw,minstret_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MINSTRET special values
+   //Cross CSRRW instruction  and MINSTRET special values
    cr_csrrw_minstret_sp_val: cross csrrw,minstret_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MINSTRETH toggle bits
+   //Cross CSRRW instruction  and MINSTRETH toggle bits
    cr_csrrw_minstreth_val: cross csrrw,minstreth_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MINSTRETH special values
+   //Cross CSRRW instruction  and MINSTRETH special values
    cr_csrrw_minstreth_sp_val: cross csrrw,minstreth_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MVENDORID special values
+   //Cross CSRRW instruction  and MVENDORID special values
    cr_csrrw_mvendorid_sp_val: cross csrrw,mvendorid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MARCHID special values
+   //Cross CSRRW instruction  and MARCHID special values
    cr_csrrw_marchid_sp_val: cross csrrw,marchid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MIMPID special values
+   //Cross CSRRW instruction  and MIMPID special values
    cr_csrrw_mimpid_sp_val: cross csrrw,mimpid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MHARTID special values
+   //Cross CSRRW instruction  and MHARTID special values
    cr_csrrw_mhartid_sp_val: cross csrrw,mhartid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT0 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT0 toggle bits
    cr_csrrw_mcontext0_val: cross csrrw,mcontext0_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT0 special values
+   //Cross CSRRW instruction  and MCONTEXT0 special values
    cr_csrrw_mcontext0_sp_val: cross csrrw,mcontext0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT1 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT1 toggle bits
    cr_csrrw_mcontext1_val: cross csrrw,mcontext1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT1 special values
+   //Cross CSRRW instruction  and MCONTEXT1 special values
    cr_csrrw_mcontext1_sp_val: cross csrrw,mcontext1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT2 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT2 toggle bits
    cr_csrrw_mcontext2_val: cross csrrw,mcontext2_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT2 special values
+   //Cross CSRRW instruction  and MCONTEXT2 special values
    cr_csrrw_mcontext2_sp_val: cross csrrw,mcontext2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT3 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT3 toggle bits
    cr_csrrw_mcontext3_val: cross csrrw,mcontext3_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT3 special values
+   //Cross CSRRW instruction  and MCONTEXT3 special values
    cr_csrrw_mcontext3_sp_val: cross csrrw,mcontext3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT4 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT4 toggle bits
    cr_csrrw_mcontext4_val: cross csrrw,mcontext4_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT4 special values
+   //Cross CSRRW instruction  and MCONTEXT4 special values
    cr_csrrw_mcontext4_sp_val: cross csrrw,mcontext4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT5 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT5 toggle bits
    cr_csrrw_mcontext5_val: cross csrrw,mcontext5_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT5 special values
+   //Cross CSRRW instruction  and MCONTEXT5 special values
    cr_csrrw_mcontext5_sp_val: cross csrrw,mcontext5_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT6 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT6 toggle bits
    cr_csrrw_mcontext6_val: cross csrrw,mcontext6_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT6 special values
+   //Cross CSRRW instruction  and MCONTEXT6 special values
    cr_csrrw_mcontext6_sp_val: cross csrrw,mcontext6_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT7 toggle bits
+   //Cross CSRRW instruction  and MCONTEXT7 toggle bits
    cr_csrrw_mcontext7_val: cross csrrw,mcontext7_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MCONTEXT7 special values
+   //Cross CSRRW instruction  and MCONTEXT7 special values
    cr_csrrw_mcontext7_sp_val: cross csrrw,mcontext7_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MPC toggle bits
+   //Cross CSRRW instruction  and MPC toggle bits
    cr_csrrw_mpc_val: cross csrrw,mpc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MPC special values
+   //Cross CSRRW instruction  and MPC special values
    cr_csrrw_mpc_sp_val: cross csrrw,mpc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MSP toggle bits
+   //Cross CSRRW instruction  and MSP toggle bits
    cr_csrrw_msp_val: cross csrrw,msp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and MSP special values
+   //Cross CSRRW instruction  and MSP special values
    cr_csrrw_msp_sp_val: cross csrrw,msp_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and KISA special values
+   //Cross CSRRW instruction  and KISA special values
    cr_csrrw_kisa_sp_val: cross csrrw,kisa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and KSCM0 special values
+   //Cross CSRRW instruction  and KSCM0 special values
    cr_csrrw_kscm0_sp_val: cross csrrw,kscm0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and KSCM1 special values
+   //Cross CSRRW instruction  and KSCM1 special values
    cr_csrrw_kscm1_sp_val: cross csrrw,kscm1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and KSCM2 special values
+   //Cross CSRRW instruction  and KSCM2 special values
    cr_csrrw_kscm2_sp_val: cross csrrw,kscm2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and KSCM3 special values
+   //Cross CSRRW instruction  and KSCM3 special values
    cr_csrrw_kscm3_sp_val: cross csrrw,kscm3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and KSCM4 special values
+   //Cross CSRRW instruction  and KSCM4 special values
    cr_csrrw_kscm4_sp_val: cross csrrw,kscm4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and RD toggle bits
+   //Cross CSRRW instruction  and RD toggle bits
    cr_csrrw_rd_val: cross csrrw,rd_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and RD special values
+   //Cross CSRRW instruction  and RD special values
    cr_csrrw_rd_sp_val: cross csrrw,rd_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and WAR hazard
+   //Cross CSRRW instruction  and WAR hazard
    cr_csrrw_war_hazard: cross csrrw,war_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and WAW hazard
+   //Cross CSRRW instruction  and WAW hazard
    cr_csrrw_waw_hazard: cross csrrw,waw_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRW instruction and RAW hazard
+   //Cross CSRRW instruction  and RAW hazard
    cr_csrrw_raw_hazard: cross csrrw,raw_hazard_hit {
       option.weight = 1;
    }
 
    //CSRRS instruction crosspoints
-   //Cross CSRRS instruction and register assignment
+   //Cross CSRRS instruction  and register assignment
    cr_csrrs_rs1_rs2_rd: cross csrrs,rs1_addr,csr_addr,rd_addr {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and RS1 toggle bits
+   //Cross CSRRS instruction  and RS1 toggle bits
    cr_csrrs_rs1_val: cross csrrs,rs1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and RS1 special values
+   //Cross CSRRS instruction  and RS1 special values
    cr_csrrs_rs1_sp_val: cross csrrs,rs1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and FFLAGS toggle bits
+   //Cross CSRRS instruction  and FFLAGS toggle bits
    cr_csrrs_fflags_val: cross csrrs,fflags_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and FFLAGS special values
+   //Cross CSRRS instruction  and FFLAGS special values
    cr_csrrs_fflags_sp_val: cross csrrs,fflags_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and FRM toggle bits
+   //Cross CSRRS instruction  and FRM toggle bits
    cr_csrrs_frm_val: cross csrrs,frm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and FRM special values
+   //Cross CSRRS instruction  and FRM special values
    cr_csrrs_frm_sp_val: cross csrrs,frm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and FCSR toggle bits
+   //Cross CSRRS instruction  and FCSR toggle bits
    cr_csrrs_fcsr_val: cross csrrs,fcsr_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and FCSR special values
+   //Cross CSRRS instruction  and FCSR special values
    cr_csrrs_fcsr_sp_val: cross csrrs,fcsr_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MSTATUS toggle bits
+   //Cross CSRRS instruction  and MSTATUS toggle bits
    cr_csrrs_mstatus_val: cross csrrs,mstatus_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MSTATUS special values
+   //Cross CSRRS instruction  and MSTATUS special values
    cr_csrrs_mstatus_sp_val: cross csrrs,mstatus_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MISA special values
+   //Cross CSRRS instruction  and MISA special values
    cr_csrrs_misa_sp_val: cross csrrs,misa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MIE toggle bits
+   //Cross CSRRS instruction  and MIE toggle bits
    cr_csrrs_mie_val: cross csrrs,mie_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MIE special values
+   //Cross CSRRS instruction  and MIE special values
    cr_csrrs_mie_sp_val: cross csrrs,mie_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MTVEC toggle bits
+   //Cross CSRRS instruction  and MTVEC toggle bits
    cr_csrrs_mtvec_val: cross csrrs,mtvec_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MTVEC special values
+   //Cross CSRRS instruction  and MTVEC special values
    cr_csrrs_mtvec_sp_val: cross csrrs,mtvec_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MSCRATCH toggle bits
+   //Cross CSRRS instruction  and MSCRATCH toggle bits
    cr_csrrs_mscratch_val: cross csrrs,mscratch_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MSCRATCH special values
+   //Cross CSRRS instruction  and MSCRATCH special values
    cr_csrrs_mscratch_sp_val: cross csrrs,mscratch_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MEPC toggle bits
+   //Cross CSRRS instruction  and MEPC toggle bits
    cr_csrrs_mepc_val: cross csrrs,mepc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MEPC special values
+   //Cross CSRRS instruction  and MEPC special values
    cr_csrrs_mepc_sp_val: cross csrrs,mepc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCAUSE toggle bits
+   //Cross CSRRS instruction  and MCAUSE toggle bits
    cr_csrrs_mcause_val: cross csrrs,mcause_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCAUSE special values
+   //Cross CSRRS instruction  and MCAUSE special values
    cr_csrrs_mcause_sp_val: cross csrrs,mcause_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MTVAL toggle bits
+   //Cross CSRRS instruction  and MTVAL toggle bits
    cr_csrrs_mtval_val: cross csrrs,mtval_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MTVAL special values
+   //Cross CSRRS instruction  and MTVAL special values
    cr_csrrs_mtval_sp_val: cross csrrs,mtval_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCYCLE toggle bits
+   //Cross CSRRS instruction  and MCYCLE toggle bits
    cr_csrrs_mcycle_val: cross csrrs,mcycle_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCYCLE special values
+   //Cross CSRRS instruction  and MCYCLE special values
    cr_csrrs_mcycle_sp_val: cross csrrs,mcycle_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCYCLEH toggle bits
+   //Cross CSRRS instruction  and MCYCLEH toggle bits
    cr_csrrs_mcycleh_val: cross csrrs,mcycleh_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCYCLEH special values
+   //Cross CSRRS instruction  and MCYCLEH special values
    cr_csrrs_mcycleh_sp_val: cross csrrs,mcycleh_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MINSTRET toggle bits
+   //Cross CSRRS instruction  and MINSTRET toggle bits
    cr_csrrs_minstret_val: cross csrrs,minstret_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MINSTRET special values
+   //Cross CSRRS instruction  and MINSTRET special values
    cr_csrrs_minstret_sp_val: cross csrrs,minstret_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MINSTRETH toggle bits
+   //Cross CSRRS instruction  and MINSTRETH toggle bits
    cr_csrrs_minstreth_val: cross csrrs,minstreth_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MINSTRETH special values
+   //Cross CSRRS instruction  and MINSTRETH special values
    cr_csrrs_minstreth_sp_val: cross csrrs,minstreth_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MVENDORID special values
+   //Cross CSRRS instruction  and MVENDORID special values
    cr_csrrs_mvendorid_sp_val: cross csrrs,mvendorid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MARCHID special values
+   //Cross CSRRS instruction  and MARCHID special values
    cr_csrrs_marchid_sp_val: cross csrrs,marchid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MIMPID special values
+   //Cross CSRRS instruction  and MIMPID special values
    cr_csrrs_mimpid_sp_val: cross csrrs,mimpid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MHARTID special values
+   //Cross CSRRS instruction  and MHARTID special values
    cr_csrrs_mhartid_sp_val: cross csrrs,mhartid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT0 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT0 toggle bits
    cr_csrrs_mcontext0_val: cross csrrs,mcontext0_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT0 special values
+   //Cross CSRRS instruction  and MCONTEXT0 special values
    cr_csrrs_mcontext0_sp_val: cross csrrs,mcontext0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT1 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT1 toggle bits
    cr_csrrs_mcontext1_val: cross csrrs,mcontext1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT1 special values
+   //Cross CSRRS instruction  and MCONTEXT1 special values
    cr_csrrs_mcontext1_sp_val: cross csrrs,mcontext1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT2 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT2 toggle bits
    cr_csrrs_mcontext2_val: cross csrrs,mcontext2_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT2 special values
+   //Cross CSRRS instruction  and MCONTEXT2 special values
    cr_csrrs_mcontext2_sp_val: cross csrrs,mcontext2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT3 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT3 toggle bits
    cr_csrrs_mcontext3_val: cross csrrs,mcontext3_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT3 special values
+   //Cross CSRRS instruction  and MCONTEXT3 special values
    cr_csrrs_mcontext3_sp_val: cross csrrs,mcontext3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT4 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT4 toggle bits
    cr_csrrs_mcontext4_val: cross csrrs,mcontext4_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT4 special values
+   //Cross CSRRS instruction  and MCONTEXT4 special values
    cr_csrrs_mcontext4_sp_val: cross csrrs,mcontext4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT5 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT5 toggle bits
    cr_csrrs_mcontext5_val: cross csrrs,mcontext5_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT5 special values
+   //Cross CSRRS instruction  and MCONTEXT5 special values
    cr_csrrs_mcontext5_sp_val: cross csrrs,mcontext5_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT6 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT6 toggle bits
    cr_csrrs_mcontext6_val: cross csrrs,mcontext6_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT6 special values
+   //Cross CSRRS instruction  and MCONTEXT6 special values
    cr_csrrs_mcontext6_sp_val: cross csrrs,mcontext6_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT7 toggle bits
+   //Cross CSRRS instruction  and MCONTEXT7 toggle bits
    cr_csrrs_mcontext7_val: cross csrrs,mcontext7_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MCONTEXT7 special values
+   //Cross CSRRS instruction  and MCONTEXT7 special values
    cr_csrrs_mcontext7_sp_val: cross csrrs,mcontext7_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MPC toggle bits
+   //Cross CSRRS instruction  and MPC toggle bits
    cr_csrrs_mpc_val: cross csrrs,mpc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MPC special values
+   //Cross CSRRS instruction  and MPC special values
    cr_csrrs_mpc_sp_val: cross csrrs,mpc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MSP toggle bits
+   //Cross CSRRS instruction  and MSP toggle bits
    cr_csrrs_msp_val: cross csrrs,msp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and MSP special values
+   //Cross CSRRS instruction  and MSP special values
    cr_csrrs_msp_sp_val: cross csrrs,msp_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and KISA special values
+   //Cross CSRRS instruction  and KISA special values
    cr_csrrs_kisa_sp_val: cross csrrs,kisa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and KSCM0 special values
+   //Cross CSRRS instruction  and KSCM0 special values
    cr_csrrs_kscm0_sp_val: cross csrrs,kscm0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and KSCM1 special values
+   //Cross CSRRS instruction  and KSCM1 special values
    cr_csrrs_kscm1_sp_val: cross csrrs,kscm1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and KSCM2 special values
+   //Cross CSRRS instruction  and KSCM2 special values
    cr_csrrs_kscm2_sp_val: cross csrrs,kscm2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and KSCM3 special values
+   //Cross CSRRS instruction  and KSCM3 special values
    cr_csrrs_kscm3_sp_val: cross csrrs,kscm3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and KSCM4 special values
+   //Cross CSRRS instruction  and KSCM4 special values
    cr_csrrs_kscm4_sp_val: cross csrrs,kscm4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and RD toggle bits
+   //Cross CSRRS instruction  and RD toggle bits
    cr_csrrs_rd_val: cross csrrs,rd_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and RD special values
+   //Cross CSRRS instruction  and RD special values
    cr_csrrs_rd_sp_val: cross csrrs,rd_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and WAR hazard
+   //Cross CSRRS instruction  and WAR hazard
    cr_csrrs_war_hazard: cross csrrs,war_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and WAW hazard
+   //Cross CSRRS instruction  and WAW hazard
    cr_csrrs_waw_hazard: cross csrrs,waw_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRS instruction and RAW hazard
+   //Cross CSRRS instruction  and RAW hazard
    cr_csrrs_raw_hazard: cross csrrs,raw_hazard_hit {
       option.weight = 1;
    }
 
    //CSRRC instruction crosspoints sign rs1,unsign rs2
-   //Cross CSRRC instruction and register assignment
+   //Cross CSRRC instruction  and register assignment
    cr_csrrc_rs1_rs2_rd: cross csrrc,rs1_addr,csr_addr,rd_addr {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and RS1 toggle bits
+   //Cross CSRRC instruction  and RS1 toggle bits
    cr_csrrc_rs1_val: cross csrrc,rs1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and RS1 special values
+   //Cross CSRRC instruction  and RS1 special values
    cr_csrrc_rs1_sp_val: cross csrrc,rs1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and FFLAGS toggle bits
+   //Cross CSRRC instruction  and FFLAGS toggle bits
    cr_csrrc_fflags_val: cross csrrc,fflags_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and FFLAGS special values
+   //Cross CSRRC instruction  and FFLAGS special values
    cr_csrrc_fflags_sp_val: cross csrrc,fflags_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and FRM toggle bits
+   //Cross CSRRC instruction  and FRM toggle bits
    cr_csrrc_frm_val: cross csrrc,frm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and FRM special values
+   //Cross CSRRC instruction  and FRM special values
    cr_csrrc_frm_sp_val: cross csrrc,frm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and FCSR toggle bits
+   //Cross CSRRC instruction  and FCSR toggle bits
    cr_csrrc_fcsr_val: cross csrrc,fcsr_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and FCSR special values
+   //Cross CSRRC instruction  and FCSR special values
    cr_csrrc_fcsr_sp_val: cross csrrc,fcsr_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MSTATUS toggle bits
+   //Cross CSRRC instruction  and MSTATUS toggle bits
    cr_csrrc_mstatus_val: cross csrrc,mstatus_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MSTATUS special values
+   //Cross CSRRC instruction  and MSTATUS special values
    cr_csrrc_mstatus_sp_val: cross csrrc,mstatus_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MISA special values
+   //Cross CSRRC instruction  and MISA special values
    cr_csrrc_misa_sp_val: cross csrrc,misa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MIE toggle bits
+   //Cross CSRRC instruction  and MIE toggle bits
    cr_csrrc_mie_val: cross csrrc,mie_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MIE special values
+   //Cross CSRRC instruction  and MIE special values
    cr_csrrc_mie_sp_val: cross csrrc,mie_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MTVEC toggle bits
+   //Cross CSRRC instruction  and MTVEC toggle bits
    cr_csrrc_mtvec_val: cross csrrc,mtvec_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MTVEC special values
+   //Cross CSRRC instruction  and MTVEC special values
    cr_csrrc_mtvec_sp_val: cross csrrc,mtvec_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MSCRATCH toggle bits
+   //Cross CSRRC instruction  and MSCRATCH toggle bits
    cr_csrrc_mscratch_val: cross csrrc,mscratch_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MSCRATCH special values
+   //Cross CSRRC instruction  and MSCRATCH special values
    cr_csrrc_mscratch_sp_val: cross csrrc,mscratch_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MEPC toggle bits
+   //Cross CSRRC instruction  and MEPC toggle bits
    cr_csrrc_mepc_val: cross csrrc,mepc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MEPC special values
+   //Cross CSRRC instruction  and MEPC special values
    cr_csrrc_mepc_sp_val: cross csrrc,mepc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCAUSE toggle bits
+   //Cross CSRRC instruction  and MCAUSE toggle bits
    cr_csrrc_mcause_val: cross csrrc,mcause_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCAUSE special values
+   //Cross CSRRC instruction  and MCAUSE special values
    cr_csrrc_mcause_sp_val: cross csrrc,mcause_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MTVAL toggle bits
+   //Cross CSRRC instruction  and MTVAL toggle bits
    cr_csrrc_mtval_val: cross csrrc,mtval_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MTVAL special values
+   //Cross CSRRC instruction  and MTVAL special values
    cr_csrrc_mtval_sp_val: cross csrrc,mtval_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCYCLE toggle bits
+   //Cross CSRRC instruction  and MCYCLE toggle bits
    cr_csrrc_mcycle_val: cross csrrc,mcycle_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCYCLE special values
+   //Cross CSRRC instruction  and MCYCLE special values
    cr_csrrc_mcycle_sp_val: cross csrrc,mcycle_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCYCLEH toggle bits
+   //Cross CSRRC instruction  and MCYCLEH toggle bits
    cr_csrrc_mcycleh_val: cross csrrc,mcycleh_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCYCLEH special values
+   //Cross CSRRC instruction  and MCYCLEH special values
    cr_csrrc_mcycleh_sp_val: cross csrrc,mcycleh_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MINSTRET toggle bits
+   //Cross CSRRC instruction  and MINSTRET toggle bits
    cr_csrrc_minstret_val: cross csrrc,minstret_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MINSTRET special values
+   //Cross CSRRC instruction  and MINSTRET special values
    cr_csrrc_minstret_sp_val: cross csrrc,minstret_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MINSTRETH toggle bits
+   //Cross CSRRC instruction  and MINSTRETH toggle bits
    cr_csrrc_minstreth_val: cross csrrc,minstreth_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MINSTRETH special values
+   //Cross CSRRC instruction  and MINSTRETH special values
    cr_csrrc_minstreth_sp_val: cross csrrc,minstreth_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MVENDORID special values
+   //Cross CSRRC instruction  and MVENDORID special values
    cr_csrrc_mvendorid_sp_val: cross csrrc,mvendorid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MARCHID special values
+   //Cross CSRRC instruction  and MARCHID special values
    cr_csrrc_marchid_sp_val: cross csrrc,marchid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MIMPID special values
+   //Cross CSRRC instruction  and MIMPID special values
    cr_csrrc_mimpid_sp_val: cross csrrc,mimpid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MHARTID special values
+   //Cross CSRRC instruction  and MHARTID special values
    cr_csrrc_mhartid_sp_val: cross csrrc,mhartid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT0 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT0 toggle bits
    cr_csrrc_mcontext0_val: cross csrrc,mcontext0_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT0 special values
+   //Cross CSRRC instruction  and MCONTEXT0 special values
    cr_csrrc_mcontext0_sp_val: cross csrrc,mcontext0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT1 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT1 toggle bits
    cr_csrrc_mcontext1_val: cross csrrc,mcontext1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT1 special values
+   //Cross CSRRC instruction  and MCONTEXT1 special values
    cr_csrrc_mcontext1_sp_val: cross csrrc,mcontext1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT2 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT2 toggle bits
    cr_csrrc_mcontext2_val: cross csrrc,mcontext2_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT2 special values
+   //Cross CSRRC instruction  and MCONTEXT2 special values
    cr_csrrc_mcontext2_sp_val: cross csrrc,mcontext2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT3 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT3 toggle bits
    cr_csrrc_mcontext3_val: cross csrrc,mcontext3_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT3 special values
+   //Cross CSRRC instruction  and MCONTEXT3 special values
    cr_csrrc_mcontext3_sp_val: cross csrrc,mcontext3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT4 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT4 toggle bits
    cr_csrrc_mcontext4_val: cross csrrc,mcontext4_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT4 special values
+   //Cross CSRRC instruction  and MCONTEXT4 special values
    cr_csrrc_mcontext4_sp_val: cross csrrc,mcontext4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT5 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT5 toggle bits
    cr_csrrc_mcontext5_val: cross csrrc,mcontext5_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT5 special values
+   //Cross CSRRC instruction  and MCONTEXT5 special values
    cr_csrrc_mcontext5_sp_val: cross csrrc,mcontext5_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT6 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT6 toggle bits
    cr_csrrc_mcontext6_val: cross csrrc,mcontext6_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT6 special values
+   //Cross CSRRC instruction  and MCONTEXT6 special values
    cr_csrrc_mcontext6_sp_val: cross csrrc,mcontext6_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT7 toggle bits
+   //Cross CSRRC instruction  and MCONTEXT7 toggle bits
    cr_csrrc_mcontext7_val: cross csrrc,mcontext7_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MCONTEXT7 special values
+   //Cross CSRRC instruction  and MCONTEXT7 special values
    cr_csrrc_mcontext7_sp_val: cross csrrc,mcontext7_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MPC toggle bits
+   //Cross CSRRC instruction  and MPC toggle bits
    cr_csrrc_mpc_val: cross csrrc,mpc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MPC special values
+   //Cross CSRRC instruction  and MPC special values
    cr_csrrc_mpc_sp_val: cross csrrc,mpc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MSP toggle bits
+   //Cross CSRRC instruction  and MSP toggle bits
    cr_csrrc_msp_val: cross csrrc,msp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and MSP special values
+   //Cross CSRRC instruction  and MSP special values
    cr_csrrc_msp_sp_val: cross csrrc,msp_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and KISA special values
+   //Cross CSRRC instruction  and KISA special values
    cr_csrrc_kisa_sp_val: cross csrrc,kisa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and KSCM0 special values
+   //Cross CSRRC instruction  and KSCM0 special values
    cr_csrrc_kscm0_sp_val: cross csrrc,kscm0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and KSCM1 special values
+   //Cross CSRRC instruction  and KSCM1 special values
    cr_csrrc_kscm1_sp_val: cross csrrc,kscm1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and KSCM2 special values
+   //Cross CSRRC instruction  and KSCM2 special values
    cr_csrrc_kscm2_sp_val: cross csrrc,kscm2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and KSCM3 special values
+   //Cross CSRRC instruction  and KSCM3 special values
    cr_csrrc_kscm3_sp_val: cross csrrc,kscm3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and KSCM4 special values
+   //Cross CSRRC instruction  and KSCM4 special values
    cr_csrrc_kscm4_sp_val: cross csrrc,kscm4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and RD toggle bits
+   //Cross CSRRC instruction  and RD toggle bits
    cr_csrrc_rd_val: cross csrrc,rd_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and RD special values
+   //Cross CSRRC instruction  and RD special values
    cr_csrrc_rd_sp_val: cross csrrc,rd_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and WAR hazard
+   //Cross CSRRC instruction  and WAR hazard
    cr_csrrc_war_hazard: cross csrrc,war_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and WAW hazard
+   //Cross CSRRC instruction  and WAW hazard
    cr_csrrc_waw_hazard: cross csrrc,waw_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRC instruction and RAW hazard
+   //Cross CSRRC instruction  and RAW hazard
    cr_csrrc_raw_hazard: cross csrrc,raw_hazard_hit {
       option.weight = 1;
    }
 
    //CSRRWI instruction crosspoints
-   //Cross CSRRWI instruction and register assignment
+   //Cross CSRRWI instruction  and register assignment
    cr_csrrwi_rs1_csr_rd: cross csrrwi,rs1_addr,csr_addr,rd_addr {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and ZIMM toggle bits
-   cr_csrrwi_zimm_val: cross csrrwi,zimm_val {
-      option.weight = 1;
-   }
-
-   //Cross CSRRWI instruction and ZIMM special values
-   cr_csrrwi_zimm_sp_val: cross csrrwi,zimm_sp_val {
-      option.weight = 1;
-   }
-
-   //Cross CSRRWI instruction and RS1 imm mode toggle bits
+   //Cross CSRRWI instruction  and RS1 imm mode toggle bits
    cr_csrrwi_rs1_zimm_val: cross csrrwi,rs1_zimm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and RS1 imm mode special values
+   //Cross CSRRWI instruction  and RS1 imm mode special values
    cr_csrrwi_rs1_zimm_sp_val: cross csrrwi,rs1_zimm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and FFLAGS toggle bits
+   //Cross CSRRWI instruction  and FFLAGS toggle bits
    cr_csrrwi_fflags_val: cross csrrwi,fflags_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and FFLAGS special values
+   //Cross CSRRWI instruction  and FFLAGS special values
    cr_csrrwi_fflags_sp_val: cross csrrwi,fflags_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and FRM toggle bits
+   //Cross CSRRWI instruction  and FRM toggle bits
    cr_csrrwi_frm_val: cross csrrwi,frm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and FRM special values
+   //Cross CSRRWI instruction  and FRM special values
    cr_csrrwi_frm_sp_val: cross csrrwi,frm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and FCSR toggle bits
+   //Cross CSRRWI instruction  and FCSR toggle bits
    cr_csrrwi_fcsr_val: cross csrrwi,fcsr_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and FCSR special values
+   //Cross CSRRWI instruction  and FCSR special values
    cr_csrrwi_fcsr_sp_val: cross csrrwi,fcsr_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MSTATUS toggle bits
+   //Cross CSRRWI instruction  and MSTATUS toggle bits
    cr_csrrwi_mstatus_val: cross csrrwi,mstatus_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MSTATUS special values
+   //Cross CSRRWI instruction  and MSTATUS special values
    cr_csrrwi_mstatus_sp_val: cross csrrwi,mstatus_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MISA special values
+   //Cross CSRRWI instruction  and MISA special values
    cr_csrrwi_misa_sp_val: cross csrrwi,misa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MIE toggle bits
+   //Cross CSRRWI instruction  and MIE toggle bits
    cr_csrrwi_mie_val: cross csrrwi,mie_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MIE special values
+   //Cross CSRRWI instruction  and MIE special values
    cr_csrrwi_mie_sp_val: cross csrrwi,mie_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MTVEC toggle bits
+   //Cross CSRRWI instruction  and MTVEC toggle bits
    cr_csrrwi_mtvec_val: cross csrrwi,mtvec_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MTVEC special values
+   //Cross CSRRWI instruction  and MTVEC special values
    cr_csrrwi_mtvec_sp_val: cross csrrwi,mtvec_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MSCRATCH toggle bits
+   //Cross CSRRWI instruction  and MSCRATCH toggle bits
    cr_csrrwi_mscratch_val: cross csrrwi,mscratch_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MSCRATCH special values
+   //Cross CSRRWI instruction  and MSCRATCH special values
    cr_csrrwi_mscratch_sp_val: cross csrrwi,mscratch_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MEPC toggle bits
+   //Cross CSRRWI instruction  and MEPC toggle bits
    cr_csrrwi_mepc_val: cross csrrwi,mepc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MEPC special values
+   //Cross CSRRWI instruction  and MEPC special values
    cr_csrrwi_mepc_sp_val: cross csrrwi,mepc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCAUSE toggle bits
+   //Cross CSRRWI instruction  and MCAUSE toggle bits
    cr_csrrwi_mcause_val: cross csrrwi,mcause_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCAUSE special values
+   //Cross CSRRWI instruction  and MCAUSE special values
    cr_csrrwi_mcause_sp_val: cross csrrwi,mcause_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MTVAL toggle bits
+   //Cross CSRRWI instruction  and MTVAL toggle bits
    cr_csrrwi_mtval_val: cross csrrwi,mtval_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MTVAL special values
+   //Cross CSRRWI instruction  and MTVAL special values
    cr_csrrwi_mtval_sp_val: cross csrrwi,mtval_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCYCLE toggle bits
+   //Cross CSRRWI instruction  and MCYCLE toggle bits
    cr_csrrwi_mcycle_val: cross csrrwi,mcycle_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCYCLE special values
+   //Cross CSRRWI instruction  and MCYCLE special values
    cr_csrrwi_mcycle_sp_val: cross csrrwi,mcycle_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCYCLEH toggle bits
+   //Cross CSRRWI instruction  and MCYCLEH toggle bits
    cr_csrrwi_mcycleh_val: cross csrrwi,mcycleh_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCYCLEH special values
+   //Cross CSRRWI instruction  and MCYCLEH special values
    cr_csrrwi_mcycleh_sp_val: cross csrrwi,mcycleh_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MINSTRET toggle bits
+   //Cross CSRRWI instruction  and MINSTRET toggle bits
    cr_csrrwi_minstret_val: cross csrrwi,minstret_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MINSTRET special values
+   //Cross CSRRWI instruction  and MINSTRET special values
    cr_csrrwi_minstret_sp_val: cross csrrwi,minstret_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MINSTRETH toggle bits
+   //Cross CSRRWI instruction  and MINSTRETH toggle bits
    cr_csrrwi_minstreth_val: cross csrrwi,minstreth_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MINSTRETH special values
+   //Cross CSRRWI instruction  and MINSTRETH special values
    cr_csrrwi_minstreth_sp_val: cross csrrwi,minstreth_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MVENDORID special values
+   //Cross CSRRWI instruction  and MVENDORID special values
    cr_csrrwi_mvendorid_sp_val: cross csrrwi,mvendorid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MARCHID special values
+   //Cross CSRRWI instruction  and MARCHID special values
    cr_csrrwi_marchid_sp_val: cross csrrwi,marchid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MIMPID special values
+   //Cross CSRRWI instruction  and MIMPID special values
    cr_csrrwi_mimpid_sp_val: cross csrrwi,mimpid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MHARTID special values
+   //Cross CSRRWI instruction  and MHARTID special values
    cr_csrrwi_mhartid_sp_val: cross csrrwi,mhartid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT0 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT0 toggle bits
    cr_csrrwi_mcontext0_val: cross csrrwi,mcontext0_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT0 special values
+   //Cross CSRRWI instruction  and MCONTEXT0 special values
    cr_csrrwi_mcontext0_sp_val: cross csrrwi,mcontext0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT1 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT1 toggle bits
    cr_csrrwi_mcontext1_val: cross csrrwi,mcontext1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT1 special values
+   //Cross CSRRWI instruction  and MCONTEXT1 special values
    cr_csrrwi_mcontext1_sp_val: cross csrrwi,mcontext1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT2 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT2 toggle bits
    cr_csrrwi_mcontext2_val: cross csrrwi,mcontext2_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT2 special values
+   //Cross CSRRWI instruction  and MCONTEXT2 special values
    cr_csrrwi_mcontext2_sp_val: cross csrrwi,mcontext2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT3 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT3 toggle bits
    cr_csrrwi_mcontext3_val: cross csrrwi,mcontext3_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT3 special values
+   //Cross CSRRWI instruction  and MCONTEXT3 special values
    cr_csrrwi_mcontext3_sp_val: cross csrrwi,mcontext3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT4 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT4 toggle bits
    cr_csrrwi_mcontext4_val: cross csrrwi,mcontext4_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT4 special values
+   //Cross CSRRWI instruction  and MCONTEXT4 special values
    cr_csrrwi_mcontext4_sp_val: cross csrrwi,mcontext4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT5 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT5 toggle bits
    cr_csrrwi_mcontext5_val: cross csrrwi,mcontext5_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT5 special values
+   //Cross CSRRWI instruction  and MCONTEXT5 special values
    cr_csrrwi_mcontext5_sp_val: cross csrrwi,mcontext5_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT6 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT6 toggle bits
    cr_csrrwi_mcontext6_val: cross csrrwi,mcontext6_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT6 special values
+   //Cross CSRRWI instruction  and MCONTEXT6 special values
    cr_csrrwi_mcontext6_sp_val: cross csrrwi,mcontext6_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT7 toggle bits
+   //Cross CSRRWI instruction  and MCONTEXT7 toggle bits
    cr_csrrwi_mcontext7_val: cross csrrwi,mcontext7_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MCONTEXT7 special values
+   //Cross CSRRWI instruction  and MCONTEXT7 special values
    cr_csrrwi_mcontext7_sp_val: cross csrrwi,mcontext7_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MPC toggle bits
+   //Cross CSRRWI instruction  and MPC toggle bits
    cr_csrrwi_mpc_val: cross csrrwi,mpc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MPC special values
+   //Cross CSRRWI instruction  and MPC special values
    cr_csrrwi_mpc_sp_val: cross csrrwi,mpc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MSP toggle bits
+   //Cross CSRRWI instruction  and MSP toggle bits
    cr_csrrwi_msp_val: cross csrrwi,msp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and MSP special values
+   //Cross CSRRWI instruction  and MSP special values
    cr_csrrwi_msp_sp_val: cross csrrwi,msp_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and KISA special values
+   //Cross CSRRWI instruction  and KISA special values
    cr_csrrwi_kisa_sp_val: cross csrrwi,kisa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and KSCM0 special values
+   //Cross CSRRWI instruction  and KSCM0 special values
    cr_csrrwi_kscm0_sp_val: cross csrrwi,kscm0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and KSCM1 special values
+   //Cross CSRRWI instruction  and KSCM1 special values
    cr_csrrwi_kscm1_sp_val: cross csrrwi,kscm1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and KSCM2 special values
+   //Cross CSRRWI instruction  and KSCM2 special values
    cr_csrrwi_kscm2_sp_val: cross csrrwi,kscm2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and KSCM3 special values
+   //Cross CSRRWI instruction  and KSCM3 special values
    cr_csrrwi_kscm3_sp_val: cross csrrwi,kscm3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and KSCM4 special values
+   //Cross CSRRWI instruction  and KSCM4 special values
    cr_csrrwi_kscm4_sp_val: cross csrrwi,kscm4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and RD toggle bits
+   //Cross CSRRWI instruction  and RD toggle bits
    cr_csrrwi_rd_val: cross csrrwi,rd_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and RD special values
+   //Cross CSRRWI instruction  and RD special values
    cr_csrrwi_rd_sp_val: cross csrrwi,rd_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and WAR hazard
+   //Cross CSRRWI instruction  and WAR hazard
    cr_csrrwi_war_hazard: cross csrrwi,war_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and WAW hazard
+   //Cross CSRRWI instruction  and WAW hazard
    cr_csrrwi_waw_hazard: cross csrrwi,waw_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRWI instruction and RAW hazard
+   //Cross CSRRWI instruction  and RAW hazard
    cr_csrrwi_raw_hazard: cross csrrwi,raw_hazard_hit {
       option.weight = 1;
    }
 
    //CSRRSI instruction crosspoints
-   //Cross CSRRSII instruction and register assignment
+   //Cross CSRRSII instruction  and register assignment
    cr_csrrsi_rs1_rs2_rd: cross csrrsi,rs1_addr,csr_addr,rd_addr {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and ZIMM toggle bits
-   cr_csrrsi_zimm_val: cross csrrsi,zimm_val {
-      option.weight = 1;
-   }
-
-   //Cross CSRRSI instruction and ZIMM special values
-   cr_csrrsi_zimm_sp_val: cross csrrsi,zimm_sp_val {
-      option.weight = 1;
-   }
-
-   //Cross CSRRSI instruction and RS1 imm mode toggle bits
+   //Cross CSRRSI instruction  and RS1 imm mode toggle bits
    cr_csrrsi_rs1_zimm_val: cross csrrsi,rs1_zimm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and RS1 imm mode  special values
+   //Cross CSRRSI instruction  and RS1 imm mode  special values
    cr_csrrsi_rs1_zimm_sp_val: cross csrrsi,rs1_zimm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and FFLAGS toggle bits
+   //Cross CSRRSI instruction  and FFLAGS toggle bits
    cr_csrrsi_fflags_val: cross csrrsi,fflags_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and FFLAGS special values
+   //Cross CSRRSI instruction  and FFLAGS special values
    cr_csrrsi_fflags_sp_val: cross csrrsi,fflags_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and FRM toggle bits
+   //Cross CSRRSI instruction  and FRM toggle bits
    cr_csrrsi_frm_val: cross csrrsi,frm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and FRM special values
+   //Cross CSRRSI instruction  and FRM special values
    cr_csrrsi_frm_sp_val: cross csrrsi,frm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and FCSR toggle bits
+   //Cross CSRRSI instruction  and FCSR toggle bits
    cr_csrrsi_fcsr_val: cross csrrsi,fcsr_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and FCSR special values
+   //Cross CSRRSI instruction  and FCSR special values
    cr_csrrsi_fcsr_sp_val: cross csrrsi,fcsr_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MSTATUS toggle bits
+   //Cross CSRRSI instruction  and MSTATUS toggle bits
    cr_csrrsi_mstatus_val: cross csrrsi,mstatus_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MSTATUS special values
+   //Cross CSRRSI instruction  and MSTATUS special values
    cr_csrrsi_mstatus_sp_val: cross csrrsi,mstatus_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MISA special values
+   //Cross CSRRSI instruction  and MISA special values
    cr_csrrsi_misa_sp_val: cross csrrsi,misa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MIE toggle bits
+   //Cross CSRRSI instruction  and MIE toggle bits
    cr_csrrsi_mie_val: cross csrrsi,mie_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MIE special values
+   //Cross CSRRSI instruction  and MIE special values
    cr_csrrsi_mie_sp_val: cross csrrsi,mie_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MTVEC toggle bits
+   //Cross CSRRSI instruction  and MTVEC toggle bits
    cr_csrrsi_mtvec_val: cross csrrsi,mtvec_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MTVEC special values
+   //Cross CSRRSI instruction  and MTVEC special values
    cr_csrrsi_mtvec_sp_val: cross csrrsi,mtvec_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MSCRATCH toggle bits
+   //Cross CSRRSI instruction  and MSCRATCH toggle bits
    cr_csrrsi_mscratch_val: cross csrrsi,mscratch_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MSCRATCH special values
+   //Cross CSRRSI instruction  and MSCRATCH special values
    cr_csrrsi_mscratch_sp_val: cross csrrsi,mscratch_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MEPC toggle bits
+   //Cross CSRRSI instruction  and MEPC toggle bits
    cr_csrrsi_mepc_val: cross csrrsi,mepc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MEPC special values
+   //Cross CSRRSI instruction  and MEPC special values
    cr_csrrsi_mepc_sp_val: cross csrrsi,mepc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCAUSE toggle bits
+   //Cross CSRRSI instruction  and MCAUSE toggle bits
    cr_csrrsi_mcause_val: cross csrrsi,mcause_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCAUSE special values
+   //Cross CSRRSI instruction  and MCAUSE special values
    cr_csrrsi_mcause_sp_val: cross csrrsi,mcause_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MTVAL toggle bits
+   //Cross CSRRSI instruction  and MTVAL toggle bits
    cr_csrrsi_mtval_val: cross csrrsi,mtval_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MTVAL special values
+   //Cross CSRRSI instruction  and MTVAL special values
    cr_csrrsi_mtval_sp_val: cross csrrsi,mtval_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCYCLE toggle bits
+   //Cross CSRRSI instruction  and MCYCLE toggle bits
    cr_csrrsi_mcycle_val: cross csrrsi,mcycle_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCYCLE special values
+   //Cross CSRRSI instruction  and MCYCLE special values
    cr_csrrsi_mcycle_sp_val: cross csrrsi,mcycle_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCYCLEH toggle bits
+   //Cross CSRRSI instruction  and MCYCLEH toggle bits
    cr_csrrsi_mcycleh_val: cross csrrsi,mcycleh_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCYCLEH special values
+   //Cross CSRRSI instruction  and MCYCLEH special values
    cr_csrrsi_mcycleh_sp_val: cross csrrsi,mcycleh_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MINSTRET toggle bits
+   //Cross CSRRSI instruction  and MINSTRET toggle bits
    cr_csrrsi_minstret_val: cross csrrsi,minstret_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MINSTRET special values
+   //Cross CSRRSI instruction  and MINSTRET special values
    cr_csrrsi_minstret_sp_val: cross csrrsi,minstret_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MINSTRETH toggle bits
+   //Cross CSRRSI instruction  and MINSTRETH toggle bits
    cr_csrrsi_minstreth_val: cross csrrsi,minstreth_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MINSTRETH special values
+   //Cross CSRRSI instruction  and MINSTRETH special values
    cr_csrrsi_minstreth_sp_val: cross csrrsi,minstreth_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MVENDORID special values
+   //Cross CSRRSI instruction  and MVENDORID special values
    cr_csrrsi_mvendorid_sp_val: cross csrrsi,mvendorid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MARCHID special values
+   //Cross CSRRSI instruction  and MARCHID special values
    cr_csrrsi_marchid_sp_val: cross csrrsi,marchid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MIMPID special values
+   //Cross CSRRSI instruction  and MIMPID special values
    cr_csrrsi_mimpid_sp_val: cross csrrsi,mimpid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MHARTID special values
+   //Cross CSRRSI instruction  and MHARTID special values
    cr_csrrsi_mhartid_sp_val: cross csrrsi,mhartid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT0 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT0 toggle bits
    cr_csrrsi_mcontext0_val: cross csrrsi,mcontext0_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT0 special values
+   //Cross CSRRSI instruction  and MCONTEXT0 special values
    cr_csrrsi_mcontext0_sp_val: cross csrrsi,mcontext0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT1 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT1 toggle bits
    cr_csrrsi_mcontext1_val: cross csrrsi,mcontext1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT1 special values
+   //Cross CSRRSI instruction  and MCONTEXT1 special values
    cr_csrrsi_mcontext1_sp_val: cross csrrsi,mcontext1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT2 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT2 toggle bits
    cr_csrrsi_mcontext2_val: cross csrrsi,mcontext2_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT2 special values
+   //Cross CSRRSI instruction  and MCONTEXT2 special values
    cr_csrrsi_mcontext2_sp_val: cross csrrsi,mcontext2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT3 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT3 toggle bits
    cr_csrrsi_mcontext3_val: cross csrrsi,mcontext3_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT3 special values
+   //Cross CSRRSI instruction  and MCONTEXT3 special values
    cr_csrrsi_mcontext3_sp_val: cross csrrsi,mcontext3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT4 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT4 toggle bits
    cr_csrrsi_mcontext4_val: cross csrrsi,mcontext4_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT4 special values
+   //Cross CSRRSI instruction  and MCONTEXT4 special values
    cr_csrrsi_mcontext4_sp_val: cross csrrsi,mcontext4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT5 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT5 toggle bits
    cr_csrrsi_mcontext5_val: cross csrrsi,mcontext5_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT5 special values
+   //Cross CSRRSI instruction  and MCONTEXT5 special values
    cr_csrrsi_mcontext5_sp_val: cross csrrsi,mcontext5_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT6 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT6 toggle bits
    cr_csrrsi_mcontext6_val: cross csrrsi,mcontext6_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT6 special values
+   //Cross CSRRSI instruction  and MCONTEXT6 special values
    cr_csrrsi_mcontext6_sp_val: cross csrrsi,mcontext6_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT7 toggle bits
+   //Cross CSRRSI instruction  and MCONTEXT7 toggle bits
    cr_csrrsi_mcontext7_val: cross csrrsi,mcontext7_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MCONTEXT7 special values
+   //Cross CSRRSI instruction  and MCONTEXT7 special values
    cr_csrrsi_mcontext7_sp_val: cross csrrsi,mcontext7_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MPC toggle bits
+   //Cross CSRRSI instruction  and MPC toggle bits
    cr_csrrsi_mpc_val: cross csrrsi,mpc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MPC special values
+   //Cross CSRRSI instruction  and MPC special values
    cr_csrrsi_mpc_sp_val: cross csrrsi,mpc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MSP toggle bits
+   //Cross CSRRSI instruction  and MSP toggle bits
    cr_csrrsi_msp_val: cross csrrsi,msp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and MSP special values
+   //Cross CSRRSI instruction  and MSP special values
    cr_csrrsi_msp_sp_val: cross csrrsi,msp_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and KISA special values
+   //Cross CSRRSI instruction  and KISA special values
    cr_csrrsi_kisa_sp_val: cross csrrsi,kisa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and KSCM0 special values
+   //Cross CSRRSI instruction  and KSCM0 special values
    cr_csrrsi_kscm0_sp_val: cross csrrsi,kscm0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and KSCM1 special values
+   //Cross CSRRSI instruction  and KSCM1 special values
    cr_csrrsi_kscm1_sp_val: cross csrrsi,kscm1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and KSCM2 special values
+   //Cross CSRRSI instruction  and KSCM2 special values
    cr_csrrsi_kscm2_sp_val: cross csrrsi,kscm2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and KSCM3 special values
+   //Cross CSRRSI instruction  and KSCM3 special values
    cr_csrrsi_kscm3_sp_val: cross csrrsi,kscm3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and KSCM4 special values
+   //Cross CSRRSI instruction  and KSCM4 special values
    cr_csrrsi_kscm4_sp_val: cross csrrsi,kscm4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and RD toggle bits
+   //Cross CSRRSI instruction  and RD toggle bits
    cr_csrrsi_rd_val: cross csrrsi,rd_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and RD special values
+   //Cross CSRRSI instruction  and RD special values
    cr_csrrsi_rd_sp_val: cross csrrsi,rd_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and WAR hazard
+   //Cross CSRRSI instruction  and WAR hazard
    cr_csrrsi_war_hazard: cross csrrsi,war_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and WAW hazard
+   //Cross CSRRSI instruction  and WAW hazard
    cr_csrrsi_waw_hazard: cross csrrsi,waw_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRSI instruction and RAW hazard
+   //Cross CSRRSI instruction  and RAW hazard
    cr_csrrsi_raw_hazard: cross csrrsi,raw_hazard_hit {
       option.weight = 1;
    }
 
    //CSRRCII instruction crosspoints sign rs1,unsign rs2
-   //Cross CSRRCI instruction and register assignment
+   //Cross CSRRCI instruction  and register assignment
    cr_csrrci_rs1_rs2_rd: cross csrrci,rs1_addr,csr_addr,rd_addr {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and ZIMM toggle bits
-   cr_csrrci_zimm_val: cross csrrci,zimm_val {
-      option.weight = 1;
-   }
-
-   //Cross CSRRCI instruction and ZIMM special values
-   cr_csrrci_zimm_sp_val: cross csrrci,zimm_sp_val {
-      option.weight = 1;
-   }
-
-   //Cross CSRRCI instruction and RS1 imm mode toggle bits
+   //Cross CSRRCI instruction  and RS1 imm mode toggle bits
    cr_csrrci_rs1_zimm_val: cross csrrci,rs1_zimm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and RS1 imm mode special values
+   //Cross CSRRCI instruction  and RS1 imm mode special values
    cr_csrrci_rs1_zimm_sp_val: cross csrrci,rs1_zimm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and FFLAGS toggle bits
+   //Cross CSRRCI instruction  and FFLAGS toggle bits
    cr_csrrci_fflags_val: cross csrrci,fflags_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and FFLAGS special values
+   //Cross CSRRCI instruction  and FFLAGS special values
    cr_csrrci_fflags_sp_val: cross csrrci,fflags_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and FRM toggle bits
+   //Cross CSRRCI instruction  and FRM toggle bits
    cr_csrrci_frm_val: cross csrrci,frm_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and FRM special values
+   //Cross CSRRCI instruction  and FRM special values
    cr_csrrci_frm_sp_val: cross csrrci,frm_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and FCSR toggle bits
+   //Cross CSRRCI instruction  and FCSR toggle bits
    cr_csrrci_fcsr_val: cross csrrci,fcsr_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and FCSR special values
+   //Cross CSRRCI instruction  and FCSR special values
    cr_csrrci_fcsr_sp_val: cross csrrci,fcsr_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MSTATUS toggle bits
+   //Cross CSRRCI instruction  and MSTATUS toggle bits
    cr_csrrci_mstatus_val: cross csrrci,mstatus_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MSTATUS special values
+   //Cross CSRRCI instruction  and MSTATUS special values
    cr_csrrci_mstatus_sp_val: cross csrrci,mstatus_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MISA special values
+   //Cross CSRRCI instruction  and MISA special values
    cr_csrrci_misa_sp_val: cross csrrci,misa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MIE toggle bits
+   //Cross CSRRCI instruction  and MIE toggle bits
    cr_csrrci_mie_val: cross csrrci,mie_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MIE special values
+   //Cross CSRRCI instruction  and MIE special values
    cr_csrrci_mie_sp_val: cross csrrci,mie_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MTVEC toggle bits
+   //Cross CSRRCI instruction  and MTVEC toggle bits
    cr_csrrci_mtvec_val: cross csrrci,mtvec_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MTVEC special values
+   //Cross CSRRCI instruction  and MTVEC special values
    cr_csrrci_mtvec_sp_val: cross csrrci,mtvec_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MSCRATCH toggle bits
+   //Cross CSRRCI instruction  and MSCRATCH toggle bits
    cr_csrrci_mscratch_val: cross csrrci,mscratch_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MSCRATCH special values
+   //Cross CSRRCI instruction  and MSCRATCH special values
    cr_csrrci_mscratch_sp_val: cross csrrci,mscratch_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MEPC toggle bits
+   //Cross CSRRCI instruction  and MEPC toggle bits
    cr_csrrci_mepc_val: cross csrrci,mepc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MEPC special values
+   //Cross CSRRCI instruction  and MEPC special values
    cr_csrrci_mepc_sp_val: cross csrrci,mepc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCAUSE toggle bits
+   //Cross CSRRCI instruction  and MCAUSE toggle bits
    cr_csrrci_mcause_val: cross csrrci,mcause_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCAUSE special values
+   //Cross CSRRCI instruction  and MCAUSE special values
    cr_csrrci_mcause_sp_val: cross csrrci,mcause_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MTVAL toggle bits
+   //Cross CSRRCI instruction  and MTVAL toggle bits
    cr_csrrci_mtval_val: cross csrrci,mtval_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MTVAL special values
+   //Cross CSRRCI instruction  and MTVAL special values
    cr_csrrci_mtval_sp_val: cross csrrci,mtval_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCYCLE toggle bits
+   //Cross CSRRCI instruction  and MCYCLE toggle bits
    cr_csrrci_mcycle_val: cross csrrci,mcycle_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCYCLE special values
+   //Cross CSRRCI instruction  and MCYCLE special values
    cr_csrrci_mcycle_sp_val: cross csrrci,mcycle_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCYCLEH toggle bits
+   //Cross CSRRCI instruction  and MCYCLEH toggle bits
    cr_csrrci_mcycleh_val: cross csrrci,mcycleh_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCYCLEH special values
+   //Cross CSRRCI instruction  and MCYCLEH special values
    cr_csrrci_mcycleh_sp_val: cross csrrci,mcycleh_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MINSTRET toggle bits
+   //Cross CSRRCI instruction  and MINSTRET toggle bits
    cr_csrrci_minstret_val: cross csrrci,minstret_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MINSTRET special values
+   //Cross CSRRCI instruction  and MINSTRET special values
    cr_csrrci_minstret_sp_val: cross csrrci,minstret_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MINSTRETH toggle bits
+   //Cross CSRRCI instruction  and MINSTRETH toggle bits
    cr_csrrci_minstreth_val: cross csrrci,minstreth_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MINSTRETH special values
+   //Cross CSRRCI instruction  and MINSTRETH special values
    cr_csrrci_minstreth_sp_val: cross csrrci,minstreth_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MVENDORID special values
+   //Cross CSRRCI instruction  and MVENDORID special values
    cr_csrrci_mvendorid_sp_val: cross csrrci,mvendorid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MARCHID special values
+   //Cross CSRRCI instruction  and MARCHID special values
    cr_csrrci_marchid_sp_val: cross csrrci,marchid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MIMPID special values
+   //Cross CSRRCI instruction  and MIMPID special values
    cr_csrrci_mimpid_sp_val: cross csrrci,mimpid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MHARTID special values
+   //Cross CSRRCI instruction  and MHARTID special values
    cr_csrrci_mhartid_sp_val: cross csrrci,mhartid_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT0 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT0 toggle bits
    cr_csrrci_mcontext0_val: cross csrrci,mcontext0_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT0 special values
+   //Cross CSRRCI instruction  and MCONTEXT0 special values
    cr_csrrci_mcontext0_sp_val: cross csrrci,mcontext0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT1 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT1 toggle bits
    cr_csrrci_mcontext1_val: cross csrrci,mcontext1_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT1 special values
+   //Cross CSRRCI instruction  and MCONTEXT1 special values
    cr_csrrci_mcontext1_sp_val: cross csrrci,mcontext1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT2 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT2 toggle bits
    cr_csrrci_mcontext2_val: cross csrrci,mcontext2_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT2 special values
+   //Cross CSRRCI instruction  and MCONTEXT2 special values
    cr_csrrci_mcontext2_sp_val: cross csrrci,mcontext2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT3 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT3 toggle bits
    cr_csrrci_mcontext3_val: cross csrrci,mcontext3_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT3 special values
+   //Cross CSRRCI instruction  and MCONTEXT3 special values
    cr_csrrci_mcontext3_sp_val: cross csrrci,mcontext3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT4 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT4 toggle bits
    cr_csrrci_mcontext4_val: cross csrrci,mcontext4_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT4 special values
+   //Cross CSRRCI instruction  and MCONTEXT4 special values
    cr_csrrci_mcontext4_sp_val: cross csrrci,mcontext4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT5 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT5 toggle bits
    cr_csrrci_mcontext5_val: cross csrrci,mcontext5_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT5 special values
+   //Cross CSRRCI instruction  and MCONTEXT5 special values
    cr_csrrci_mcontext5_sp_val: cross csrrci,mcontext5_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT6 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT6 toggle bits
    cr_csrrci_mcontext6_val: cross csrrci,mcontext6_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT6 special values
+   //Cross CSRRCI instruction  and MCONTEXT6 special values
    cr_csrrci_mcontext6_sp_val: cross csrrci,mcontext6_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT7 toggle bits
+   //Cross CSRRCI instruction  and MCONTEXT7 toggle bits
    cr_csrrci_mcontext7_val: cross csrrci,mcontext7_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MCONTEXT7 special values
+   //Cross CSRRCI instruction  and MCONTEXT7 special values
    cr_csrrci_mcontext7_sp_val: cross csrrci,mcontext7_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MPC toggle bits
+   //Cross CSRRCI instruction  and MPC toggle bits
    cr_csrrci_mpc_val: cross csrrci,mpc_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MPC special values
+   //Cross CSRRCI instruction  and MPC special values
    cr_csrrci_mpc_sp_val: cross csrrci,mpc_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MSP toggle bits
+   //Cross CSRRCI instruction  and MSP toggle bits
    cr_csrrci_msp_val: cross csrrci,msp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and MSP special values
+   //Cross CSRRCI instruction  and MSP special values
    cr_csrrci_msp_sp_val: cross csrrci,msp_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and KISA special values
+   //Cross CSRRCI instruction  and KISA special values
    cr_csrrci_kisa_sp_val: cross csrrci,kisa_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and KSCM0 special values
+   //Cross CSRRCI instruction  and KSCM0 special values
    cr_csrrci_kscm0_sp_val: cross csrrci,kscm0_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and KSCM1 special values
+   //Cross CSRRCI instruction  and KSCM1 special values
    cr_csrrci_kscm1_sp_val: cross csrrci,kscm1_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and KSCM2 special values
+   //Cross CSRRCI instruction  and KSCM2 special values
    cr_csrrci_kscm2_sp_val: cross csrrci,kscm2_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and KSCM3 special values
+   //Cross CSRRCI instruction  and KSCM3 special values
    cr_csrrci_kscm3_sp_val: cross csrrci,kscm3_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and KSCM4 special values
+   //Cross CSRRCI instruction  and KSCM4 special values
    cr_csrrci_kscm4_sp_val: cross csrrci,kscm4_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and RD toggle bits
+   //Cross CSRRCI instruction  and RD toggle bits
    cr_csrrci_rd_val: cross csrrci,rd_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and RD special values
+   //Cross CSRRCI instruction  and RD special values
    cr_csrrci_rd_sp_val: cross csrrci,rd_sp_val {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and WAR hazard
+   //Cross CSRRCI instruction  and WAR hazard
    cr_csrrci_war_hazard: cross csrrci,war_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and WAW hazard
+   //Cross CSRRCI instruction  and WAW hazard
    cr_csrrci_waw_hazard: cross csrrci,waw_hazard_hit {
       option.weight = 1;
    }
 
-   //Cross CSRRCI instruction and RAW hazard
+   //Cross CSRRCI instruction  and RAW hazard
    cr_csrrci_raw_hazard: cross csrrci,raw_hazard_hit {
       option.weight = 1;
    }
