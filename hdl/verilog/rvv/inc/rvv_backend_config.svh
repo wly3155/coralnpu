@@ -10,7 +10,8 @@
 //`define ZVFBFWMA_ON
 
 // LSU interaction
-`define UNMK_USCS_LOAD_NOHANDSHAKE
+// Disable until scalar side supports NOHANDSHAKE
+// `define UNMK_USCS_LOAD_NOHANDSHAKE
 
 // ARBITER
 `define ARBITER_ON
