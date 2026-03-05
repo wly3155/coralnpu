@@ -27,6 +27,30 @@ create_generated_clock -name clk_aon [get_pin i_clkgen/i_clkgen/pll/CLKOUT4]
 # Reset
 set_property -dict { PACKAGE_PIN AR19 IOSTANDARD LVCMOS18 } [get_ports { rst_ni }];
 
+## False Paths ISP (from config registers)
+## Timing exceptions for ISP static configuration registers
+## These registers are statically configured by software before the ISP is enabled.
+#### MOST BASIC (matches only what we see failing now) ###
+#set_false_path -from [get_cells -quiet -hierarchical -filter {NAME =~ *u_isp_regs/*_reg*}] -to [get_cells -quiet -hierarchical -filter {NAME =~ *u_isp_tpg_cfg/*_reg*}]
+
+### MORE COMPLETE Should match everywhere these paths go. Note negatives omitted list ###
+# *pvci*: The bus interface, ensuring your read/write handshaking still meets setup and hold times.
+# *u_marvin_ctrl*: The master controller, ensuring the signals that actually kick off or reset the pipeline are timed correctly.
+# *u_isp_regs/*: Internal register readbacks or state updates.
+# We explicitly false-path from the config registers into all datapath processing modules
+# within the marvin top-level wrapper, but importantly, we exclude the readback 
+# bridges and control bus (PVCI/AHB) to maintain readback timing.
+set_false_path -from [get_cells -quiet -hierarchical -filter {NAME =~ *u_isp_regs/*_reg*}] -to [get_cells -quiet -hierarchical -filter {NAME =~ *u_marvin_top*/*_reg* && NAME !~ *u_isp_regs/* && NAME !~ *pvci* && NAME !~ *u_marvin_ctrl*}]
+
+# Ignore setup/hold for static configuration register readbacks (massive muxes)
+set_false_path -to [get_cells -quiet -hierarchical -filter {NAME =~ *u_isp*/*cfg_mi_rdata_reg*}]
+
+# Ignore static ISP memory buffer settings driving into address generators because they are set before the pixel DMA engine is turned on
+set_false_path -from [get_cells -quiet -hierarchical -filter {NAME =~ *u_marvin_mi*/*_base_ad_reg*}]
+set_false_path -from [get_cells -quiet -hierarchical -filter {NAME =~ *u_marvin_mi*/*_size_reg*}]
+set_false_path -from [get_cells -quiet -hierarchical -filter {NAME =~ *u_marvin_mi*/*_start_reg*}]
+
+
 # JTAG
 # 500 kHz clock constraint
 create_clock -period 2000.00 -name jtag_tck_i -waveform {0 1000} [get_ports {tck_i}]
