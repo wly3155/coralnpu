@@ -17,6 +17,8 @@ import argparse
 import math
 import time
 import os
+import libusb_package
+import usb.core
 from pyftdi.ftdi import Ftdi, FtdiFeatureError
 from elftools.elf.elffile import ELFFile
 from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatus
@@ -26,6 +28,14 @@ class FtdiSpiMaster:
 
     def __init__(self, usb_serial, ftdi_port=1, csr_base_addr=0x30000):
         """Initializes the FTDI SPI master."""
+        backend = libusb_package.get_libusb1_backend()
+        if backend is None:
+            raise RuntimeError("Could not find a USB backend even with libusb-package.")
+
+        # We perform a dummy find using the custom backend.
+        # This often "registers" the backend for the current process.
+        usb.core.find(backend=backend)
+
         self.csr_base_addr = csr_base_addr
         # pyftdi uses ftdi://<vendor>:<product>/<serial> or ftdi://<vendor>:<product>:<index>
         url = f'ftdi://::{usb_serial}/{ftdi_port}'

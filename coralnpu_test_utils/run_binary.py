@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# /// script
+# dependencies = [
+#   "libusb_package",
+#   "pyelftools",
+#   "pyftdi",
+# ]
+# ///
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +22,24 @@
 # limitations under the License.
 
 import argparse
+import os
+import sys
 import time
+
+# To support 'import coralnpu_hw.coralnpu_test_utils' without Bazel:
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_script_dir)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+try:
+    import coralnpu_hw
+except ImportError:
+    import types
+    _coralnpu_hw = types.ModuleType("coralnpu_hw")
+    _coralnpu_hw.__path__ = [_project_root]
+    sys.modules["coralnpu_hw"] = _coralnpu_hw
+
 from elftools.elf.elffile import ELFFile
 from coralnpu_hw.coralnpu_test_utils.ftdi_spi_master import FtdiSpiMaster
 

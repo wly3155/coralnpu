@@ -101,6 +101,7 @@ py_library(
     name = "ftdi_spi_master_lib",
     srcs = ["ftdi_spi_master.py"],
     deps = [
+        requirement("libusb_package"),
         requirement("pyftdi"),
         requirement("pyelftools"),
         ":spi_constants",
