@@ -38,6 +38,7 @@ class SCore(p: Parameters) extends Module {
     val irq = Input(Bool())
     val dm = new CoreDMIO(p)
     val timer_irq = Input(Bool())
+    val software_irq = Input(Bool())
 
     val ibus = new IBusIO(p)
     val dbus = new DBusIO(p)
@@ -230,6 +231,7 @@ class SCore(p: Parameters) extends Module {
   io.wfi    := csr.io.wfi
   csr.io.irq := io.irq
   csr.io.timer_irq := io.timer_irq
+  csr.io.software_irq := io.software_irq
 
   // ---------------------------------------------------------------------------
   // Load/Store Unit

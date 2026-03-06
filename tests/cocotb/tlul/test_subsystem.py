@@ -759,6 +759,80 @@ async def test_timer_interrupt(dut):
 
 
 @cocotb.test()
+async def test_software_interrupt(dut):
+    """Loads and executes the software interrupt test. Verifies CLINT msip
+    triggers a machine software interrupt that is handled via mtvec."""
+    clock = await setup_dut(dut)
+
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32)
+    await host_if.init()
+
+    r = runfiles.Create()
+    elf_path = r.Rlocation("coralnpu_hw/tests/cocotb/software_interrupt_test.elf")
+    assert elf_path, "Could not find software_interrupt_test.elf"
+
+    with open(elf_path, "rb") as f:
+        entry_point = await load_elf(dut, f, host_if)
+
+    dut._log.info(f"Software interrupt test loaded. Entry point: 0x{entry_point:08x}")
+
+    # Program start PC, release clock gate, release reset
+    coralnpu_pc_csr_addr = 0x30004
+    coralnpu_reset_csr_addr = 0x30000
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_pc_csr_addr, data=entry_point, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=1, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    await ClockCycles(dut.io_clk_i, 1)
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    # Wait for program to reach the spin-wait loop
+    await ClockCycles(dut.io_clk_i, 1000)
+
+    # --- Trigger Software Interrupt ---
+    CLINT_MSIP = 0x02000000
+    dut._log.info("Triggering software interrupt via CLINT msip...")
+    write_txn = create_a_channel_req(
+        address=CLINT_MSIP, data=1, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    dut._log.info("Waiting for software interrupt test to complete...")
+    timeout_cycles = 1_000_000
+    for i in range(timeout_cycles):
+        if dut.io_external_ports_halted.value == 1:
+            break
+        await ClockCycles(dut.io_clk_i, 1)
+    else:
+        assert False, f"Timeout: Program did not halt within {timeout_cycles} cycles."
+
+    dut._log.info("Program halted.")
+    # Check fault (port 1)
+    assert dut.io_external_ports_fault.value == 0, "Program halted with fault!"
+    dut._log.info("Software interrupt test passed.")
+
+
+@cocotb.test()
 async def test_ibus_fetch_from_sram(dut):
     """Tests instruction fetch via AXI bus from SRAM (execute from external memory).
 

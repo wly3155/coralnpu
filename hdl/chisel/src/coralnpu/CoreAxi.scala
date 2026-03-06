@@ -38,6 +38,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     // Boot address (loaded into pcStartReg on reset)
     val boot_addr = Input(UInt(p.fetchAddrBits.W))
     val timer_irq = Input(Bool())
+    val software_irq = Input(Bool())
     // Debug data interface
     val debug = new DebugIO(p)
     val dm = new DebugModuleIO(p)
@@ -98,13 +99,15 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     // Register interrupts at the boundary to break timing paths to ibus.
     val irq_reg = RegNext(io.irq, false.B)
     val timer_irq_reg = RegNext(io.timer_irq, false.B)
+    val software_irq_reg = RegNext(io.software_irq, false.B)
 
-    cg.io.enable := irq_reg || timer_irq_reg || (!csr.io.cg && !core.io.wfi) || dm.io.haltreq(0)
+    cg.io.enable := irq_reg || timer_irq_reg || software_irq_reg || (!csr.io.cg && !core.io.wfi) || dm.io.haltreq(0)
     io.halted := core.io.halted
     io.fault := core.io.fault
     io.wfi := core.io.wfi
     core.io.irq := irq_reg || dm.io.haltreq(0)
     core.io.timer_irq := timer_irq_reg
+    core.io.software_irq := software_irq_reg
     csr.io.halted := core.io.halted
     csr.io.fault := core.io.fault
     csr.io.coralnpu_csr := core.io.csr.out

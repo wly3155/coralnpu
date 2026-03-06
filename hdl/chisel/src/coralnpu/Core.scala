@@ -42,6 +42,7 @@ class Core(p: Parameters, moduleName: String) extends Module with RequireAsyncRe
     val wfi = Output(Bool())
     val irq = Input(Bool())
     val timer_irq = Input(Bool())
+    val software_irq = Input(Bool())
     val debug_req = Input(Bool())
     val dm = new CoreDMIO(p)
 
@@ -74,6 +75,7 @@ class Core(p: Parameters, moduleName: String) extends Module with RequireAsyncRe
   io.wfi    := score.io.wfi
   score.io.irq := io.irq
   score.io.timer_irq := io.timer_irq
+  score.io.software_irq := io.software_irq
 
   score.io.dm <> io.dm
 

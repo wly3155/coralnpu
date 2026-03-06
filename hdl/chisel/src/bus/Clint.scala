@@ -19,6 +19,7 @@ import chisel3.util._
 import coralnpu.Parameters
 
 object ClintRegister extends ChiselEnum {
+  val MSIP        = Value("h0000".U(16.W))
   val MTIMECMP_LO = Value("h4000".U(16.W))
   val MTIMECMP_HI = Value("h4004".U(16.W))
   val MTIME_LO    = Value("hBFF8".U(16.W))
@@ -30,16 +31,19 @@ class Clint(p: Parameters) extends Module {
   val io     = IO(new Bundle {
     val tl   = Flipped(new OpenTitanTileLink.Host2Device(tlul_p))
     val mtip = Output(Bool())
+    val msip = Output(Bool())
   })
 
   // Standard SiFive CLINT register offsets
   import ClintRegister._
 
+  val msip     = RegInit(0.U(32.W))
   val mtime    = RegInit(0.U(64.W))
   val mtimecmp = RegInit("xFFFFFFFFFFFFFFFF".U(64.W))
 
-  // Timer interrupt: active when mtime >= mtimecmp
+  // Interrupts
   io.mtip := mtime >= mtimecmp
+  io.msip := msip(0)
 
   // TileLink Interface
   val tl_a = io.tl.a
@@ -58,6 +62,8 @@ class Clint(p: Parameters) extends Module {
   val is_write = (tl_a.bits.opcode === TLULOpcodesA.PutFullData.asUInt ||
     tl_a.bits.opcode === TLULOpcodesA.PutPartialData.asUInt)
   val tl_a_write_fire = tl_a.fire && is_write
+
+  msip := Mux(tl_a_write_fire && addr_offset === MSIP.asUInt, Cat(0.U(31.W), tl_a.bits.data(0)), msip)
 
   // mtime increments every cycle, but can be overwritten by TLUL writes.
   // Increment is suppressed if any part of mtime or mtimecmp is being written.
@@ -86,6 +92,7 @@ class Clint(p: Parameters) extends Module {
 
   val read_data = MuxLookup(addr_offset, 0.U)(
     Seq(
+      MSIP.asUInt        -> msip,
       MTIMECMP_LO.asUInt -> mtimecmp(31, 0),
       MTIMECMP_HI.asUInt -> mtimecmp(63, 32),
       MTIME_LO.asUInt    -> mtime(31, 0),

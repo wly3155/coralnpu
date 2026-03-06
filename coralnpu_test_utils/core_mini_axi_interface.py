@@ -163,6 +163,7 @@ class CoreMiniAxiInterface:
     self.dut.io_aclk.value = 0
     self.dut.io_irq.value = 0
     self.dut.io_timer_irq.value = 0
+    self.dut.io_software_irq.value = 0
     self.dut.io_te.value = 0
     self.dut.io_boot_addr.value = 0
     # We drive the DM directly via the CSR route.

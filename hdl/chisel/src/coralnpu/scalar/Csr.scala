@@ -218,6 +218,7 @@ class Csr(p: Parameters) extends Module {
       val debug_pc = Valid(UInt(p.fetchAddrBits.W))
     }
     val timer_irq = Input(Bool())
+    val software_irq = Input(Bool())
     val trace = Output(new CsrTraceIO(p))
   })
 
@@ -382,7 +383,8 @@ class Csr(p: Parameters) extends Module {
 
   val mtip_pending = io.timer_irq && mie(7)
   val meip_pending = io.irq && mie(11)
-  wfi := Mux(wfi, !(mtip_pending || meip_pending || io.dm.debug_req), io.bru.in.wfi)
+  val msip_pending = io.software_irq && mie(3)
+  wfi := Mux(wfi, !(mtip_pending || meip_pending || msip_pending || io.dm.debug_req), io.bru.in.wfi)
 
   io.halted := halted
   io.fault  := fault
@@ -400,7 +402,7 @@ class Csr(p: Parameters) extends Module {
       mstatusEn   -> Cat(0.U(17.W), fs, 3.U(2.W), vs, 0.U(1.W), mstatus_mpie, 0.U(3.W), mstatus_mie, 0.U(3.W)),
       misaEn      -> misa,
       mieEn       -> mie,
-      mipEn       -> Cat(0.U(20.W), io.irq, 0.U(3.W), io.timer_irq, 0.U(7.W)),
+      mipEn       -> Cat(0.U(20.W), io.irq, 0.U(3.W), io.timer_irq, 0.U(3.W), io.software_irq, 0.U(3.W)),
       mtvecEn     -> mtvec,
       mscratchEn  -> mscratch,
       mepcEn      -> mepc,
@@ -466,7 +468,7 @@ class Csr(p: Parameters) extends Module {
     when (fcsrEn)       { fflags    := wdata(4,0)
                           frm       := wdata(7,5) }
     when (mstatusEn)    { mstatus_mie := wdata(3); mstatus_mpie := wdata(7) }
-    when (mieEn)        { mie       := wdata & "h880".U }
+    when (mieEn)        { mie       := wdata & "h888".U }
     when (mtvecEn)      { mtvec     := wdata }
     when (mscratchEn)   { mscratch  := wdata }
     when (mepcEn)       { mepc      := wdata }
@@ -581,11 +583,12 @@ class Csr(p: Parameters) extends Module {
 
   // Interrupt generation
   val in_debug = mode === CsrMode.Debug
-  val interrupt_pending = (mtip_pending || meip_pending) && mstatus_mie && !in_debug
+  val interrupt_pending = (mtip_pending || meip_pending || msip_pending) && mstatus_mie && !in_debug
 
   io.bru.out.interrupt := interrupt_pending
   io.bru.out.interrupt_cause := MuxCase(0.U, Seq(
     meip_pending -> "x8000000B".U(32.W),
+    msip_pending -> "x80000003".U(32.W),
     mtip_pending -> "x80000007".U(32.W),
   ))
 

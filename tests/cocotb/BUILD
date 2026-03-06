@@ -504,6 +504,13 @@ coralnpu_v2_binary(
 )
 
 coralnpu_v2_binary(
+    name = "software_interrupt_test",
+    srcs = [
+        "software_interrupt_test.cc",
+    ],
+)
+
+coralnpu_v2_binary(
     name = "float_csr_interlock_test",
     srcs = [
         "float_csr_interlock_test.S",

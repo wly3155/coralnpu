@@ -250,11 +250,15 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
       xbarPort.reset := ioPort.reset
     }
 
-    // --- Wire CLINT mtip to core timer_irq ---
+    // --- Wire CLINT mtip/msip to core timer_irq/software_irq ---
     // Override the external port connections: connect clint's mtip directly to core's timer_irq
     val clintMtip = modulePorts("clint.io.mtip")
     val coreTimerIrq = modulePorts("rvv_core.io.timer_irq")
     coreTimerIrq := clintMtip
+
+    val clintMsip = modulePorts("clint.io.msip")
+    val coreSoftwareIrq = modulePorts("rvv_core.io.software_irq")
+    coreSoftwareIrq := clintMsip
 
     // --- DDR AXI Interface ---
     val ddrAsyncPorts = io.async_ports_devices("ddr").asInstanceOf[ClockResetBundle]
