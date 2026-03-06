@@ -75,6 +75,9 @@ case class IspParameters(
   dummy: Int = 0
 ) extends ModuleParameters
 
+/** Parameters for the PLIC module. */
+case class PlicParameters(numInterrupts: Int, priorityWidth: Int) extends ModuleParameters
+
 
 /**
  * Defines the parameters for a Chisel module to be instantiated within the subsystem.
@@ -137,7 +140,6 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         ExternalPort("halted", Bool, Out, "io.halted"),
         ExternalPort("fault",  Bool, Out, "io.fault"),
         ExternalPort("wfi",    Bool, Out, "io.wfi"),
-        ExternalPort("irq",    Bool, In,  "io.irq"),
         ExternalPort("te",     Bool, In,  "io.te"),
         ExternalPort("boot_addr", Logic(32), In, "io.boot_addr"),
         ExternalPort("dm_req_valid", Bool, In, "io.dm.req.valid"),
@@ -228,6 +230,15 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
       params = ClintParameters,
       deviceConnections = Map("io.tl" -> "clint"),
       externalPorts = Seq.empty
+    ),
+    ChiselModuleConfig(
+      name = "plic",
+      moduleClass = "bus.Plic",
+      params = PlicParameters(numInterrupts = 31, priorityWidth = 3),
+      deviceConnections = Map("io.tl" -> "plic"),
+      externalPorts = Seq(
+        ExternalPort("ext_intrs", Logic(31), In, "io.srcs")
+      )
     )
   )
 }

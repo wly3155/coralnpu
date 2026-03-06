@@ -833,6 +833,113 @@ async def test_software_interrupt(dut):
 
 
 @cocotb.test()
+async def test_plic(dut):
+    """Loads and executes the PLIC test. Verifies PLIC can handle both level
+    and edge triggered interrupts."""
+    clock = await setup_dut(dut)
+
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32)
+    await host_if.init()
+
+    # UART1 responder for logging
+    uart1_if = TileLinkULInterface(
+        dut,
+        device_if_name="io_external_devices_uart1",
+        clock_name="io_clk_i",
+        reset_name="io_rst_ni",
+        width=32,
+    )
+    await uart1_if.init()
+
+    async def uart1_responder():
+        while True:
+            req = await uart1_if.device_get_request()
+            if int(req["opcode"]) in [0, 1]:
+                char = int(req["data"]) & 0xFF
+                if char != 0:
+                    import sys
+                    sys.stdout.write(chr(char))
+                    sys.stdout.flush()
+                await uart1_if.device_respond(
+                    opcode=0, param=0, size=req["size"], source=req["source"]
+                )
+            elif int(req["opcode"]) == 4:
+                await uart1_if.device_respond(
+                    opcode=1, param=0, size=req["size"], source=req["source"], data=0
+                )
+
+    cocotb.start_soon(uart1_responder())
+
+    r = runfiles.Create()
+    elf_path = r.Rlocation("coralnpu_hw/tests/cocotb/plic_test.elf")
+    assert elf_path, "Could not find plic_test.elf"
+
+    with open(elf_path, "rb") as f:
+        entry_point = await load_elf(dut, f, host_if)
+
+    dut._log.info(f"PLIC test loaded. Entry point: 0x{entry_point:08x}")
+
+    # Program start PC, release clock gate, release reset
+    coralnpu_pc_csr_addr = 0x30004
+    coralnpu_reset_csr_addr = 0x30000
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_pc_csr_addr, data=entry_point, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    await host_if.host_get_response()
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=1, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    await host_if.host_get_response()
+
+    await ClockCycles(dut.io_clk_i, 1)
+
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=host_if.width)
+    await host_if.host_put(write_txn)
+    await host_if.host_get_response()
+
+    # Wait for program to configure PLIC
+    await ClockCycles(dut.io_clk_i, 2000)
+
+    # --- Trigger Source 1 (Level) ---
+    dut._log.info("Triggering PLIC Source 1 (Level)...")
+    dut.io_external_ports_ext_intrs.value = 1
+    await ClockCycles(dut.io_clk_i, 100)
+    # Level source stays high, but gateway should be 'waiting' after claim
+
+    # --- Trigger Source 2 (Edge) ---
+    dut._log.info("Triggering PLIC Source 2 (Edge)...")
+    dut.io_external_ports_ext_intrs.value = 3 # bits [1:0] high. source 2 is bit 1.
+    await ClockCycles(dut.io_clk_i, 10)
+    dut.io_external_ports_ext_intrs.value = 1 # pulse source 2
+
+    # Clear all sources eventually
+    await ClockCycles(dut.io_clk_i, 1000)
+    dut.io_external_ports_ext_intrs.value = 0
+
+    dut._log.info("Waiting for PLIC test to complete...")
+    timeout_cycles = 1_000_000
+    for i in range(timeout_cycles):
+        if dut.io_external_ports_halted.value == 1:
+            break
+        await ClockCycles(dut.io_clk_i, 1)
+    else:
+        assert False, f"Timeout: Program did not halt within {timeout_cycles} cycles."
+
+    dut._log.info("Program halted.")
+    # Check fault (port 1)
+    assert dut.io_external_ports_fault.value == 0, "Program halted with fault!"
+    dut._log.info("PLIC test passed.")
+
+
+@cocotb.test()
 async def test_ibus_fetch_from_sram(dut):
     """Tests instruction fetch via AXI bus from SRAM (execute from external memory).
 
@@ -1212,6 +1319,7 @@ async def test_boot_addr_override(dut):
 
     await ClockCycles(dut.io_clk_i, 1)
 
+    # Release reset
     dut._log.info("Releasing reset...")
     write_txn = create_a_channel_req(
         address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=host_if.width

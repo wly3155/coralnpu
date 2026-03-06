@@ -172,6 +172,13 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
           clint_p.lsuDataBits = 32
           clint_p.axi2IdBits = 10
           Module(new bus.Clint(clint_p))
+
+        case p: PlicParameters =>
+          val plic_p = new Parameters
+          plic_p.lsuDataBits = 32
+          plic_p.axi2IdBits = 10
+          Module(new bus.Plic(plic_p, p.numInterrupts, p.priorityWidth))
+
         case p: IspParameters => null // Handled externally
       }
     }
@@ -259,6 +266,11 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
     val clintMsip = modulePorts("clint.io.msip")
     val coreSoftwareIrq = modulePorts("rvv_core.io.software_irq")
     coreSoftwareIrq := clintMsip
+
+    // --- Wire PLIC irq to core irq ---
+    val plicIrq = modulePorts("plic.io.irq")
+    val coreIrq = modulePorts("rvv_core.io.irq")
+    coreIrq := plicIrq
 
     // --- DDR AXI Interface ---
     val ddrAsyncPorts = io.async_ports_devices("ddr").asInstanceOf[ClockResetBundle]

@@ -33,6 +33,7 @@ chisel_library(
         "Axi2TLUL.scala",
         "Clint.scala",
         "DmaEngine.scala",
+        "Plic.scala",
         "GPIO.scala",
         "SecdedEncoderTestbench.scala",
         "Spi2TLUL.scala",

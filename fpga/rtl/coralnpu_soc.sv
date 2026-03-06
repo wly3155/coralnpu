@@ -634,7 +634,7 @@ module coralnpu_soc
     .io_external_ports_halted(io_halted),      // halted
     .io_external_ports_fault(io_fault),       // fault
     .io_external_ports_wfi(),               // wfi (unused)
-    .io_external_ports_irq(1'b0),           // irq (tied off)
+    .io_external_ports_ext_intrs(31'b0),    // ext_intrs (tied off)
     .io_external_ports_te(1'b0),           // te (tied off)
     .io_external_ports_boot_addr(boot_addr_i),
     .io_external_ports_dm_req_valid(io_dm_req_valid),

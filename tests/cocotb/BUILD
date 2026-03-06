@@ -511,6 +511,13 @@ coralnpu_v2_binary(
 )
 
 coralnpu_v2_binary(
+    name = "plic_test",
+    srcs = [
+        "plic_test.cc",
+    ],
+)
+
+coralnpu_v2_binary(
     name = "float_csr_interlock_test",
     srcs = [
         "float_csr_interlock_test.S",
