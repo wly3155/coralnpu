@@ -83,6 +83,14 @@ def coralnpu_repos():
         sha256 = "e8355ee56c2ff772334b4bfa22be17c709e5573f6d1d561c7176312156c27bd4",
     )
 
+    http_archive(
+        name = "freertos",
+        urls = ["https://github.com/FreeRTOS/FreeRTOS-Kernel/archive/refs/tags/V11.1.0.tar.gz"],
+        sha256 = "0e21928b3bcc4f9bcaf7333fb1c8c0299d97e2ec9e13e3faa2c5a7ac8a3bc573",
+        strip_prefix = "FreeRTOS-Kernel-11.1.0",
+        build_file = "@coralnpu_hw//third_party/freertos:freertos.BUILD",
+    )
+
 def coralnpu_repos2():
     """Coralnpu repos are split into two functions; this is to import repositories in order"""
 

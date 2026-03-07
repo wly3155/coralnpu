@@ -420,6 +420,18 @@ CORALNPU_CHISEL_SUBSYSTEM_TESTCASES = [
 ]
 # END_TESTCASES_FOR_coralnpu_chisel_subsystem_cocotb
 
+py_library(
+    name = "test_subsystem_lib",
+    srcs = ["test_subsystem.py"],
+    deps = [
+        "//coralnpu_test_utils:TileLinkULInterface",
+        "//coralnpu_test_utils:axi_slave",
+        "//coralnpu_test_utils:spi_master",
+        requirement("pyelftools"),
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)
+
 cocotb_test_suite(
     name = "coralnpu_chisel_subsystem_cocotb",
     simulators = ["verilator", "vcs"],
@@ -550,4 +562,26 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+)
+
+cocotb_test_suite(
+    name = "coralnpu_chisel_subsystem_highmem_cocotb_test_freertos",
+    simulators = ["verilator"],
+    testcases = ["test_freertos"],
+    testcases_vname = "FREERTOS_TESTCASE",
+    tests_kwargs = {
+        "hdl_toplevel": "CoralNPUChiselSubsystemHighmemTestHarness",
+        "waves": True,
+        "seed": "42",
+        "test_module": ["test_freertos.py"],
+        "deps": [
+            ":test_subsystem_lib",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [
+            "//tests/cocotb/freertos_app:freertos_app.elf",
+        ],
+        "size": "large",
+    },
+    verilator_model = "//hdl/chisel/src/soc:coralnpu_chisel_subsystem_highmem_testharness_model",
 )
