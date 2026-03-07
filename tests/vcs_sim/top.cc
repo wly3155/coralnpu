@@ -12,9 +12,6 @@ sc_top::sc_top(sc_core::sc_module_name name)
   core.io_irq(irq);
   core.io_te(te);
 
-  core.io_slog_valid(slog.valid);
-  core.io_slog_addr(slog.addr);
-  core.io_slog_data(slog.data);
   core.io_debug_en(debug.en);
   core.io_debug_cycles(debug.cycles);
   core.io_debug_addr_0(debug.addr_0);

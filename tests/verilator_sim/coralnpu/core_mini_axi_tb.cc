@@ -98,10 +98,6 @@ void CoreMiniAxi_tb::Connect() {
   core_->io_irq(io_irq);
   core_->io_te(io_te);
 
-  core_->io_slog_valid(slog_io_.valid);
-  core_->io_slog_addr(slog_io_.addr);
-  core_->io_slog_data(slog_io_.data);
-
   core_->io_debug_en(debug_io_.en);
   core_->io_debug_cycles(debug_io_.cycles);
   core_->io_debug_addr_0(debug_io_.addr_0);

@@ -53,7 +53,6 @@ class Core(p: Parameters, moduleName: String) extends Module with RequireAsyncRe
 
     val iflush = new IFlushIO(p)
     val dflush = new DFlushIO(p)
-    val slog = new SLogIO(p)
 
     val debug = new DebugIO(p)
   })
@@ -78,7 +77,6 @@ class Core(p: Parameters, moduleName: String) extends Module with RequireAsyncRe
 
   io.iflush <> score.io.iflush
   io.dflush <> score.io.dflush
-  io.slog   := score.io.slog
   io.debug  <> score.io.debug
 
   // ---------------------------------------------------------------------------

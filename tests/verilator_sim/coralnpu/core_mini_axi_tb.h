@@ -56,11 +56,6 @@
 struct CoreMiniAxi_tb : Sysc_tb {
  public:
   static const char* kCoreMiniAxiModelName;
-  struct SlogIO {
-    sc_signal<bool> valid;
-    sc_signal<sc_bv<5>> addr;
-    sc_signal<sc_bv<32>> data;
-  };
 
   struct DebugIO {
     sc_signal<sc_bv<4>> en;
@@ -234,7 +229,6 @@ struct CoreMiniAxi_tb : Sysc_tb {
   // NB: Used to bind bridge and checker, DUT needs manual wiring.
   CoreMiniAxiSignals tlm2axi_signals_;
   CoreMiniAxiSignals axi2tlm_signals_;
-  SlogIO slog_io_;
   DebugIO debug_io_;
   DebugModuleIO dm_io_;
   Xbar xbar_;

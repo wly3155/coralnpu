@@ -46,7 +46,6 @@ class SCore(p: Parameters) extends Module {
 
     val iflush = new IFlushIO(p)
     val dflush = new DFlushIO(p)
-    val slog = new SLogIO(p)
 
     val debug = new DebugIO(p)
   })
@@ -468,21 +467,6 @@ class SCore(p: Parameters) extends Module {
   // Local Data Bus Port
   io.dbus <> lsu.io.dbus
   io.ebus <> lsu.io.ebus
-
-  // ---------------------------------------------------------------------------
-  // Scalar logging interface
-  val slogValid = RegInit(false.B)
-  val slogAddr = RegInit(0.U(2.W))
-  val slogEn = dispatch.io.slog
-
-  slogValid := slogEn
-  when (slogEn) {
-    slogAddr := dispatch.io.inst(0).bits.inst(14,12)
-  }
-
-  io.slog.valid := slogValid
-  io.slog.addr  := MuxOR(slogValid, slogAddr)
-  io.slog.data  := MuxOR(slogValid, regfile.io.readData(0).data)
 
   // ---------------------------------------------------------------------------
   // DEBUG

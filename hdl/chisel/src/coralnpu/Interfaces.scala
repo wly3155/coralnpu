@@ -135,12 +135,6 @@ class DFlushIO(p: Parameters) extends Bundle {
   val clean = Output(Bool())  // clean and flush
 }
 
-class SLogIO(p: Parameters) extends Bundle {
-  val valid = Output(Bool())
-  val addr = Output(UInt(5.W))
-  val data = Output(UInt(32.W))
-}
-
 class RetirementBufferDebugIO(p: Parameters) extends Bundle {
   val inst = Vec(p.retirementBufferSize, Valid(new Bundle {
     val pc = UInt(32.W)

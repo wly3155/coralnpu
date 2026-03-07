@@ -38,8 +38,6 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     // Debug data interface
     val debug = new DebugIO(p)
     val dm = new DebugModuleIO(p)
-    // String logging interface
-    val slog = new SLogIO(p)
     val te = Input(Bool())
   })
   dontTouch(io)
@@ -105,7 +103,6 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     for (i <- 1 until p.csrInCount) {
       core.io.csr.in.value(i) := 0.U
     }
-    io.slog <> core.io.slog
     io.debug <> core.io.debug
     // Tie-offs (no cache to flush)
     core.io.dflush.ready := true.B
