@@ -35,6 +35,8 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     val fault = Output(Bool())
     val wfi = Output(Bool())
     val irq = Input(Bool())
+    // Boot address (loaded into pcStartReg on reset)
+    val boot_addr = Input(UInt(p.fetchAddrBits.W))
     // Debug data interface
     val debug = new DebugIO(p)
     val dm = new DebugModuleIO(p)
@@ -53,6 +55,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     // Build CSR
     val csr = Module(new CoreCSR(p))
     csr.io.internal := false.B
+    csr.io.bootAddr := io.boot_addr
 
     // Build core and connect with CSR
     val cg = Module(new ClockGate)

@@ -125,6 +125,7 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         ExternalPort("wfi",    Bool, Out, "io.wfi"),
         ExternalPort("irq",    Bool, In,  "io.irq"),
         ExternalPort("te",     Bool, In,  "io.te"),
+        ExternalPort("boot_addr", Logic(32), In, "io.boot_addr"),
         ExternalPort("dm_req_valid", Bool, In, "io.dm.req.valid"),
         ExternalPort("dm_req_ready", Bool, Out, "io.dm.req.ready"),
         ExternalPort("dm_req_bits_address", Logic(32), In, "io.dm.req.bits.address"),

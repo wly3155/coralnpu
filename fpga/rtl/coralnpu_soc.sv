@@ -26,6 +26,7 @@ module coralnpu_soc
      output logic spim_mosi_o,
      input spim_miso_i,
      input spim_clk_i,
+     input [31:0] boot_addr_i,  // PC reset value (0x0 for ITCM, 0x10000000 for ROM)
      output [7:0] gpio_o,
      output [7:0] gpio_en_o,
      input [7:0] gpio_i,
@@ -448,6 +449,7 @@ module coralnpu_soc
     .io_external_ports_wfi(),               // wfi (unused)
     .io_external_ports_irq(1'b0),           // irq (tied off)
     .io_external_ports_te(1'b0),           // te (tied off)
+    .io_external_ports_boot_addr(boot_addr_i),
     .io_external_ports_dm_req_valid(io_dm_req_valid),
     .io_external_ports_dm_req_ready(io_dm_req_ready),
     .io_external_ports_dm_req_bits_address(io_dm_req_bits_address),

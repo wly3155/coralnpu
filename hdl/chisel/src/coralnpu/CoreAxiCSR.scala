@@ -37,6 +37,7 @@ class CoreCSR(p: Parameters) extends Module {
     val reset = Output(Bool())
     val cg = Output(Bool())
     val pcStart = Output(UInt(p.fetchAddrBits.W))
+    val bootAddr = Input(UInt(p.fetchAddrBits.W))
     val halted = Input(Bool())
     val fault = Input(Bool())
     val coralnpu_csr = Input(new CsrOutIO(p))
@@ -47,7 +48,9 @@ class CoreCSR(p: Parameters) extends Module {
   // Bit 1 - Clock Gate (Active High)
   // By default, be in reset and with the clock gated.
   val resetReg = RegInit(3.U(p.fetchAddrBits.W))
+  // pcStartReg loads from boot_addr wire on the first clock after reset.
   val pcStartReg = RegInit(0.U(p.fetchAddrBits.W))
+  val bootAddrCapture = RegInit(true.B)
   val statusReg = RegInit(0.U(p.fetchAddrBits.W))
 
   // Debug module registers, conditionally present.
@@ -147,12 +150,14 @@ class CoreCSR(p: Parameters) extends Module {
 
   io.reset := resetReg(0)
   io.cg := resetReg(1)
-  io.pcStart := pcStartReg
+  io.pcStart := Mux(bootAddrCapture, io.bootAddr, pcStartReg)
   statusReg := Cat(io.fault, io.halted)
 
   // Register write logic.
   resetReg := Mux(writeEn && writeAddr === 0x0.U, writeData(31,0), resetReg)
-  pcStartReg := Mux(writeEn && writeAddr === 0x4.U, writeData(63,32), pcStartReg)
+  pcStartReg := Mux(bootAddrCapture, io.bootAddr,
+                    Mux(writeEn && writeAddr === 0x4.U, writeData(63,32), pcStartReg))
+  bootAddrCapture := false.B
   debugReqAddrReg := Mux(writeEn && writeAddr === CoreCsrAddrs.DbgReqAddr, writeData(31,0), debugReqAddrReg)
   debugReqDataReg := Mux(writeEn && writeAddr === CoreCsrAddrs.DbgReqData, writeData(63,32), debugReqDataReg)
   debugReqOpReg := Mux(writeEn && writeAddr === CoreCsrAddrs.DbgReqOp, writeData(95,64), debugReqOpReg)
@@ -186,6 +191,7 @@ class CoreAxiCSR(p: Parameters,
     val reset = Output(Bool())
     val cg = Output(Bool())
     val pcStart = Output(UInt(p.fetchAddrBits.W))
+    val bootAddr = Input(UInt(p.fetchAddrBits.W))
     val halted = Input(Bool())
     val fault = Input(Bool())
     val coralnpu_csr = Input(new CsrOutIO(p))
@@ -207,6 +213,7 @@ class CoreAxiCSR(p: Parameters,
   io.reset := csr.io.reset
   io.cg := csr.io.cg
   io.pcStart := csr.io.pcStart
+  csr.io.bootAddr := io.bootAddr
   csr.io.halted := io.halted
   csr.io.fault := io.fault
   csr.io.coralnpu_csr := io.coralnpu_csr

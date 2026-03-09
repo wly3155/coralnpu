@@ -33,6 +33,7 @@ class CoreTlul(p: Parameters, coreModuleName: String) extends RawModule {
         val fault = Output(Bool())
         val wfi = Output(Bool())
         val irq = Input(Bool())
+        val boot_addr = Input(UInt(32.W))
         val te = Input(Bool())
 
         val dm = new DebugModuleIO(p)
@@ -47,6 +48,7 @@ class CoreTlul(p: Parameters, coreModuleName: String) extends RawModule {
     coreAxi.io.aresetn := io.rst_ni
     coreAxi.io.te := io.te
     coreAxi.io.irq := io.irq
+    coreAxi.io.boot_addr := io.boot_addr
     io.wfi := coreAxi.io.wfi
     io.fault := coreAxi.io.fault
     io.halted := coreAxi.io.halted

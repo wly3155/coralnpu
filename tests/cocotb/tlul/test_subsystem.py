@@ -29,7 +29,7 @@ from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatu
 BUS_WIDTH_BITS = 128
 BUS_WIDTH_BYTES = 16
 
-async def setup_dut(dut):
+async def setup_dut(dut, boot_addr=0):
     """Common setup logic for all tests."""
     # Default all TL-UL input signals to a safe state
     for dev in ["rom", "sram", "uart0", "uart1", "i2c_master"]:
@@ -37,6 +37,7 @@ async def setup_dut(dut):
 
     getattr(dut, f"io_external_ports_dm_req_valid").value = 0 # DM req valid
     getattr(dut, f"io_external_ports_dm_rsp_ready").value = 0 # DM rsp ready
+    dut.io_external_ports_boot_addr.value = boot_addr
 
     # Start the main clock
     clock = Clock(dut.io_clk_i, 10, "ns")
@@ -822,3 +823,273 @@ async def test_ibus_fetch_from_sram(dut):
         f"DTCM verification failed: got 0x{read_data:08x}, expected 0x{expected:08x}"
 
     dut._log.info("Test passed: instruction fetch from SRAM via AXI bus works correctly.")
+
+
+@cocotb.test()
+async def test_boot_addr_sram(dut):
+    """Tests that the boot_addr wire sets pcStart on reset.
+
+    Same as test_ibus_fetch_from_sram, but instead of writing pcStartReg
+    via the test host CSR, relies on the boot_addr input wire to set the
+    initial PC on system reset. This verifies the boot_addr → pcStartReg
+    path that FPGA uses to boot from ROM.
+
+    Uses SRAM (0x20000000) as the boot target since the test harness has
+    a SRAM device port we can respond to.
+    """
+    SRAM_BASE = 0x20000000
+    DTCM_BASE = 0x00010000
+
+    # Pass boot_addr to setup_dut so it's driven before reset
+    clock = await setup_dut(dut, boot_addr=SRAM_BASE)
+
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32)
+    await host_if.init()
+
+    # SRAM device responder
+    sram_if = TileLinkULInterface(
+        dut,
+        device_if_name="io_external_devices_sram",
+        clock_name="io_clk_i",
+        reset_name="io_rst_ni",
+        width=32)
+    await sram_if.init()
+
+    mem = {}
+
+    async def sram_responder():
+        while True:
+            req = await sram_if.device_get_request()
+            addr = int(req["address"])
+            if int(req["opcode"]) in [0, 1]:
+                data = int(req["data"])
+                mask = int(req["mask"])
+                for i in range(4):
+                    if (mask >> i) & 1:
+                        mem[addr + i] = (data >> (i * 8)) & 0xFF
+                await sram_if.device_respond(
+                    opcode=0, param=0, size=req["size"], source=req["source"]
+                )
+            elif int(req["opcode"]) == 4:
+                resp_data = 0
+                for i in range(4):
+                    resp_data |= mem.get(addr + i, 0) << (i * 8)
+                await sram_if.device_respond(
+                    opcode=1, param=0, size=req["size"],
+                    source=req["source"], data=resp_data
+                )
+
+    cocotb.start_soon(sram_responder())
+
+    # Load program into SRAM via test host (same program as test_ibus_fetch_from_sram)
+    program = [
+        0x123450B7,  # LUI x1, 0x12345
+        0x00010137,  # LUI x2, 0x10
+        0x00112023,  # SW  x1, 0(x2)
+        0x08000073,  # MPAUSE
+    ]
+
+    for i, instr in enumerate(program):
+        write_txn = create_a_channel_req(
+            address=SRAM_BASE + i * 4, data=instr, mask=0xF, width=host_if.width
+        )
+        await host_if.host_put(write_txn)
+        resp = await host_if.host_get_response()
+        assert resp["error"] == 0, f"Error writing instruction {i} to SRAM"
+
+    dut._log.info("Program loaded into SRAM.")
+
+    # Do NOT write pcStartReg — it should already be SRAM_BASE from boot_addr wire.
+    # Just release clock gate and reset.
+    coralnpu_reset_csr_addr = 0x30000
+
+    dut._log.info("Releasing clock gate...")
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=1, mask=0xF, width=host_if.width
+    )
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    await ClockCycles(dut.io_clk_i, 1)
+
+    dut._log.info("Releasing reset...")
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=host_if.width
+    )
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    # Wait for completion
+    dut._log.info("Waiting for core to halt...")
+    timeout_cycles = 10000
+    for i in range(timeout_cycles):
+        if dut.io_external_ports_halted.value == 1:
+            break
+        await ClockCycles(dut.io_clk_i, 1)
+    else:
+        assert False, f"Timeout: Core did not halt within {timeout_cycles} cycles."
+
+    dut._log.info("Core halted.")
+    assert dut.io_external_ports_fault.value == 0, "Core halted with fault!"
+
+    # Verify the program wrote to DTCM
+    dut._log.info("Verifying DTCM write...")
+    read_txn = create_a_channel_req(
+        address=DTCM_BASE, width=host_if.width, is_read=True
+    )
+    await host_if.host_put(read_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0, "Error reading DTCM"
+
+    read_data = int(resp["data"])
+    expected = 0x12345000
+    dut._log.info(f"DTCM[0] = 0x{read_data:08x} (expected 0x{expected:08x})")
+    assert read_data == expected, \
+        f"DTCM verification failed: got 0x{read_data:08x}, expected 0x{expected:08x}"
+
+    dut._log.info("Test passed: boot_addr wire correctly sets pcStart on reset.")
+
+
+@cocotb.test()
+async def test_boot_addr_override(dut):
+    """Tests that pcStartReg can be overridden by a CSR write.
+
+    Verifies that even if boot_addr is set to one value (e.g. 0x12340000),
+    writing to the pcStart CSR (offset 0x4) after system reset allows the
+    core to boot from a different address (e.g. SRAM_BASE).
+    """
+    SRAM_BASE = 0x20000000
+    DTCM_BASE = 0x00010000
+    DUMMY_ADDR = 0x12340000
+
+    # Pass dummy boot_addr to setup_dut so it's captured on reset
+    clock = await setup_dut(dut, boot_addr=DUMMY_ADDR)
+
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32)
+    await host_if.init()
+
+    # SRAM device responder
+    sram_if = TileLinkULInterface(
+        dut,
+        device_if_name="io_external_devices_sram",
+        clock_name="io_clk_i",
+        reset_name="io_rst_ni",
+        width=32)
+    await sram_if.init()
+
+    mem = {}
+
+    async def sram_responder():
+        while True:
+            req = await sram_if.device_get_request()
+            addr = int(req["address"])
+            if int(req["opcode"]) in [0, 1]:
+                data = int(req["data"])
+                mask = int(req["mask"])
+                for i in range(4):
+                    if (mask >> i) & 1:
+                        mem[addr + i] = (data >> (i * 8)) & 0xFF
+                await sram_if.device_respond(
+                    opcode=0, param=0, size=req["size"], source=req["source"]
+                )
+            elif int(req["opcode"]) == 4:
+                resp_data = 0
+                for i in range(4):
+                    resp_data |= mem.get(addr + i, 0) << (i * 8)
+                await sram_if.device_respond(
+                    opcode=1, param=0, size=req["size"],
+                    source=req["source"], data=resp_data
+                )
+
+    cocotb.start_soon(sram_responder())
+
+    # Load program into SRAM via test host
+    program = [
+        0x123450B7,  # LUI x1, 0x12345
+        0x00010137,  # LUI x2, 0x10
+        0x00112023,  # SW  x1, 0(x2)
+        0x08000073,  # MPAUSE
+    ]
+
+    for i, instr in enumerate(program):
+        write_txn = create_a_channel_req(
+            address=SRAM_BASE + i * 4, data=instr, mask=0xF, width=host_if.width
+        )
+        await host_if.host_put(write_txn)
+        resp = await host_if.host_get_response()
+        assert resp["error"] == 0, f"Error writing instruction {i} to SRAM"
+
+    dut._log.info("Program loaded into SRAM.")
+
+    # Override pcStartReg via CSR write
+    coralnpu_pc_csr_addr = 0x30004
+    coralnpu_reset_csr_addr = 0x30000
+
+    dut._log.info(f"Overriding pcStartReg with 0x{SRAM_BASE:08x}...")
+    write_txn = create_a_channel_req(
+        address=coralnpu_pc_csr_addr, data=SRAM_BASE, mask=0xF, width=host_if.width
+    )
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    # Release clock gate and reset
+    dut._log.info("Releasing clock gate...")
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=1, mask=0xF, width=host_if.width
+    )
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    await ClockCycles(dut.io_clk_i, 1)
+
+    dut._log.info("Releasing reset...")
+    write_txn = create_a_channel_req(
+        address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=host_if.width
+    )
+    await host_if.host_put(write_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0
+
+    # Wait for completion
+    dut._log.info("Waiting for core to halt...")
+    timeout_cycles = 10000
+    for i in range(timeout_cycles):
+        if dut.io_external_ports_halted.value == 1:
+            break
+        await ClockCycles(dut.io_clk_i, 1)
+    else:
+        assert False, f"Timeout: Core did not halt within {timeout_cycles} cycles."
+
+    dut._log.info("Core halted.")
+    assert dut.io_external_ports_fault.value == 0, "Core halted with fault!"
+
+    # Verify the program wrote to DTCM
+    dut._log.info("Verifying DTCM write...")
+    read_txn = create_a_channel_req(
+        address=DTCM_BASE, width=host_if.width, is_read=True
+    )
+    await host_if.host_put(read_txn)
+    resp = await host_if.host_get_response()
+    assert resp["error"] == 0, "Error reading DTCM"
+
+    read_data = int(resp["data"])
+    expected = 0x12345000
+    dut._log.info(f"DTCM[0] = 0x{read_data:08x} (expected 0x{expected:08x})")
+    assert read_data == expected, \
+        f"DTCM verification failed: got 0x{read_data:08x}, expected 0x{expected:08x}"
+
+    dut._log.info("Test passed: pcStartReg CSR override works correctly.")

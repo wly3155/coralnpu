@@ -14,7 +14,8 @@
 
 module chip_verilator
     #(parameter MemInitFile = "",
-      parameter int ClockFrequencyMhz = 80)
+      parameter int ClockFrequencyMhz = 80,
+      parameter int BootAddr = 0)
     (input clk_i,
      input rst_ni,
      input prim_mubi_pkg::mubi4_t scanmode_i,
@@ -164,6 +165,7 @@ module chip_verilator
       .spim_mosi_o(spim_mosi),
       .spim_miso_i(spim_miso),
       .spim_clk_i(clk_i),
+      .boot_addr_i(BootAddr),
       .gpio_o(gpio_o),
       .gpio_en_o(gpio_en_o),
       .gpio_i(gpio_i),

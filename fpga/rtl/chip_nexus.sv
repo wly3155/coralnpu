@@ -360,6 +360,7 @@ module chip_nexus
     .spim_mosi_o(spim_mosi_o),
     .spim_miso_i(spim_miso_i),
     .spim_clk_i(clk_spim),
+    .boot_addr_i(32'h10000000),
     .gpio_o(gpio_out),
     .gpio_en_o(gpio_en),
     .gpio_i(gpio_in),

@@ -50,6 +50,11 @@ parameters:
     description: Path to ROM
     default: ""
     paramtype: vlogparam
+  BootAddr:
+    datatype: int
+    description: "PC reset value. 0 for ITCM, 0x10000000 for ROM boot."
+    default: 0
+    paramtype: vlogparam
 
 targets:
   default: &default_target
@@ -65,6 +70,7 @@ targets:
     parameters:
       - ClockFrequencyMhz
       - MemInitFile
+      - BootAddr
     tools:
       verilator:
         mode: cc
