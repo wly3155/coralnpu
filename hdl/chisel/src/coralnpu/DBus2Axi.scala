@@ -24,8 +24,8 @@ import chisel3.stage.ChiselGeneratorAnnotation
 import scala.annotation.nowarn
 
 object DBus2Axi {
-  def apply(p: Parameters): DBus2Axi = {
-    return Module(new DBus2AxiV2(p))
+  def apply(p: Parameters, id: Int = 0): DBus2Axi = {
+    return Module(new DBus2AxiV2(p, id))
   }
 }
 
@@ -48,7 +48,7 @@ class DBus2Axi(p: Parameters) extends Module {
   })
 }
 
-class DBus2AxiV2(p: Parameters) extends DBus2Axi(p) {
+class DBus2AxiV2(p: Parameters, id: Int = 0) extends DBus2Axi(p) {
   assert(!(io.dbus.valid && PopCount(io.dbus.size) =/= 1.U),
          cf"Invalid dbus size=${io.dbus.size}")
 
@@ -60,7 +60,7 @@ class DBus2AxiV2(p: Parameters) extends DBus2Axi(p) {
   io.axi.write.addr.bits.addr := io.dbus.addr
   io.axi.write.addr.bits.size := Ctz(io.dbus.size)
   io.axi.write.addr.bits.prot := 2.U
-  io.axi.write.addr.bits.id := 0.U
+  io.axi.write.addr.bits.id := id.U
 
   val wdataFired = RegInit(false.B)
   val wdataQueue = Module(new Queue(new AxiWriteData(p.axi2DataBits, p.axi2IdBits), 2))
@@ -97,7 +97,7 @@ class DBus2AxiV2(p: Parameters) extends DBus2Axi(p) {
   io.axi.read.addr.bits.addr := io.dbus.addr
   io.axi.read.addr.bits.size := Ctz(io.dbus.size)
   io.axi.read.addr.bits.prot := 2.U
-  io.axi.read.addr.bits.id := 0.U
+  io.axi.read.addr.bits.id := id.U
 
   val rdataReceived = RegInit(MakeInvalid(UInt(p.axi2DataBits.W)))
   io.axi.read.data.ready :=

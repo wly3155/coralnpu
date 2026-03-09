@@ -27,6 +27,12 @@ object MuxOR {
   }
 }
 
+// MuBi4: Uses 0x6 (True) / 0x9 (False) patterns for fault-injection resilience and signal integrity.
+object MuBi4 extends ChiselEnum {
+  val True  = Value("b0110".U(4.W))
+  val False = Value("b1001".U(4.W))
+}
+
 // An easy way to build a Wire(T) and (partially) connect some of its
 // contents.
 // This is essentially somewhere between WireDefault (which does not like

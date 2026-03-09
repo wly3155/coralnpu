@@ -16,7 +16,7 @@ package bus
 
 import chisel3._
 import chisel3.util._
-import common.CoralNPURRArbiter
+import common.{CoralNPURRArbiter, MuBi4}
 
 import coralnpu.Parameters
 
@@ -33,7 +33,7 @@ import coralnpu.Parameters
   *
   * @param p The CoralNPU parameters.
   */
-class Axi2TLUL[A_USER <: Data, D_USER <: Data](p: Parameters, userAGen: () => A_USER, userDGen: () => D_USER) extends Module {
+class Axi2TLUL[A_USER <: Data with TLUL_A_User_InstrType, D_USER <: Data](p: Parameters, userAGen: () => A_USER, userDGen: () => D_USER) extends Module {
   val tlul_p = new TLULParameters(p)
   val io = IO(new Bundle {
     val axi = Flipped(new AxiMasterIO(p.axi2AddrBits, p.axi2DataBits, p.axi2IdBits))
@@ -41,6 +41,9 @@ class Axi2TLUL[A_USER <: Data, D_USER <: Data](p: Parameters, userAGen: () => A_
     val tl_d = Flipped(Decoupled(new TileLink_D_ChannelBase(tlul_p, userDGen))) // TileLink Input
   })
 
+  // Mapping AXI ID to instr_type (MuBi4.True for instruction, MuBi4.False for data).
+  // ID 1 is for IBus, others are for DBus.
+  def idToInstrType(id: UInt): UInt = Mux(id === 1.U, MuBi4.True.asUInt, MuBi4.False.asUInt)
 
   val read_addr_q = Queue(io.axi.read.addr, entries = 2)
   val write_addr_q = Queue(io.axi.write.addr, entries = 2)
@@ -78,6 +81,7 @@ class Axi2TLUL[A_USER <: Data, D_USER <: Data](p: Parameters, userAGen: () => A_
   read_stream.bits.mask := Fill(tlul_p.w, 1.U)
   read_stream.bits.data := 0.U((8 * tlul_p.w).W)
   read_stream.bits.user := 0.U.asTypeOf(io.tl_a.bits.user)
+  read_stream.bits.user.instr_type := idToInstrType(r_current_id)
 
   val r_addr_inc = 1.U << r_current_size
 
@@ -133,6 +137,7 @@ class Axi2TLUL[A_USER <: Data, D_USER <: Data](p: Parameters, userAGen: () => A_
   write_stream.bits.mask := w_data.strb
   write_stream.bits.data := w_data.data
   write_stream.bits.user := 0.U.asTypeOf(io.tl_a.bits.user)
+  write_stream.bits.user.instr_type := idToInstrType(w_current_id)
 
   val w_addr_inc = 1.U << w_current_size
   val w_last = (w_unroll_busy && w_unroll_len === 0.U) || (!w_unroll_busy && w_req.len === 0.U)
@@ -160,11 +165,20 @@ class Axi2TLUL[A_USER <: Data, D_USER <: Data](p: Parameters, userAGen: () => A_
   arb.io.in(0) <> read_stream
   arb.io.in(1) <> write_stream
 
-  val a_intg = Module(new RequestIntegrityGen(tlul_p))
-  a_intg.io.a_i := arb.io.out.bits
+  val is_opentitan = userAGen() match {
+    case _: OpenTitanTileLink_A_User => true
+    case _ => false
+  }
+
+  if (is_opentitan) {
+    val a_intg = Module(new RequestIntegrityGen(tlul_p))
+    a_intg.io.a_i := arb.io.out.bits.asTypeOf(new OpenTitanTileLink.A_Channel(tlul_p))
+    io.tl_a.bits := a_intg.io.a_o.asTypeOf(io.tl_a.bits)
+  } else {
+    io.tl_a.bits := arb.io.out.bits
+  }
   io.tl_a.valid := arb.io.out.valid
   arb.io.out.ready := io.tl_a.ready
-  io.tl_a.bits := a_intg.io.a_o
 
   val d_is_write = io.tl_d.bits.opcode === TLULOpcodesD.AccessAck.asUInt
   val d_is_read = io.tl_d.bits.opcode === TLULOpcodesD.AccessAckData.asUInt

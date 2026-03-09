@@ -410,6 +410,7 @@ CORALNPU_CHISEL_SUBSYSTEM_TESTCASES = [
     "test_ddr_access",
     ("test_ddr_access_via_spi", "large"),
     "test_tlul_width_bridge_bug_reproduction",
+    "test_ibus_fetch_from_sram",
 ]
 # END_TESTCASES_FOR_coralnpu_chisel_subsystem_cocotb
 

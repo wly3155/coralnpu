@@ -55,14 +55,8 @@ class CoreTlul(p: Parameters, coreModuleName: String) extends RawModule {
     hostBridge.io.axi <> coreAxi.io.axi_master
     deviceBridge.io.axi <> coreAxi.io.axi_slave
 
-    val host_req_intg_gen = withClockAndReset(io.clk, (!io.rst_ni.asBool).asAsyncReset) {
-        Module(new RequestIntegrityGen(tlul_p))
-    }
-    io.tl_host.a.valid := hostBridge.io.tl_a.valid
-    hostBridge.io.tl_a.ready := io.tl_host.a.ready
-    host_req_intg_gen.io.a_i := hostBridge.io.tl_a.bits
-    host_req_intg_gen.io.a_i.user.instr_type := 9.U // MuBi4False
-    io.tl_host.a.bits := host_req_intg_gen.io.a_o
+    // Host bridge (shared between ibus and dbus)
+    io.tl_host.a <> hostBridge.io.tl_a
     hostBridge.io.tl_d <> io.tl_host.d
 
     val device_rsp_intg_gen = withClockAndReset(io.clk, (!io.rst_ni.asBool).asAsyncReset) {

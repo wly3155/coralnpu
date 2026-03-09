@@ -32,7 +32,7 @@ import scala.annotation.nowarn
   *
   * @param p The CoralNPU parameters.
   */
-class TLUL2Axi[A_USER <: Data, D_USER <: Data](p_tl: Parameters, p_axi: Parameters, userAGen: () => A_USER, userDGen: () => D_USER) extends Module {
+class TLUL2Axi[A_USER <: Data with TLUL_A_User_InstrType, D_USER <: Data](p_tl: Parameters, p_axi: Parameters, userAGen: () => A_USER, userDGen: () => D_USER) extends Module {
   val tlul_p = new TLULParameters(p_tl)
   val io = IO(new Bundle {
     val tl_a = Flipped(Decoupled(new TileLink_A_ChannelBase(tlul_p, userAGen))) // TileLink Input

@@ -17,6 +17,7 @@ package bus
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.util._
+import common.MuBi4
 
 import coralnpu.Parameters
 
@@ -442,7 +443,7 @@ class Spi2TLUL(p: Parameters) extends Module {
     a_bits.source   := 0.U
     a_bits.mask     := Fill(tlul_p.w, 1.U)
     a_bits.user     := 0.U.asTypeOf(a_bits.user)
-    a_bits.user.instr_type := 9.U // MuBi4False
+    a_bits.user.instr_type := MuBi4.False.asUInt
 
     a_bits.opcode   := Mux(write_fsm_active, TLULOpcodesA.PutFullData.asUInt, TLULOpcodesA.Get.asUInt)
     a_bits.address  := Mux(write_fsm_active,

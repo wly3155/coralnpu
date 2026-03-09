@@ -40,7 +40,11 @@ object TLULOpcodesD extends ChiselEnum {
   val End = Value(7.U(3.W))
 }
 
-class OpenTitanTileLink_A_User extends Bundle {
+trait TLUL_A_User_InstrType {
+  val instr_type: UInt
+}
+
+class OpenTitanTileLink_A_User extends Bundle with TLUL_A_User_InstrType {
   val rsvd = UInt(5.W)
   val instr_type = UInt(4.W) // mubi4_t
   val cmd_intg = UInt(7.W)
