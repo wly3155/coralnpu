@@ -61,6 +61,12 @@ case class GPIOModuleParameters(
   width: Int
 ) extends ModuleParameters
 
+/** Parameters for the DMA engine module. */
+case class DmaParameters(
+  hostDataBits: Int,
+  deviceDataBits: Int
+) extends ModuleParameters
+
 
 /**
  * Defines the parameters for a Chisel module to be instantiated within the subsystem.
@@ -172,6 +178,14 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
         ExternalPort("gpio_en_o", Logic(8), Out, "io.gpio_en_o"),
         ExternalPort("gpio_i",    Logic(8), In,  "io.gpio_i")
       )
+    ),
+    ChiselModuleConfig(
+      name = "dma",
+      moduleClass = "bus.DmaEngine",
+      params = DmaParameters(hostDataBits = 128, deviceDataBits = 32),
+      hostConnections = Map("io.tl_host" -> "dma"),
+      deviceConnections = Map("io.tl_device" -> "dma"),
+      externalPorts = Seq.empty
     )
   )
 }

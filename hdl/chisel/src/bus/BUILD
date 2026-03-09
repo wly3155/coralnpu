@@ -31,6 +31,7 @@ chisel_library(
     srcs = [
         "Axi.scala",
         "Axi2TLUL.scala",
+        "DmaEngine.scala",
         "GPIO.scala",
         "SecdedEncoderTestbench.scala",
         "Spi2TLUL.scala",
@@ -238,6 +239,16 @@ chisel_test(
 chisel_test(
     name = "gpio_test",
     srcs = ["GPIOTest.scala"],
+    deps = [
+        ":bus",
+        "//hdl/chisel/src/common:testing",
+        "//hdl/chisel/src/coralnpu:coralnpu_params",
+    ],
+)
+
+chisel_test(
+    name = "dma_engine_test",
+    srcs = ["DmaEngineTest.scala"],
     deps = [
         ":bus",
         "//hdl/chisel/src/common:testing",

@@ -122,6 +122,14 @@ coralnpu_v2_sim_test(
     deps = [":uart"],
 )
 
+coralnpu_v2_sim_test(
+    name = "dma_sim_test",
+    srcs = ["sw/dma_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
+    sim_timeout = 120,
+)
+
 coralnpu_v2_binary(
     name = "i2c_camera_test",
     srcs = ["sw/i2c_camera_test.cc"],

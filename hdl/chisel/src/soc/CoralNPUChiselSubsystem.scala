@@ -143,6 +143,14 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
           gpio_p.axi2IdBits = 10
           val gp = bus.GPIOParameters(width = p.width)
           Module(new bus.GPIO(gpio_p, gp))
+
+        case p: DmaParameters =>
+          val host_p = new Parameters
+          host_p.lsuDataBits = p.hostDataBits
+          val device_p = new Parameters
+          device_p.lsuDataBits = p.deviceDataBits
+          device_p.axi2IdBits = 10
+          Module(new bus.DmaEngine(host_p, device_p))
       }
     }
 

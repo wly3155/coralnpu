@@ -478,6 +478,37 @@ cocotb_test_suite(
     vcs_defines = VCS_DEFINES,
 )
 
+# BEGIN_TESTCASES_FOR_dma_integration_cocotb
+DMA_INTEGRATION_TESTCASES = [
+    "test_dma_csr_access",
+    "test_dma_mem_to_mem",
+    "test_dma_descriptor_chain",
+]
+# END_TESTCASES_FOR_dma_integration_cocotb
+
+cocotb_test_suite(
+    name = "dma_integration_cocotb",
+    simulators = ["verilator", "vcs"],
+    testcases = DMA_INTEGRATION_TESTCASES,
+    testcases_vname = "DMA_INTEGRATION_TESTCASES",
+    tests_kwargs = {
+        "hdl_toplevel": "CoralNPUChiselSubsystemTestHarness",
+        "waves": True,
+        "seed": "42",
+        "test_module": ["test_dma_integration.py"],
+        "deps": [
+            "//coralnpu_test_utils:TileLinkULInterface",
+        ],
+        "default_testcase_size": "small",
+        "size": "medium",
+    },
+    verilator_model = "//hdl/chisel/src/soc:coralnpu_chisel_subsystem_testharness_model",
+    vcs_verilog_sources = ["//hdl/chisel/src/soc:coralnpu_chisel_subsystem_testharness_cc_library_emit_verilog"],
+    vcs_build_args = VCS_BUILD_ARGS,
+    vcs_test_args = VCS_TEST_ARGS,
+    vcs_defines = VCS_DEFINES,
+)
+
 # BEGIN_TESTCASES_FOR_gpio_integration_cocotb
 GPIO_INTEGRATION_TESTCASES = [
     "test_gpio_integration",
