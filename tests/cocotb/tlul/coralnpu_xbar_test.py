@@ -681,3 +681,73 @@ async def test_interleaved_hosts_to_sram(dut):
         raise e
 
     responder_task.cancel()
+
+
+@cocotb.test(timeout_time=30, timeout_unit="us")
+async def test_width_bridge_same_source_pipelined(dut):
+    """Reproduction: Verify that back-to-back transactions with the same source ID work correctly.
+
+    This test triggers the clear/write ordering bug in TlulWidthBridge by sending
+    two 128-bit writes from the same host with the same source ID, and ensuring
+    the first beat of the second transaction arrives from the device in the same
+    cycle that the host accepts the response for the first transaction.
+    """
+    interfaces, clock = await setup_dut(dut)
+    timeout_ns = TIMEOUT_CYCLES * clock.period
+    device_if = interfaces["devices"][DEVICE_MAP["sram"]]
+    host_if = interfaces["hosts"][HOST_MAP["coralnpu_core"]]
+
+    # We use a source ID that is NOT used by other hosts to avoid interference.
+    # coralnpu_core is host 0.
+    test_source = 0
+
+    data0 = 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    write0 = create_a_channel_req(
+        address=SRAM_BASE, data=data0, mask=0xFFFF, width=host_if.width, source=test_source
+    )
+
+    data1 = 0x55555555555555555555555555555555
+    write1 = create_a_channel_req(
+        address=SRAM_BASE + 0x10, data=data1, mask=0xFFFF, width=host_if.width, source=test_source
+    )
+
+    async def pipelined_responder():
+        """Mock SRAM responder that provides beats back-to-back."""
+        # Wait for all 8 beats (4 for write0, 4 for write1)
+        reqs = []
+        for _ in range(8):
+            req = await device_if.device_get_request()
+            reqs.append(req)
+
+        # Send all 8 responses back-to-back.
+        # The 5th response (first beat of write1) will be sent in the same cycle
+        # as the bridge completes the 4th response (last beat of write0).
+        for i in range(8):
+            await device_if.device_respond(
+                opcode=0,
+                param=0,
+                size=reqs[i]["size"],
+                source=reqs[i]["source"],
+                width=device_if.width,
+            )
+
+    responder_task = cocotb.start_soon(pipelined_responder())
+
+    # Send both requests
+    await host_if.host_put(write0)
+    await host_if.host_put(write1)
+
+    # Wait for first response
+    resp0 = await with_timeout(host_if.host_get_response(), timeout_ns, "ns")
+    assert resp0["error"] == 0
+    assert resp0["source"] == test_source
+
+    # Wait for second response
+    # If the bug is present, the bridge might have cleared the state for test_source
+    # in the same cycle it received the first beat of write1, causing write1
+    # to never complete or have errors.
+    resp1 = await with_timeout(host_if.host_get_response(), timeout_ns, "ns")
+    assert resp1["error"] == 0
+    assert resp1["source"] == test_source
+
+    responder_task.cancel()

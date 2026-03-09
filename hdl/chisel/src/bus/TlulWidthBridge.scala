@@ -16,7 +16,7 @@ package bus
 
 import chisel3._
 import chisel3.util._
-import common.FifoX
+import common.{FifoX, MakeWireBundle}
 
 class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) extends Module {
   val io = IO(new Bundle {
@@ -58,82 +58,87 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     val d_fault_reg = RegInit(0.U(numHostSources.W))
     val beats_received = RegInit(VecInit(Seq.fill(numHostSources)(0.U(ratio.W))))
 
-    // We still need a queue to know which source is completing in what order, 
-    // OR we just use D-channel valid as the trigger.
-    // TileLink D-channel doesn't guarantee order between DIFFERENT sources, 
-    // but the bridge MUST return them in some valid order.
-    // Since we are wide-to-narrow, one host request turns into multiple narrow ones.
-    // All narrow ones for ONE host request have DIFFERENT narrow IDs (due to beat bits).
-    // But they all share the SAME host source ID.
-
     val host_source_idx = io.tl_d.d.bits.source >> log2Ceil(ratio)
     val beat_idx = io.tl_d.d.bits.source(log2Ceil(ratio)-1, 0)
 
     val d_check = Module(new ResponseIntegrityCheck(device_p))
     d_check.io.d_i := io.tl_d.d.bits
 
-    // D-channel arbitration: which aggregated response to send back?
-    // For simplicity, we can use a small FIFO to track which host source is currently completing.
-    // However, the original code used req_info_q.
-
     val active_host_source = req_info_q.io.deq.bits.source
-    val wide_resp_wire = Wire(new OpenTitanTileLink.D_Channel(host_p))
-    wide_resp_wire := d_resp_reg(active_host_source)
-    wide_resp_wire.source := active_host_source
-    wide_resp_wire.size := req_info_q.io.deq.bits.size
+    val next_beats_received = beats_received(host_source_idx) | (1.U << beat_idx)
+
+    for (s <- 0 until numHostSources) {
+      beats_received(s) := MuxCase(beats_received(s), Seq(
+        (io.tl_d.d.fire && s.U === host_source_idx) -> next_beats_received,
+        (io.tl_h.d.fire && s.U === active_host_source) -> 0.U
+      ))
+
+      for (b <- 0 until ratio) {
+        d_data_reg(s)(b) := MuxCase(d_data_reg(s)(b), Seq(
+          (io.tl_d.d.fire && s.U === host_source_idx && b.U === beat_idx) -> io.tl_d.d.bits.data,
+          (io.tl_h.d.fire && s.U === active_host_source) -> 0.U
+        ))
+      }
+
+      val s_match_d = io.tl_d.d.fire && s.U === host_source_idx
+      val s_match_h = io.tl_h.d.fire && s.U === active_host_source
+
+      d_resp_reg(s) := MuxCase(d_resp_reg(s), Seq(
+        s_match_d -> MakeWireBundle[OpenTitanTileLink.D_Channel](new OpenTitanTileLink.D_Channel(host_p), d => d -> io.tl_d.d.bits),
+        s_match_h -> 0.U.asTypeOf(new OpenTitanTileLink.D_Channel(host_p))
+      ))
+    }
+
+    val d_valid_bits = VecInit((0 until numHostSources).map { s =>
+      MuxCase(d_valid_reg(s), Seq(
+        (io.tl_d.d.fire && s.U === host_source_idx && PopCount(next_beats_received) === req_info_q.io.deq.bits.beats) -> true.B,
+        (io.tl_h.d.fire && s.U === active_host_source) -> false.B
+      ))
+    })
+    d_valid_reg := d_valid_bits.asUInt
+
+    val d_fault_bits = VecInit((0 until numHostSources).map { s =>
+      val next_fault = Mux(beats_received(host_source_idx) === 0.U, d_check.io.fault, d_fault_reg(s) || d_check.io.fault)
+      MuxCase(d_fault_reg(s), Seq(
+        (io.tl_d.d.fire && s.U === host_source_idx) -> next_fault,
+        (io.tl_h.d.fire && s.U === active_host_source) -> false.B
+      ))
+    })
+    d_fault_reg := d_fault_bits.asUInt
 
     val aggregated_data = VecInit(d_data_reg(active_host_source).zipWithIndex.map { case (d, i) => 
       Mux(io.tl_d.d.fire && host_source_idx === active_host_source && i.U === beat_idx, io.tl_d.d.bits.data, d)
     })
     val full_data = Cat(aggregated_data.reverse)
-    wide_resp_wire.data := full_data
-    wide_resp_wire.error := d_resp_reg(active_host_source).error || d_fault_reg(active_host_source)
+
+    val wide_resp_wire = Wire(new OpenTitanTileLink.D_Channel(host_p))
+    wide_resp_wire.opcode := d_resp_reg(active_host_source).opcode
+    wide_resp_wire.param  := d_resp_reg(active_host_source).param
+    wide_resp_wire.size   := req_info_q.io.deq.bits.size
+    wide_resp_wire.source := active_host_source
+    wide_resp_wire.sink   := d_resp_reg(active_host_source).sink
+    wide_resp_wire.data   := full_data
+    wide_resp_wire.error  := d_resp_reg(active_host_source).error || d_fault_reg(active_host_source)
+    wide_resp_wire.user   := d_resp_reg(active_host_source).user
 
     val d_gen = Module(new ResponseIntegrityGen(host_p))
     d_gen.io.d_i := wide_resp_wire
 
-    io.tl_d.d.ready := true.B // Always ready to receive narrow beats
+    io.tl_d.d.ready := true.B
     io.tl_h.d.valid := d_valid_reg(active_host_source) && req_info_q.io.deq.valid
-    io.tl_h.d.bits := d_gen.io.d_o
-    io.tl_h.d.bits.data := full_data
 
-    when(io.tl_d.d.fire) {
-      val next_beats_received = beats_received(host_source_idx) | (1.U << beat_idx)
+    val d_h_bits = Wire(new OpenTitanTileLink.D_Channel(host_p))
+    d_h_bits.opcode := d_gen.io.d_o.opcode
+    d_h_bits.param  := d_gen.io.d_o.param
+    d_h_bits.size   := d_gen.io.d_o.size
+    d_h_bits.source := d_gen.io.d_o.source
+    d_h_bits.sink   := d_gen.io.d_o.sink
+    d_h_bits.data   := full_data
+    d_h_bits.error  := d_gen.io.d_o.error
+    d_h_bits.user   := d_gen.io.d_o.user
+    io.tl_h.d.bits := d_h_bits
 
-      when(beats_received(host_source_idx) === 0.U) {
-        d_fault_reg := d_fault_reg.bitSet(host_source_idx, d_check.io.fault)
-      }.otherwise {
-        when(d_check.io.fault) {
-          d_fault_reg := d_fault_reg.bitSet(host_source_idx, true.B)
-        }
-      }
-
-      d_data_reg(host_source_idx)(beat_idx) := io.tl_d.d.bits.data
-      d_resp_reg(host_source_idx) := io.tl_d.d.bits
-
-      beats_received(host_source_idx) := next_beats_received
-
-      // We need to know the expected beats for this specific source.
-      // This is tricky if multiple transactions for the SAME source are outstanding.
-      // TileLink UL usually only has 1 outstanding per source ID.
-      // If we assume 1 outstanding per host source:
-      when(PopCount(next_beats_received) === req_info_q.io.deq.bits.beats) {
-        // This is still slightly buggy because req_info_q.io.deq.bits.beats is for the TOP of the queue.
-        // But if transactions complete in order, it's fine.
-        d_valid_reg := d_valid_reg.bitSet(host_source_idx, true.B)
-      }
-    }
-
-    when(io.tl_h.d.fire) {
-      d_valid_reg := d_valid_reg.bitSet(active_host_source, false.B)
-      d_fault_reg := d_fault_reg.bitSet(active_host_source, false.B)
-      beats_received(active_host_source) := 0.U
-      d_data_reg(active_host_source).foreach(_ := 0.U)
-      d_resp_reg(active_host_source) := 0.U.asTypeOf(new OpenTitanTileLink.D_Channel(host_p))
-      req_info_q.io.deq.ready := true.B
-    }.otherwise {
-      req_info_q.io.deq.ready := false.B
-    }
+    req_info_q.io.deq.ready := io.tl_h.d.fire
 
     // ------------------------------------------------------------------------
     // Request Path (A Channel): Split wide request into multiple narrow ones
@@ -155,7 +160,6 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     val is_wide_transaction = io.tl_h.a.bits.size > device_size_cap
     val host_beat_idx = io.tl_h.a.bits.address(log2Ceil(hostBytes) - 1, log2Ceil(narrowBytes))
 
-    // Ensure we have enough bits in the device-side source ID to hold the host source ID + beat index.
     require(device_p.o >= (host_p.o + log2Ceil(ratio)), 
       s"Device source ID width (${device_p.o}) is too narrow for host source ID width (${host_p.o}) plus ${log2Ceil(ratio)} beat bits")
 
@@ -174,19 +178,18 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
                                  TLULOpcodesA.PutPartialData.asUInt),
                              io.tl_h.a.bits.opcode)
       narrow_req.param   := io.tl_h.a.bits.param
-      // Force size to device width for all narrow transactions (16-bit writes/reads).
-      // This promotes them to full 32-bit word operations with sparse masks,
-      // ensuring address/mask alignment is valid for the SRAM adapter.
       narrow_req.size    := device_size_cap
 
       val beat_source_offset = Mux(is_wide_transaction, i.U, host_beat_idx)
-      // Use Cat to ensure unique source IDs and avoid collisions on the narrow bus.
       narrow_req.source  := Cat(io.tl_h.a.bits.source, beat_source_offset(log2Ceil(ratio)-1, 0))
 
       narrow_req.address := (io.tl_h.a.bits.address & ~((hostBytes - 1).U(32.W))) + (i * narrowBytes).U
       narrow_req.mask    := narrow_mask
       narrow_req.data    := (io.tl_h.a.bits.data >> (i * deviceWidth)).asUInt
-      narrow_req.user    := io.tl_h.a.bits.user
+      narrow_req.user.rsvd := io.tl_h.a.bits.user.rsvd
+      narrow_req.user.instr_type := io.tl_h.a.bits.user.instr_type
+      narrow_req.user.cmd_intg := io.tl_h.a.bits.user.cmd_intg
+      narrow_req.user.data_intg := io.tl_h.a.bits.user.data_intg
 
       req_gen.io.a_i := narrow_req
       beats(i).bits := req_gen.io.a_o
@@ -216,12 +219,9 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
 
     val req_addr_lsb = io.tl_h.a.bits.address(addr_lsb_width - 1, 0)
 
-    when (io.tl_h.a.fire) {
-      if (index_width > 0) {
-        addr_lsb_regs(io.tl_h.a.bits.source(index_width-1, 0)) := req_addr_lsb
-      } else {
-        addr_lsb_regs(0) := req_addr_lsb
-      }
+    for (s <- 0 until numSourceIds) {
+      val source_match = if (index_width > 0) io.tl_h.a.bits.source(index_width-1, 0) === s.U else true.B
+      addr_lsb_regs(s) := Mux(io.tl_h.a.fire && source_match, req_addr_lsb, addr_lsb_regs(s))
     }
 
     val a_check = Module(new RequestIntegrityCheck(host_p))
@@ -237,7 +237,10 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     wide_req.size    := io.tl_h.a.bits.size
     wide_req.source  := io.tl_h.a.bits.source
     wide_req.address := io.tl_h.a.bits.address
-    wide_req.user    := io.tl_h.a.bits.user
+    wide_req.user.rsvd := io.tl_h.a.bits.user.rsvd
+    wide_req.user.instr_type := io.tl_h.a.bits.user.instr_type
+    wide_req.user.cmd_intg := io.tl_h.a.bits.user.cmd_intg
+    wide_req.user.data_intg := io.tl_h.a.bits.user.data_intg
     wide_req.mask    := (io.tl_h.a.bits.mask.asUInt << req_addr_lsb).asUInt
     wide_req.data    := (io.tl_h.a.bits.data.asUInt << (req_addr_lsb << 3.U)).asUInt
     a_gen.io.a_i := wide_req
@@ -257,10 +260,16 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     } else {
       addr_lsb_regs(0)
     }
-    narrow_resp := io.tl_d.d.bits
+
+    narrow_resp.opcode := io.tl_d.d.bits.opcode
+    narrow_resp.param  := io.tl_d.d.bits.param
+    narrow_resp.size   := io.tl_d.d.bits.size
     narrow_resp.source := io.tl_d.d.bits.source
-    narrow_resp.data := (io.tl_d.d.bits.data >> (resp_addr_lsb << 3.U)).asUInt
-    narrow_resp.error := io.tl_d.d.bits.error || d_check.io.fault
+    narrow_resp.sink   := io.tl_d.d.bits.sink
+    narrow_resp.data   := (io.tl_d.d.bits.data >> (resp_addr_lsb << 3.U)).asUInt
+    narrow_resp.error  := io.tl_d.d.bits.error || d_check.io.fault
+    narrow_resp.user.rsp_intg := io.tl_d.d.bits.user.rsp_intg
+    narrow_resp.user.data_intg := io.tl_d.d.bits.user.data_intg
 
     d_gen.io.d_i := narrow_resp
 
@@ -272,7 +281,6 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
   // Equal Widths Path
   // ==========================================================================
   } else {
-    // Widths are equal, just pass through
     io.tl_d <> io.tl_h
   }
 }
