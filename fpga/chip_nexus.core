@@ -36,6 +36,7 @@ filesets:
     files:
       - vivado_setup_hooks.tcl: { file_type: tclSource }
       - vivado_hook_write_bitstream_post.tcl: { file_type: user, copyto: vivado_hook_write_bitstream_post.tcl }
+      - check_pin_assignments.tcl: { file_type: user, copyto: check_pin_assignments.tcl }
 
 parameters:
   ClockFrequencyMhz:
