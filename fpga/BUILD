@@ -15,6 +15,7 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_list_flag")
 load("@lowrisc_opentitan_gh//rules:fusesoc.bzl", "fusesoc_build")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
+load("//rules:coralnpu_v2_sim_test.bzl", "coralnpu_v2_sim_test")
 load("//rules:utils.bzl", "cc_embed_data")
 load("@internal_check//:status.bzl", internal_exists = "FOLDER_EXISTS")
 
@@ -106,6 +107,13 @@ coralnpu_v2_binary(
 coralnpu_v2_binary(
     name = "gpio_test",
     srcs = ["sw/gpio_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
+)
+
+coralnpu_v2_sim_test(
+    name = "trivial_pass_sim_test",
+    srcs = ["sw/trivial_pass_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [":uart"],
 )

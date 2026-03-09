@@ -47,3 +47,17 @@ py_binary(
         "@bazel_tools//tools/python/runfiles",
     ],
 )
+
+# Test runner for automated SoC simulation tests.
+py_binary(
+    name = "sim_test_runner",
+    srcs = ["sim_test_runner.py"],
+    data = [
+        ":loader",
+        "//fpga:copy_chip_verilator_binary",
+    ],
+    tags = ["manual"],
+    deps = [
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)

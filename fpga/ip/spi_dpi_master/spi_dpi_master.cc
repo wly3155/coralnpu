@@ -74,6 +74,15 @@ std::mutex bulk_read_mutex;
 int server_fd = -1;
 std::thread server_thread;
 std::atomic<bool> shutting_down{false};
+// Gate: the server thread waits for this before printing "listening" and
+// accepting a client.  Only set after a real reset cycle has been observed
+// (reset_seen) AND then deasserted, ensuring the SPI bridge is truly ready.
+std::atomic<bool> reset_done{false};
+// Set by spi_dpi_reset() to indicate that at least one reset pulse occurred.
+// Without this, spi_dpi_tick() would set reset_done on the very first cycle
+// before the actual reset, causing the loader to connect too early and have
+// its commands flushed when the real reset arrives.
+std::atomic<bool> reset_seen{false};
 
 struct SpiSignalState {
   uint8_t sck;
@@ -210,6 +219,14 @@ void server_loop(int port) {
     return;
   }
 
+  // Wait for the simulation to deassert reset before accepting connections.
+  // This prevents clients from sending SPI commands while spi_dpi_reset()
+  // is still being called every cycle, which would flush the command queues.
+  while (!reset_done.load() && !shutting_down.load()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  if (shutting_down) return;
+
   std::cout << "DPI: Server listening on port " << port << std::endl;
 
   int client_socket;
@@ -309,6 +326,13 @@ void spi_dpi_close(struct SpiDpiFsmState* ctx) {
 }
 
 void spi_dpi_reset(struct SpiDpiFsmState* ctx) {
+  // Record that a real reset pulse has occurred.  The server thread won't
+  // accept connections until reset_done is set, and reset_done is only set
+  // by spi_dpi_tick() when reset_seen is true — i.e., after a real reset
+  // cycle has completed and then deasserted.
+  reset_seen.store(true, std::memory_order_release);
+  reset_done.store(false, std::memory_order_release);
+
   // Reset the state machine
   ctx->init();
 
@@ -990,6 +1014,15 @@ void handle_read_spi_domain_reg_16b(unsigned char miso, struct SpiDpiFsmState* c
 
 void spi_dpi_tick(struct SpiDpiFsmState* ctx, unsigned char* sck, unsigned char* csb, unsigned char* mosi,
                   unsigned char miso) {
+
+  // Signal to the server thread that reset has deasserted and the SPI bridge
+  // is ready.  Only do this after a real reset pulse has been observed
+  // (reset_seen), preventing premature connection acceptance during the
+  // pre-reset cycles (SetInitialResetDelay).
+  if (!reset_done.load(std::memory_order_relaxed) &&
+      reset_seen.load(std::memory_order_acquire)) {
+    reset_done.store(true, std::memory_order_release);
+  }
 
   // Only check for new commands if we are idle.
   if (ctx->state == IDLE) {
