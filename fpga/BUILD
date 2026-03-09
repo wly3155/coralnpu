@@ -30,6 +30,7 @@ filegroup(
         "//fpga/ip/spi_dpi_master:rtl_files",
         "//fpga/ip/display_dpi:rtl_files",
         "//fpga/ip/gpio_dpi:rtl_files",
+        "//fpga/ip/s25fl512s_dpi:rtl_files",
         "//fpga/ip/i2c_master:rtl_files",
         "//fpga/ip/coralnpu_tlul:rtl_files",
         "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
@@ -130,6 +131,14 @@ coralnpu_v2_sim_test(
     sim_timeout = 120,
 )
 
+coralnpu_v2_sim_test(
+    name = "spi_flash_sim_test",
+    srcs = ["sw/spi_flash_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    deps = [":uart"],
+    sim_timeout = 120,
+)
+
 coralnpu_v2_binary(
     name = "i2c_camera_test",
     srcs = ["sw/i2c_camera_test.cc"],
@@ -189,6 +198,7 @@ fusesoc_build(
         "//fpga/ip/spi_dpi_master:dpi_files",
         "//fpga/ip/display_dpi:dpi_files",
         "//fpga/ip/gpio_dpi:dpi_files",
+        "//fpga/ip/s25fl512s_dpi:dpi_files",
         "@lowrisc_opentitan_gh//hw:dpi_files",
     ],
     cores = CORALNPU_SOC_CORES + [
@@ -198,6 +208,7 @@ fusesoc_build(
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
         "//fpga/ip/display_dpi:display_dpi.core",
         "//fpga/ip/gpio_dpi:gpio_dpi.core",
+        "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi.core",
@@ -221,6 +232,7 @@ fusesoc_build(
         "//fpga/ip/spi_dpi_master:dpi_files",
         "//fpga/ip/display_dpi:dpi_files",
         "//fpga/ip/gpio_dpi:dpi_files",
+        "//fpga/ip/s25fl512s_dpi:dpi_files",
         "@lowrisc_opentitan_gh//hw:dpi_files",
     ],
     cores = CORALNPU_SOC_CORES + [
@@ -229,6 +241,7 @@ fusesoc_build(
         "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
         "//fpga/ip/gpio_dpi:gpio_dpi.core",
+        "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
     ],

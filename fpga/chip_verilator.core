@@ -28,6 +28,7 @@ filesets:
       - com.google.coralnpu:fpga:display_dpi:0.1
       - com.google.coralnpu:fpga:gpio_dpi:0.1
       - coralnpuv2:ip:hm01b0_model:0.1
+      - com.google.coralnpu:fpga:s25fl512s_dpi:0.1
     files:
       - rtl/chip_verilator.sv
     file_type: systemVerilogSource

@@ -149,6 +149,19 @@ module chip_verilator
     .sda_en_o(hm_sda_en)
   );
 
+  // SPI Flash signals
+  logic spim_flash_sclk, spim_flash_csb, spim_flash_mosi, spim_flash_miso, spim_flash_rst_n;
+
+  s25fl512s_dpi i_s25fl512s_dpi (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .sck_i(spim_flash_sclk),
+    .csb_i(spim_flash_csb),
+    .mosi_i(spim_flash_mosi),
+    .flash_rst_ni(spim_flash_rst_n),
+    .miso_o(spim_flash_miso)
+  );
+
   logic io_halted_o;
   logic io_fault_o;
   coralnpu_soc #(.MemInitFile(MemInitFile),
@@ -166,6 +179,12 @@ module chip_verilator
       .spim_miso_i(spim_miso),
       .spim_clk_i(clk_i),
       .boot_addr_i(BootAddr),
+      .spim_flash_sclk_o(spim_flash_sclk),
+      .spim_flash_csb_o(spim_flash_csb),
+      .spim_flash_mosi_o(spim_flash_mosi),
+      .spim_flash_miso_i(spim_flash_miso),
+      .spim_flash_clk_i(clk_i),
+      .spim_flash_rst_no(spim_flash_rst_n),
       .gpio_o(gpio_o),
       .gpio_en_o(gpio_en_o),
       .gpio_i(gpio_i),

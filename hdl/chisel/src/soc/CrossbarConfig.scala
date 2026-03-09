@@ -109,6 +109,7 @@ class CrossbarConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
     DeviceConfig("gpio", Seq(AddressRange(0x40030000, 0x1000))),
     DeviceConfig("i2c_master", Seq(AddressRange(0x40040000, 0x1000))),
     DeviceConfig("dma", Seq(AddressRange(0x40050000, 0x1000))),
+    DeviceConfig("spi_master_flash", Seq(AddressRange(0x40070000, 0x1000))),
     DeviceConfig("ddr_ctrl", Seq(AddressRange(0x70000000, 0x1000)), clockDomain = "ddr", width = 32), // 4kB for DDR Control
     DeviceConfig("ddr_mem",  Seq(AddressRange(BigInt("80000000", 16), BigInt("80000000", 16))), clockDomain = "ddr", width = 128)     // 2GB for DDR Memory
   )
@@ -116,12 +117,12 @@ class CrossbarConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
   // A map defining which hosts are allowed to connect to which devices.
   def connections(enableTestHarness: Boolean): Map[String, Seq[String]] = {
     val baseConnections = Map(
-      "coralnpu_core" -> Seq("sram", "uart1", "coralnpu_device", "rom", "uart0", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma"),
+      "coralnpu_core" -> Seq("sram", "uart1", "coralnpu_device", "rom", "uart0", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma", "spi_master_flash"),
       "spi2tlul" -> Seq("coralnpu_device", "sram", "ddr_ctrl", "ddr_mem"),
-      "dma" -> Seq("sram", "coralnpu_device", "rom", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "uart0", "uart1")
+      "dma" -> Seq("sram", "coralnpu_device", "rom", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "uart0", "uart1", "spi_master_flash")
     )
     if (enableTestHarness) {
-      baseConnections + ("test_host_32" -> Seq("rom", "sram", "uart0", "coralnpu_device", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma"))
+      baseConnections + ("test_host_32" -> Seq("rom", "sram", "uart0", "coralnpu_device", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma", "spi_master_flash"))
     } else {
       baseConnections
     }

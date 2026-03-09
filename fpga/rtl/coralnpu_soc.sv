@@ -27,6 +27,12 @@ module coralnpu_soc
      input spim_miso_i,
      input spim_clk_i,
      input [31:0] boot_addr_i,  // PC reset value (0x0 for ITCM, 0x10000000 for ROM)
+     output logic spim_flash_sclk_o,
+     output logic spim_flash_csb_o,
+     output logic spim_flash_mosi_o,
+     input spim_flash_miso_i,
+     input spim_flash_clk_i,
+     output logic spim_flash_rst_no,
      output [7:0] gpio_o,
      output [7:0] gpio_en_o,
      input [7:0] gpio_i,
@@ -133,6 +139,8 @@ module coralnpu_soc
      output [31:0] io_dm_rsp_bits_data,
      output [1:0] io_dm_rsp_bits_op
      );
+
+  assign spim_flash_rst_no = gpio_o[4];
 
   import tlul_pkg::*;
   import top_pkg::*;
@@ -471,6 +479,11 @@ module coralnpu_soc
     .io_external_ports_gpio_o(gpio_o),
     .io_external_ports_gpio_en_o(gpio_en_o),
     .io_external_ports_gpio_i(gpio_i),
+    .io_external_ports_spim_flash_sclk(spim_flash_sclk_o),
+    .io_external_ports_spim_flash_csb(spim_flash_csb_o),
+    .io_external_ports_spim_flash_mosi(spim_flash_mosi_o),
+    .io_external_ports_spim_flash_miso(spim_flash_miso_i),
+    .io_external_ports_spim_flash_clk_i(spim_flash_clk_i),
 
     .io_async_ports_devices_ddr_clock(ddr_clk_i),
     .io_async_ports_devices_ddr_reset(ddr_rst),

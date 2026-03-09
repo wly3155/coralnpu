@@ -186,6 +186,19 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
       hostConnections = Map("io.tl_host" -> "dma"),
       deviceConnections = Map("io.tl_device" -> "dma"),
       externalPorts = Seq.empty
+    ),
+    ChiselModuleConfig(
+      name = "spi_master_flash",
+      moduleClass = "bus.SpiMaster",
+      params = SpiMasterParameters(lsuDataBits = 32),
+      deviceConnections = Map("io.tl" -> "spi_master_flash"),
+      externalPorts = Seq(
+        ExternalPort("spim_flash_sclk",  Bool, Out, "io.spi.sclk"),
+        ExternalPort("spim_flash_csb",   Bool, Out, "io.spi.csb"),
+        ExternalPort("spim_flash_mosi",  Bool, Out, "io.spi.mosi"),
+        ExternalPort("spim_flash_miso",  Bool, In,  "io.spi.miso"),
+        ExternalPort("spim_flash_clk_i", Clk,  In,  "io.spi_clk_i")
+      )
     )
   )
 }

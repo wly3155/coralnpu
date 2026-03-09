@@ -35,12 +35,23 @@ set_property -dict { PACKAGE_PIN BB19 IOSTANDARD LVCMOS18 PULLTYPE PULLDOWN } [g
 set_property -dict { PACKAGE_PIN AW18 IOSTANDARD LVCMOS18 PULLTYPE PULLDOWN } [get_ports {tck_i}]
 set_property -dict { PACKAGE_PIN BC19 IOSTANDARD LVCMOS18 } [get_ports {trst_ni}]
 
-# SPI
+# SPI (FTDI)
 create_clock -period 83.333 -name spi_clk_i -waveform {0 41.667} [get_ports spi_clk_i]
 set_property -dict { PACKAGE_PIN AV19 IOSTANDARD LVCMOS18 } [get_ports { spi_clk_i }];
 set_property -dict { PACKAGE_PIN AW20 IOSTANDARD LVCMOS18 } [get_ports { spi_csb_i }];
 set_property -dict { PACKAGE_PIN AV20 IOSTANDARD LVCMOS18 } [get_ports { spi_mosi_i }];
 set_property -dict { PACKAGE_PIN AV18 IOSTANDARD LVCMOS18 } [get_ports { spi_miso_o }];
+
+# SPI (FLASH)
+set_property -dict { PACKAGE_PIN A16 IOSTANDARD LVCMOS18 } [get_ports { spim_flash_sclk_o }];
+set_property -dict { PACKAGE_PIN B16 IOSTANDARD LVCMOS18 PULLTYPE PULLUP } [get_ports { spim_flash_mosi_o }];
+set_property -dict { PACKAGE_PIN C13 IOSTANDARD LVCMOS18 PULLTYPE PULLUP } [get_ports { spim_flash_miso_i }];
+set_property -dict { PACKAGE_PIN A14 IOSTANDARD LVCMOS18 } [get_ports { spim_flash_csb_o }];
+set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS18 } [get_ports { spim_flash_rst_no }];
+# Pin mappins for future Quad-SPI expansion
+# set_property -dict { PACKAGE_PIN C13 IOSTANDARD LVCMOS18 PULLTYPE PULLUP } [get_ports { spim_flash_d1 }];
+# set_property -dict { PACKAGE_PIN C12 IOSTANDARD LVCMOS18 PULLTYPE PULLUP } [get_ports { spim_flash_d2 }];
+# set_property -dict { PACKAGE_PIN H15 IOSTANDARD LVCMOS18 PULLTYPE PULLUP } [get_ports { spim_flash_d3 }];
 
 # UART0
 set_property -dict { PACKAGE_PIN BF20 IOSTANDARD LVCMOS18 } [get_ports { uart_tx_o[0] }];
