@@ -107,24 +107,18 @@ class CoralNPUV2Simulator:
       raise TypeError('data must be a numpy uint32')
     self.sim.WriteWord(address, data)
 
-  def write_ptr(self, address, ptr_address):
-    if not isinstance(address, int):
-      raise TypeError(f"address must be an integer, got {type(address).__name__}")
-    if not isinstance(ptr_address, int):
-      raise TypeError(f"ptr_address must be an integer, got {type(ptr_address).__name__}")
-    self.sim.WritePtr(address, ptr_address)
-
-  def get_elf_entry_and_symbol(self, filename, symbol_names):
+  def get_elf_entry_and_symbol(self, filename, symbol_names=None):
     """Returns the entry point and a dictionary of symbol addresses from an ELF file."""
     symbol_map = {}
     with open(filename, 'rb') as f:
       elf_file = ELFFile(f)
       entry_point = elf_file.header['e_entry']
-      symtab_section = next(elf_file.iter_sections(type='SHT_SYMTAB'))
-      for symbol_name in symbol_names:
-        symbol = symtab_section.get_symbol_by_name(symbol_name)
-        if symbol:
-          symbol_map[symbol_name] = symbol[0].entry['st_value']
-        else:
-          symbol_map[symbol_name] = 0
+      if symbol_names:
+        symtab_section = next(elf_file.iter_sections(type='SHT_SYMTAB'))
+        for symbol_name in symbol_names:
+          symbol = symtab_section.get_symbol_by_name(symbol_name)
+          if symbol:
+            symbol_map[symbol_name] = symbol[0].entry['st_value']
+          else:
+            symbol_map[symbol_name] = 0
       return entry_point, symbol_map

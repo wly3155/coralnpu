@@ -78,7 +78,7 @@ class MpactConv2DTest:
 
     def run(self, fun_ptr):
         self.npu_sim.write_register('pc', self.entry_point)
-        self.npu_sim.write_ptr(self.symbol_map['impl'], self.symbol_map[fun_ptr])
+        self.npu_sim.write_word(self.symbol_map['impl'], self.symbol_map[fun_ptr])
         self.npu_sim.write_memory(self.symbol_map['output_data'], np.zeros([self.out_size], dtype=np.int8))
         self.npu_sim.run()
         self.npu_sim.wait()

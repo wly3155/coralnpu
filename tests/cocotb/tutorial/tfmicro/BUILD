@@ -28,7 +28,7 @@ coralnpu_v2_binary(
     name = "run_mobilenet_v1_025_partial_binary",
     srcs = [
         "mobilenet_v1_025_partial_layers_cc",
-        "run_mobilenet.cc",
+        "run_partial_mobilenet.cc",
     ],
     hdrs = ["mobilenet_v1_025_partial_layers.h"],
     dtcm_size_kbytes = 1024,  # Highmem
@@ -44,6 +44,13 @@ coralnpu_v2_binary(
     ],
 )
 
+cc_library(
+    name = "mobilenet_v1_025_224_int8_dummy_lib",
+    srcs = ["mobilenet_v1_025_224_int8_dummy_cc"],
+    hdrs = ["mobilenet_v1_025_224_int8_dummy_h"],
+    visibility = ["//visibility:public"],
+)
+
 generate_cc_arrays(
     name = "mobilenet_v1_025_partial_layers_cc",
     src = "models/mobilenet_v1_025_partial_layers.tflite",
@@ -54,6 +61,18 @@ generate_cc_arrays(
     name = "mobilenet_v1_025_partial_layers_h",
     src = "models/mobilenet_v1_025_partial_layers.tflite",
     out = "mobilenet_v1_025_partial_layers.h",
+)
+
+generate_cc_arrays(
+    name = "mobilenet_v1_025_224_int8_dummy_cc",
+    src = "models/mobilenet_v1_0.25_224_int8_dummy.tflite",
+    out = "mobilenet_v1_025_224_int8_dummy.cc",
+)
+
+generate_cc_arrays(
+    name = "mobilenet_v1_025_224_int8_dummy_h",
+    src = "models/mobilenet_v1_0.25_224_int8_dummy.tflite",
+    out = "mobilenet_v1_025_224_int8_dummy.h",
 )
 
 # BEGIN_TESTCASES_FOR_running_tflite
