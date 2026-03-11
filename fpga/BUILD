@@ -278,6 +278,9 @@ fusesoc_build(
         "pins_nexus.xdc",
         "vivado_setup_hooks.tcl",
         "vivado_hook_write_bitstream_post.tcl",
+        "vivado_hook_synthesis_pre.tcl",
+        "vivado_hook_implementation_pre.tcl",
+        "vivado_general_build_settings.tcl",
     ] + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",
@@ -301,6 +304,9 @@ fusesoc_build(
         "pins_nexus.xdc",
         "vivado_setup_hooks.tcl",
         "vivado_hook_write_bitstream_post.tcl",
+        "vivado_hook_synthesis_pre.tcl",
+        "vivado_hook_implementation_pre.tcl",
+        "vivado_general_build_settings.tcl",
     ] + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",

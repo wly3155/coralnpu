@@ -21,3 +21,28 @@ set workroot [pwd]
 if {[file exists "${workroot}/src/xilinx_ddr4_0_0.1_0"]} {
     set_property STEPS.WRITE_BITSTREAM.TCL.POST "${workroot}/vivado_hook_write_bitstream_post.tcl" [get_runs impl_1]
 }
+
+# Register pre-synthesis and pre-implementation hooks.
+set_property STEPS.SYNTH_DESIGN.TCL.PRE "${workroot}/vivado_hook_synthesis_pre.tcl" [get_runs synth_1]
+set_property STEPS.OPT_DESIGN.TCL.PRE "${workroot}/vivado_hook_implementation_pre.tcl" [get_runs impl_1]
+
+# Enable ultrathreads for placement and routing via MORE OPTIONS (appending to existing options)
+puts "Adding -ultrathreads to PLACE_DESIGN and ROUTE_DESIGN MORE OPTIONS"
+try {
+    foreach step {PLACE_DESIGN ROUTE_DESIGN} {
+        set opts [get_property "STEPS.${step}.ARGS.MORE OPTIONS" [get_runs impl_1]]
+        if {![string match "*-ultrathreads*" $opts]} {
+            set_property "STEPS.${step}.ARGS.MORE OPTIONS" "$opts -ultrathreads" [get_runs impl_1]
+        }
+    }
+} on error {err} {
+    puts "WARNING: Failed to set -ultrathreads property. Build will continue without this optimization."
+    puts "Error message: $err"
+}
+
+# Readback and verify
+set place_opt_verify [get_property {STEPS.PLACE_DESIGN.ARGS.MORE OPTIONS} [get_runs impl_1]]
+set route_opt_verify [get_property {STEPS.ROUTE_DESIGN.ARGS.MORE OPTIONS} [get_runs impl_1]]
+puts "Readback: PLACE_DESIGN.ARGS.MORE OPTIONS is '$place_opt_verify'"
+puts "Readback: ROUTE_DESIGN.ARGS.MORE OPTIONS is '$route_opt_verify'"
+

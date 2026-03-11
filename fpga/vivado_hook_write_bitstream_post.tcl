@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+puts "**************************************************"
+puts "*** Starting vivado_hook_write_bitstream_post.tcl ***"
+puts "**************************************************"
 proc endian_reverse_sort {bram1 bram2} {
     set lsb1 [lindex $bram1 3]
     set lsb2 [lindex $bram2 3]
@@ -235,3 +238,6 @@ if {[catch {write_cfgmem -format BIN -disablebitswap -loadbit "up 0x0 $bit_file"
     puts "INFO: write_cfgmem completed successfully."
     puts "  Output BIN file written to: $output_bin_file"
 }
+puts "**************************************************"
+puts "*** Completed vivado_hook_write_bitstream_post.tcl ***"
+puts "**************************************************"
