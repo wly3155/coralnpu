@@ -185,7 +185,7 @@ CORE_MINI_AXI_DEBUG_TESTCASES = [
     "core_mini_axi_debug_hartsel",
     "core_mini_axi_debug_abstract_access_registers",
     "core_mini_axi_debug_abstract_access_nonexistent_register",
-    "core_mini_axi_debug_single_step",
+    ("core_mini_axi_debug_single_step", "medium"),
     "core_mini_axi_debug_breakpoint",
     "core_mini_axi_debug_scalar_registers",
 ]
@@ -255,7 +255,7 @@ RVV_LOAD_STORE_TESTCASES = [
     "store_unit_masked",
     "store_unit_all_vtypes_test",
     ("store_strided_all_vtypes_test", "large"),
-    ("store8_index8", "small"),
+    ("store8_index8", "medium"),
     "store8_index8_seg",
     "store8_index16",
     "store8_index32",

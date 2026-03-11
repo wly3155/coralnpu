@@ -98,6 +98,6 @@ def coralnpu_v2_sim_test(
         elf = ":{}.elf".format(binary_name),
         sim_timeout = sim_timeout,
         size = size,
-        tags = tags,
+        tags = tags + ["exclusive"],
         timeout = "long",
     )
