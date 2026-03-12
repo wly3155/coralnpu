@@ -538,17 +538,12 @@ TfLiteStatus DepthwiseConvEval(TfLiteContext* context, TfLiteNode* node) {
           break;
         }
         default:
-          MicroPrintf("Filter type %s (%d) for input type %s not supported.",
-                      TfLiteTypeGetName(filter->type), filter->type,
-                      TfLiteTypeGetName(input->type));
-          return kTfLiteError;
+          return tflite::Register_DEPTHWISE_CONV_2D().invoke(context, node);
       }
       break;
     }
     default:
-      MicroPrintf("Input type %s (%d) not supported.",
-                  TfLiteTypeGetName(input->type), input->type);
-      return kTfLiteError;
+      return tflite::Register_DEPTHWISE_CONV_2D().invoke(context, node);
   }
   return kTfLiteOk;
 }
