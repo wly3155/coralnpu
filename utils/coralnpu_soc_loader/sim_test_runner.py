@@ -174,6 +174,16 @@ class SimTestRunner:
                 try:
                     for line in iter(pipe.readline, ""):
                         stripped = line.strip()
+                        # Filter out misleading trace-related paths from the simulator,
+                        # as they point to sandbox locations that are not useful after
+                        # the test finishes.
+                        if (
+                            "Writing simulation traces to" in stripped
+                            or "You can view the simulation traces" in stripped
+                            or "gtkwave" in stripped
+                        ):
+                            continue
+
                         logging.warning(f"[SIM] {stripped}")
                         if ready_line in stripped:
                             sim_ready.set()
@@ -271,6 +281,13 @@ class SimTestRunner:
             # Determine result
             with self._result_lock:
                 result = self.test_result
+
+            if self.trace_file:
+                logging.warning(
+                    f"SIM_TEST: Tracing enabled. Waveform can be found in "
+                    f"bazel-testlogs/<target_path>/test.outputs/outputs.zip "
+                    f"as {os.path.basename(self.trace_file)}"
+                )
 
             if result is True:
                 logging.warning("SIM_TEST: TEST PASSED")

@@ -16,58 +16,65 @@
 
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
 
+
 def _sim_test_impl(ctx):
     runner = ctx.executable._runner
     elf = ctx.file.elf
     sim_timeout = ctx.attr.sim_timeout
 
+    trace_arg = ""
+    if ctx.attr.trace:
+        trace_arg = "--trace=$TEST_UNDECLARED_OUTPUTS_DIR/sim_trace.fst"
+
     # Generate a wrapper script that invokes the test runner with the ELF path.
     script = ctx.actions.declare_file(ctx.label.name + "_run.sh")
     ctx.actions.write(
-        output = script,
-        content = """\
+        output=script,
+        content="""\
 #!/bin/bash
-exec {runner} {elf} --sim_timeout {timeout}
+exec {runner} {elf} --sim_timeout {timeout} {trace_arg}
 """.format(
-            runner = runner.short_path,
-            elf = elf.short_path,
-            timeout = sim_timeout,
+            runner=runner.short_path,
+            elf=elf.short_path,
+            timeout=sim_timeout,
+            trace_arg=trace_arg,
         ),
-        is_executable = True,
+        is_executable=True,
     )
 
-    runfiles = ctx.runfiles(files = [elf])
+    runfiles = ctx.runfiles(files=[elf])
     runfiles = runfiles.merge(ctx.attr._runner[DefaultInfo].default_runfiles)
 
-    return [DefaultInfo(
-        executable = script,
-        runfiles = runfiles,
-    )]
+    return [
+        DefaultInfo(
+            executable=script,
+            runfiles=runfiles,
+        )
+    ]
+
 
 _sim_test = rule(
-    implementation = _sim_test_impl,
-    test = True,
-    attrs = {
+    implementation=_sim_test_impl,
+    test=True,
+    attrs={
         "elf": attr.label(
-            allow_single_file = [".elf"],
-            mandatory = True,
+            allow_single_file=[".elf"],
+            mandatory=True,
         ),
-        "sim_timeout": attr.int(default = 30),
+        "sim_timeout": attr.int(default=30),
+        "trace": attr.bool(default=False),
         "_runner": attr.label(
-            default = "//utils/coralnpu_soc_loader:sim_test_runner",
-            executable = True,
-            cfg = "target",
+            default="//utils/coralnpu_soc_loader:sim_test_runner",
+            executable=True,
+            cfg="target",
         ),
     },
 )
 
+
 def coralnpu_v2_sim_test(
-        name,
-        srcs,
-        sim_timeout = 30,
-        size = "large",
-        tags = [],
-        **kwargs):
+    name, srcs, sim_timeout=30, trace=False, size="large", tags=[], **kwargs
+):
     """Builds a coralnpu_v2_binary and runs it on the Verilator SoC simulation.
 
     The test passes if the binary prints a line matching PASS/TEST PASSED
@@ -78,6 +85,7 @@ def coralnpu_v2_sim_test(
       name: Name of the test target.
       srcs: C/C++ source files for the binary.
       sim_timeout: Seconds to wait for a test result after loading (default 30).
+      trace: Whether to enable FST tracing (default False).
       size: Bazel test size (default "large").
       tags: Additional tags.
       **kwargs: Additional arguments forwarded to coralnpu_v2_binary
@@ -86,18 +94,14 @@ def coralnpu_v2_sim_test(
 
     binary_name = name + "_binary"
 
-    coralnpu_v2_binary(
-        name = binary_name,
-        srcs = srcs,
-        tags = tags + ["manual"],
-        **kwargs
-    )
+    coralnpu_v2_binary(name=binary_name, srcs=srcs, tags=tags + ["manual"], **kwargs)
 
     _sim_test(
-        name = name,
-        elf = ":{}.elf".format(binary_name),
-        sim_timeout = sim_timeout,
-        size = size,
-        tags = tags + ["exclusive"],
-        timeout = "long",
+        name=name,
+        elf=":{}.elf".format(binary_name),
+        sim_timeout=sim_timeout,
+        trace=trace,
+        size=size,
+        tags=tags + ["exclusive"],
+        timeout="long",
     )
