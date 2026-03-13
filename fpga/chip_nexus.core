@@ -63,6 +63,16 @@ parameters:
     description: "Enable TB support in RVV"
     default: true
     paramtype: vlogdefine
+  VLEN_128:
+    datatype: bool
+    description: "Set RVV VLEN to 128"
+    default: true
+    paramtype: vlogdefine
+  ZVE32F_ON:
+    datatype: bool
+    description: "Enable ZVE32F RVV profile"
+    default: true
+    paramtype: vlogdefine
 
 targets:
   default: &default_target
@@ -80,6 +90,8 @@ targets:
       - USE_GENERIC=true
       - FPGA_XILINX=true
       - TB_SUPPORT=true
+      - VLEN_128=true
+      - ZVE32F_ON=true
     tools:
       vivado:
         part: "xcvu13p-fhga2104-2-e"
