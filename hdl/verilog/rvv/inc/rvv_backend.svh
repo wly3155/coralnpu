@@ -47,7 +47,10 @@ typedef enum logic [2:0] {
   FRTZ=1,
   FRDN=2,
   FRUP=3,
-  FRMM=4
+  FRMM=4,
+  FR_UNREACH_5=5,
+  FR_UNREACH_6=6,
+  FRDYN=7
 } RVFRM;
 
 // Floating-point Exception
