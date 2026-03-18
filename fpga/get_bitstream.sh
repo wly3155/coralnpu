@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -ue -o pipefail
+
 GCP_PROJECT="${PROJECT:-cerebra-shodan-ci-public}"
 GCP_LOCATION="${LOCATION:-us}"
 AR_REPO="${REPO:-coralnpu-artifacts}"
@@ -27,7 +29,6 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -r, --ref      The git reference to start searching from"
-    echo "  --latest       Search starting from the current HEAD"
     echo "  -n, --limit    Number of git commits to check back (default: ${LIMIT})"
     echo "  --target       The name of the file to fetch (default: ${TARGET_FILE})"
     echo "  -h, --help     Display this help message and exit"
@@ -40,11 +41,9 @@ while [[ "$#" -gt 0 ]]; do
         -n|--limit)
             LIMIT="$2"; shift 2 ;;
         --target)
-            TARGET_FILE="$2"; shift 2 ;;
+            TARGET_FILE="chip_${2}.bin"; shift 2 ;;
         -r|--ref)
             START_REF="$2"; shift 2 ;;
-        --latest)
-            START_REF="HEAD"; shift 1 ;;
         -h|--help)
             usage ;;
         *)
@@ -53,33 +52,33 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 if [[ -z "${START_REF}" ]]; then
-    echo "Error: Either --ref or --latest must be specified."
-    echo ""
-    usage
+    START_REF="HEAD"
+    echo "[INFO] --ref not specified, searching for latest."
 fi
 
-# Locate project root relative to script location
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
-PROJECT_ROOT="${SCRIPT_DIR}/.."
-
-# Verify Git availability in project root
-git -C "${PROJECT_ROOT}" rev-parse --is-inside-work-tree > /dev/null 2>&1
-if [[ $? -ne 0 ]]; then
-    echo "Error: git not found or git history not available in ${PROJECT_ROOT}."
+# cd into project and find root via git
+cd "$(dirname -- "${BASH_SOURCE[0]}")" || exit 1
+# Verify Git history availability in project
+if ! git rev-parse --is-inside-work-tree >/dev/null; then
+    echo "Error: git not found or git history not available."
     exit 1
 fi
 
-echo "Searching for the most recent artifact in Artifact Registry..."
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+
 echo "Start Ref:    ${START_REF}"
 echo "Search limit: ${LIMIT} commits"
 echo "Target File:  ${TARGET_FILE}"
 echo ""
 
+mkdir -p "${PROJECT_ROOT}/fpga/bitstreams"
+echo "Created ${PROJECT_ROOT}/fpga/bitstreams/"
+
 LAST_SHA=""
-for (( i=0; i<$LIMIT; i++ )); do
+for (( i=0; i<LIMIT; i++ )); do
     # Switch to project root to resolve Git SHAs
     pushd "${PROJECT_ROOT}" > /dev/null || exit 1
-    SHA=$(git rev-parse "${START_REF}~$i" 2>/dev/null)
+    SHA=$(git rev-parse "${START_REF}~${i}" 2>/dev/null)
     popd > /dev/null || exit 1
 
     if [[ -z "${SHA}" ]]; then
@@ -97,11 +96,11 @@ for (( i=0; i<$LIMIT; i++ )); do
     URL+="/repositories/${AR_REPO}"
     URL+="/files/${AR_PACKAGE}%3A${SHA}%3A${TARGET_FILE}:download?alt=media"
 
-    echo "[$i] Checking commit ${SHA:0:8}..."
+    echo "[${i}] Checking commit ${SHA:0:8}..."
 
-    if curl -sL --fail -o "${TARGET_FILE}" "${URL}"; then
+    if curl -sL --fail -o "${PROJECT_ROOT}/fpga/bitstreams/${TARGET_FILE}" "${URL}"; then
         echo "SUCCESS: Found artifact for commit ${SHA}"
-        echo "File saved as: ${TARGET_FILE}"
+        echo "File saved as: ${PROJECT_ROOT}/fpga/bitstreams/${TARGET_FILE}"
         exit 0
     fi
 done
