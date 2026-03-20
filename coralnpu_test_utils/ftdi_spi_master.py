@@ -929,7 +929,7 @@ def main():
             if spi_master.poll_reg_for_value(args.addr, args.expected_value, timeout=args.timeout):
                 print("Poll successful.")
             else:
-                print("Poll timed out.")
+                raise RuntimeError("Poll timed out.")
         elif args.command == "bulk-write":
             spi_master.bulk_write(args.addr, args.data, args.num_bytes)
             print("Bulk write complete.")
@@ -943,10 +943,14 @@ def main():
         elif args.command == "load-file":
             spi_master.load_file(args.file_path, args.address)
 
-    except ValueError as e:
+    except (ValueError, RuntimeError, FileNotFoundError) as e:
         print(f"Error: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

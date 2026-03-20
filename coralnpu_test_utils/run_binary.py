@@ -182,7 +182,7 @@ class BinaryRunner:
             time.sleep(0.1)  # Poll interval
 
         if not core_halted:
-            print("Binary execution FAILED: Core did not halt within timeout.")
+            raise RuntimeError("Binary execution FAILED: Core did not halt within timeout.")
         else:
             print("Binary execution COMPLETED: Core halted successfully.")
             # Print final status
@@ -246,10 +246,14 @@ def main():
             exit_after_start=args.exit_after_start,
         )
         runner.run_binary()
-    except (ValueError, FileNotFoundError) as e:
+    except (ValueError, RuntimeError, FileNotFoundError) as e:
         print(f"Error: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

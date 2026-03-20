@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import argparse
+import sys
 import numpy as np
 from elftools.elf.elffile import ELFFile
 from coralnpu_hw.coralnpu_test_utils.ftdi_spi_master import FtdiSpiMaster
@@ -105,8 +106,7 @@ class MatmulRunner:
 
         # 4. Wait for the core to halt
         if not self.spi_master.poll_for_halt(timeout=20.0):
-            print("TEST FAILED: Core did not halt.")
-            return
+            raise RuntimeError("TEST FAILED: Core did not halt.")
 
         # 5. Retrieve the output matrix
         result_size_bytes = self.golden_output.nbytes
@@ -121,9 +121,9 @@ class MatmulRunner:
         if np.array_equal(self.golden_output, result_array):
             print("TEST PASSED!")
         else:
-            print("TEST FAILED: Output does not match golden reference.")
             print("Golden:\n", self.golden_output)
             print("Received:\n", result_array)
+            raise RuntimeError("TEST FAILED: Output does not match golden reference.")
 
 
 def main():
@@ -137,10 +137,14 @@ def main():
     try:
         runner = MatmulRunner(args.elf_file, args.usb_serial, args.ftdi_port, args.csr_base_addr)
         runner.run_test()
-    except (ValueError, FileNotFoundError) as e:
+    except (ValueError, RuntimeError, FileNotFoundError) as e:
         print(f"Error: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

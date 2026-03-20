@@ -395,8 +395,10 @@ class SramTestRunner:
 
                         if not success and not self.continue_on_error:
                             self._print_summary()
-                            return  # Stop on first failure
+                            raise RuntimeError(f"SRAM test failed: {message}")
                     except Exception as e:
+                        if isinstance(e, RuntimeError) and "SRAM test failed" in str(e):
+                            raise
                         self.results.append(
                             {
                                 "size": size,
@@ -407,10 +409,14 @@ class SramTestRunner:
                         )
                         if not self.continue_on_error:
                             self._print_summary()
-                            return
+                            raise
 
             print("-" * 40)
             self._print_summary()
+
+            if any(not r["success"] for r in self.results):
+                raise RuntimeError("One or more SRAM tests failed.")
+
         finally:
             if hasattr(self, "spi_master") and self.spi_master:
                 self.spi_master.close()
@@ -566,11 +572,13 @@ def main():
             runner.single_pattern = args.single_test
 
         runner.run_test()
-    except (ValueError, FileNotFoundError) as e:
+    except (ValueError, RuntimeError, FileNotFoundError) as e:
         print(f"Error: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
