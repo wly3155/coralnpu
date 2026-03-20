@@ -36,9 +36,6 @@ filesets:
     files:
       - vivado_setup_hooks.tcl: { file_type: tclSource }
       - vivado_hook_write_bitstream_post.tcl: { file_type: user, copyto: vivado_hook_write_bitstream_post.tcl }
-      - vivado_hook_synthesis_pre.tcl: { file_type: user, copyto: vivado_hook_synthesis_pre.tcl }
-      - vivado_hook_implementation_pre.tcl: { file_type: user, copyto: vivado_hook_implementation_pre.tcl }
-      - vivado_general_build_settings.tcl: { file_type: user, copyto: vivado_general_build_settings.tcl }
 
 parameters:
   ClockFrequencyMhz:
