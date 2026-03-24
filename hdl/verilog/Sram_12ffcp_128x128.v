@@ -22,7 +22,7 @@ module Sram_12ffcp_128x128(
   output [127:0] rdata
 );
 
-`ifndef USE_GENERIC
+`ifdef USE_TSMC12FFC
     wire [127:0] nwmask;
     genvar i;
     generate
@@ -62,7 +62,7 @@ module Sram_12ffcp_128x128(
       .WTSEL(2'b0)          // Write Test Select               (input [1:0])
      );
 
-`else
+`elsif USE_GENERIC // Fallback to generic
   reg [127:0] mem [0:127];
   reg [6:0] raddr;
 
@@ -92,6 +92,8 @@ module Sram_12ffcp_128x128(
       raddr <= addr;
     end
   end
+`else
+  $error("No SRAM implementation selected. Please define USE_TSMC12FFC or USE_GENERIC for build (thrown in Sram_12ffcp_128x128.v).");
 `endif // FFCP12_SRAM
 
 endmodule

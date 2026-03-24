@@ -32,7 +32,7 @@ module Sram_512x128(
     wire [127:0] nwmask;
     genvar i;
     generate
-      for (i = 0; i < 16; i++) begin
+      for (i = 0; i < 16; i++) begin : gen_wmask
         assign nwmask[8*i +: 8] = {8{~wmask[i]}};
       end
     endgenerate
@@ -79,7 +79,7 @@ module Sram_512x128(
     wire [127:0] nwmask;
     genvar i;
     generate
-      for (i = 0; i < 16; i++) begin
+      for (i = 0; i < 16; i++) begin : gen_wmask
         assign nwmask[8*i +: 8] = {8{wmask[i]}};
       end
     endgenerate
