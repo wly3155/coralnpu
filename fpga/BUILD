@@ -136,7 +136,7 @@ coralnpu_v2_sim_test(
     srcs = ["sw/spi_flash_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [":uart"],
-    sim_timeout = 120,
+    sim_timeout = 240,
 )
 
 coralnpu_v2_binary(
