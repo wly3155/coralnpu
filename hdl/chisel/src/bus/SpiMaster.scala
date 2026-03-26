@@ -57,6 +57,8 @@ class SpiMasterCtrl(p: Parameters) extends Module {
 
   // Control bitfields
   val ctrl_div    = reg_control(15, 8)
+  val ctrl_hdtx   = reg_control(4)  // Half-duplex write: ignore RX data, no RX FIFO push
+  val ctrl_hdrx   = reg_control(3)  // Half-duplex read: auto-TX 0x00 when RX FIFO has space
   val ctrl_cpha   = reg_control(2)
   val ctrl_cpol   = reg_control(1)
   val ctrl_enable = reg_control(0)
@@ -126,9 +128,17 @@ class SpiMasterCtrl(p: Parameters) extends Module {
         phase     := 0.U
         clk_count := 0.U
         when(tx_fifo.io.deq.valid) {
+          // Normal mode: dequeue from TX FIFO
           tx_fifo.io.deq.ready := true.B
           shift_reg            := tx_fifo.io.deq.bits
           state                := SpiState.sSetup
+          when(!manual_cs) { csb_reg := false.B }
+          bit_count := 7.U
+        } .elsewhen(ctrl_hdrx && rx_fifo.io.enq.ready) {
+          // Half-duplex read mode: auto-generate TX=0x00 transfers
+          // as long as RX FIFO has space, no TXDATA write needed
+          shift_reg := 0.U
+          state     := SpiState.sSetup
           when(!manual_cs) { csb_reg := false.B }
           bit_count := 7.U
         }
@@ -152,8 +162,9 @@ class SpiMasterCtrl(p: Parameters) extends Module {
           }.otherwise {
             // Second half of bit period finished
             when(bit_count === 0.U) {
-              // Wait for space in RX FIFO before finalizing transaction
-              when(rx_fifo.io.enq.ready) {
+              // Wait for space in RX FIFO before finalizing transaction,
+              // unless we are in HDTX mode which ignores RX data.
+              when(rx_fifo.io.enq.ready || ctrl_hdtx) {
                 state := SpiState.sFinish
               }
             }.otherwise {
@@ -169,8 +180,11 @@ class SpiMasterCtrl(p: Parameters) extends Module {
         when(tick) {
           state := SpiState.sIdle
           when(!manual_cs) { csb_reg := true.B }
-          rx_fifo.io.enq.valid := true.B
-          rx_fifo.io.enq.bits  := shift_reg
+          // Only push to RX FIFO if not in HDTX mode
+          when(!ctrl_hdtx) {
+            rx_fifo.io.enq.valid := true.B
+            rx_fifo.io.enq.bits  := shift_reg
+          }
         }
       }
     }
@@ -238,9 +252,12 @@ class SpiMasterCtrl(p: Parameters) extends Module {
       switch(addr_offset) {
         is(STATUS) {
           // Bit 2: TX Full, Bit 1: RX Empty, Bit 0: Busy
+          // Include tx_fifo.io.deq.valid in busy so that immediately after
+          // a TXDATA write the status already reports busy, preventing the
+          // firmware from reading RXDATA before the transfer has started.
           tl_d_data := Cat(
             0.U(29.W),
-            state =/= SpiState.sIdle,
+            state =/= SpiState.sIdle || tx_fifo.io.deq.valid,
             !rx_fifo.io.deq.valid,
             !tx_fifo.io.enq.ready
           )

@@ -32,6 +32,14 @@ extern "C" {
 #define SPI_MASTER_BASE 0x40020000
 #define SPI_FLASH_BASE 0x40070000
 
+// SPI CONTROL bits
+#define SPI_CTRL_ENABLE (1 << 0)
+#define SPI_CTRL_CPOL (1 << 1)
+#define SPI_CTRL_CPHA (1 << 2)
+#define SPI_CTRL_HDRX (1 << 3)
+#define SPI_CTRL_HDTX (1 << 4)
+#define SPI_CTRL_DIV(d) ((d) << 8)
+
 uint32_t spi_get_master_base_addr(void);
 uint32_t spi_get_flash_base_addr(void);
 

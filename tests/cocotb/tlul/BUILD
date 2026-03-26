@@ -455,6 +455,8 @@ cocotb_test_suite(
 # BEGIN_TESTCASES_FOR_spi_master_cocotb
 SPI_MASTER_TESTCASES = [
     "test_spi_master_basic_tx",
+    "test_spi_master_half_duplex_rx",
+    "test_spi_master_half_duplex_tx",
 ]
 # END_TESTCASES_FOR_spi_master_cocotb
 

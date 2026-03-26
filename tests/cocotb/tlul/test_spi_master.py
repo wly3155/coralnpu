@@ -14,7 +14,7 @@
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge, with_timeout
+from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge, with_timeout, Timer
 from coralnpu_test_utils.TileLinkULInterface import (
     TileLinkULInterface,
     create_a_channel_req,
@@ -146,3 +146,130 @@ async def test_spi_master_basic_tx(dut):
     # Wait for CSB to go High
     await RisingEdge(dut.io_external_ports_spim_csb)
     dut._log.info("CSB went high. Transaction complete.")
+
+
+@cocotb.test()
+async def test_spi_master_half_duplex_rx(dut):
+    """Tests half-duplex read mode (HDRX) without manual TXDATA writes."""
+    await setup_dut(dut)
+
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32,
+    )
+    await host_if.init()
+
+    # 1. Set CSID and CSMODE (Auto)
+    await host_if.host_put(
+        create_a_channel_req(address=SPI_REG_CSID, data=0, mask=0xF, width=host_if.width)
+    )
+    await host_if.host_get_response()
+    await host_if.host_put(
+        create_a_channel_req(address=SPI_REG_CSMODE, data=0, mask=0xF, width=host_if.width)
+    )
+    await host_if.host_get_response()
+
+    # 2. Drive MISO high BEFORE enabling SPI
+    dut.io_external_ports_spim_miso.value = 1
+
+    # 3. Enable HDRX (bit 3) + ENABLE (bit 0)
+    # 0x0209 -> Div=2, HDRX=1, Enable=1
+    ctrl_val = (2 << 8) | (1 << 3) | 1
+    dut._log.info(f"Enabling SPI Master with HDRX, CONTROL=0x{ctrl_val:X}")
+    await host_if.host_put(
+        create_a_channel_req(
+            address=SPI_REG_CONTROL, data=ctrl_val, mask=0xF, width=host_if.width
+        )
+    )
+    await host_if.host_get_response()
+
+    # 4. SPI should start automatically. Monitor CSB and SCLK.
+    dut._log.info("Waiting for CSB low (automatic start)...")
+    await FallingEdge(dut.io_external_ports_spim_csb)
+    dut._log.info("CSB went low automatically!")
+    
+    # Wait for one byte to finish (CSB goes high in Auto mode after one byte)
+    await RisingEdge(dut.io_external_ports_spim_csb)
+    dut._log.info("First byte transaction complete.")
+
+    # 5. Check RXDATA
+    # STATUS: bit 1 is RX Empty.
+    read_status = create_a_channel_req(
+        address=SPI_REG_STATUS, is_read=True, width=host_if.width
+    )
+    await host_if.host_put(read_status)
+    resp = await host_if.host_get_response()
+    status = int(resp["data"])
+    dut._log.info(f"STATUS: 0x{status:X}")
+    assert (status & 2) == 0, "RX FIFO should not be empty"
+
+    read_rxdata = create_a_channel_req(
+        address=SPI_REG_RXDATA, is_read=True, width=host_if.width
+    )
+    await host_if.host_put(read_rxdata)
+    resp = await host_if.host_get_response()
+    rxdata = int(resp["data"])
+    dut._log.info(f"RXDATA: 0x{rxdata:X}")
+    assert rxdata == 0xFF, f"Expected 0xFF from constant-1 MISO, got 0x{rxdata:X}"
+
+
+@cocotb.test()
+async def test_spi_master_half_duplex_tx(dut):
+    """Tests half-duplex write mode (HDTX) where RX data is ignored."""
+    await setup_dut(dut)
+
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32,
+    )
+    await host_if.init()
+
+    # 1. Enable HDTX (bit 4) + ENABLE (bit 0)
+    # 0x0211 -> Div=2, HDTX=1, Enable=1
+    ctrl_val = (2 << 8) | (1 << 4) | 1
+    dut._log.info(f"Enabling SPI Master with HDTX, CONTROL=0x{ctrl_val:X}")
+    await host_if.host_put(
+        create_a_channel_req(
+            address=SPI_REG_CONTROL, data=ctrl_val, mask=0xF, width=host_if.width
+        )
+    )
+    await host_if.host_get_response()
+
+    # 2. Write 8 bytes to TXDATA. 
+    # RX FIFO size is 4. If RX data wasn't being ignored, this would eventually
+    # stall the master and we'd see 'busy' staying high.
+    for i in range(8):
+        await host_if.host_put(
+            create_a_channel_req(
+                address=SPI_REG_TXDATA, data=i, mask=0xF, width=host_if.width
+            )
+        )
+        await host_if.host_get_response()
+        
+        # Poll busy bit (bit 0) until it goes low
+        while True:
+            await host_if.host_put(
+                create_a_channel_req(
+                    address=SPI_REG_STATUS, is_read=True, width=host_if.width
+                )
+            )
+            resp = await host_if.host_get_response()
+            status = int(resp["data"])
+            if (status & 1) == 0:
+                break
+            await Timer(10, units="ns")
+
+    # 3. Verify RX FIFO is STILL empty (bit 1 of STATUS is 1)
+    await host_if.host_put(
+        create_a_channel_req(address=SPI_REG_STATUS, is_read=True, width=host_if.width)
+    )
+    resp = await host_if.host_get_response()
+    status = int(resp["data"])
+    dut._log.info(f"Final STATUS: 0x{status:X}")
+    assert (status & 2) != 0, "RX FIFO should be empty in HDTX mode"

@@ -343,4 +343,68 @@ class SpiMasterSpec extends AnyFreeSpec with ChiselSim {
       assert(rxdata == 0x88, s"Expected 0x88, got 0x${rxdata.toString(16)}")
     }
   }
+
+  "SpiMaster Half-Duplex RX Mode" in {
+    simulate(new SpiMasterCtrl(p)) { dut =>
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+
+      // Enable SPI with HDRX (bit 3)
+      // Div=2, HDRX=1, Enable=1 -> 0x0209
+      tlWrite(dut.io.tl, dut.clock, 0x04.U, 0x0209.U)
+
+      // In HDRX, SPI should start generating SCLK as long as RX FIFO is not full,
+      // without needing a write to TXDATA.
+      var sclk_edges = 0
+      var last_sclk  = false
+      for (_ <- 0 until 500) {
+        val sclk = dut.io.spi.sclk.peek().litValue != 0
+        if (sclk && !last_sclk) sclk_edges += 1
+        last_sclk = sclk
+
+        // Simple loopback: MISO = bit count (mocking some external data)
+        dut.io.spi.miso.poke(true.B) // Just send all 1s for simplicity
+        dut.clock.step()
+      }
+
+      assert(sclk_edges >= 8, "SCLK should have toggled in half-duplex mode")
+
+      // Check that data was captured
+      val status = tlReadData(dut.io.tl, dut.clock, 0x00.U)
+      assert((status & 2) == 0, "RX FIFO should have data")
+
+      val rxdata = tlReadData(dut.io.tl, dut.clock, 0x0c.U)
+      assert(rxdata == 0xff, s"Expected 0xFF from all-1s loopback, got 0x${rxdata.toString(16)}")
+    }
+  }
+
+  "SpiMaster Half-Duplex TX Mode" in {
+    simulate(new SpiMasterCtrl(p)) { dut =>
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+
+      // Enable SPI with HDTX (bit 4)
+      // Div=2, HDTX=1, Enable=1 -> 0x0211
+      tlWrite(dut.io.tl, dut.clock, 0x04.U, 0x0211.U)
+
+      // Write 8 bytes to TXDATA. With an RX FIFO of size 4, this would
+      // normally stall if RX wasn't being drained. In HDTX mode, it should
+      // proceed without stalls and without filling the RX FIFO.
+      for (i <- 0 until 8) {
+        tlWrite(dut.io.tl, dut.clock, 0x08.U, i.U)
+        // Wait for byte to finish (busy bit in status)
+        var status = tlReadData(dut.io.tl, dut.clock, 0x00.U)
+        while ((status & 1) != 0) {
+          dut.clock.step()
+          status = tlReadData(dut.io.tl, dut.clock, 0x00.U)
+        }
+      }
+
+      // Check that RX FIFO is still empty
+      val status = tlReadData(dut.io.tl, dut.clock, 0x00.U)
+      assert((status & 2) != 0, "RX FIFO should be empty in HDTX mode")
+    }
+  }
 }
