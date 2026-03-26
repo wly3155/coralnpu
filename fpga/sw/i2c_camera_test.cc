@@ -16,58 +16,39 @@
 
 #include <stdint.h>
 
+#include "fpga/sw/i2c.h"
 #include "fpga/sw/uart.h"
 
 #ifndef CLOCK_FREQUENCY_MHZ
 #define CLOCK_FREQUENCY_MHZ 80
 #endif
 
-#define I2C_BASE 0x40040000
-
-#define I2C_CTRL 0x008
-#define I2C_STATUS 0x00C
-#define I2C_FDATA 0x010
-#define I2C_CLK_DIV 0x018
-
-#define I2C_START (1 << 8)
-#define I2C_STOP (1 << 9)
-#define I2C_READ (1 << 10)
-
-#define REG32(addr) (*((volatile uint32_t*)(addr)))
-
-void i2c_wait_idle() {
-  uint32_t status;
-  do {
-    status = REG32(I2C_BASE + I2C_STATUS);
-  } while (status & 0x3);  // Busy or !fifo_empty
-}
-
 uint8_t hm01b0_read_reg(uint16_t reg) {
   // START, ADDR 0x24, W
-  REG32(I2C_BASE + I2C_FDATA) = I2C_START | (0x24 << 1) | 0;
+  i2c_write_fdata(I2C_START | (0x24 << 1) | 0);
   // ADDR H
-  REG32(I2C_BASE + I2C_FDATA) = (reg >> 8) & 0xFF;
+  i2c_write_fdata((reg >> 8) & 0xFF);
   // ADDR L
-  REG32(I2C_BASE + I2C_FDATA) = reg & 0xFF;
+  i2c_write_fdata(reg & 0xFF);
   // RESTART, ADDR 0x24, R
-  REG32(I2C_BASE + I2C_FDATA) = I2C_START | (0x24 << 1) | 1;
+  i2c_write_fdata(I2C_START | (0x24 << 1) | 1);
   // READ, STOP
-  REG32(I2C_BASE + I2C_FDATA) = I2C_READ | I2C_STOP;
+  i2c_write_fdata(I2C_READ | I2C_STOP);
 
   i2c_wait_idle();
 
-  return REG32(I2C_BASE + I2C_FDATA) & 0xFF;
+  return i2c_read_fdata() & 0xFF;
 }
 
 void hm01b0_write_reg(uint16_t reg, uint8_t data) {
   // START, ADDR 0x24, W
-  REG32(I2C_BASE + I2C_FDATA) = I2C_START | (0x24 << 1) | 0;
+  i2c_write_fdata(I2C_START | (0x24 << 1) | 0);
   // ADDR H
-  REG32(I2C_BASE + I2C_FDATA) = (reg >> 8) & 0xFF;
+  i2c_write_fdata((reg >> 8) & 0xFF);
   // ADDR L
-  REG32(I2C_BASE + I2C_FDATA) = reg & 0xFF;
+  i2c_write_fdata(reg & 0xFF);
   // DATA, STOP
-  REG32(I2C_BASE + I2C_FDATA) = I2C_STOP | data;
+  i2c_write_fdata(I2C_STOP | data);
 
   i2c_wait_idle();
 }
@@ -137,8 +118,7 @@ const init_reg_t init_regs[] = {
 int main() {
   uart_init(CLOCK_FREQUENCY_MHZ);
 
-  REG32(I2C_BASE + I2C_CLK_DIV) = 199;  // 100kHz @ 80MHz (4 phases per bit)
-  REG32(I2C_BASE + I2C_CTRL) = 0x1;     // Enable
+  i2c_init(199);  // 100kHz @ 80MHz (4 phases per bit)
 
   uart_puts("I2C Camera Test Starting...\r\n");
 

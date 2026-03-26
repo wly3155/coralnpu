@@ -95,6 +95,30 @@ cc_library(
     hdrs = ["sw/uart.h"],
 )
 
+cc_library(
+    name = "gpio",
+    srcs = ["sw/gpio.c"],
+    hdrs = ["sw/gpio.h"],
+)
+
+cc_library(
+    name = "spi",
+    srcs = ["sw/spi.c"],
+    hdrs = ["sw/spi.h"],
+)
+
+cc_library(
+    name = "i2c",
+    srcs = ["sw/i2c.c"],
+    hdrs = ["sw/i2c.h"],
+)
+
+cc_library(
+    name = "dma",
+    srcs = ["sw/dma.c"],
+    hdrs = ["sw/dma.h"],
+)
+
 coralnpu_v2_binary(
     name = "add_uint32_m1",
     srcs = ["sw/add_uint32_m1.cc"],
@@ -106,14 +130,20 @@ coralnpu_v2_binary(
     name = "spi_test",
     srcs = ["sw/spi_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
-    deps = [":uart"],
+    deps = [
+        ":spi",
+        ":uart",
+    ],
 )
 
 coralnpu_v2_binary(
     name = "gpio_test",
     srcs = ["sw/gpio_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
-    deps = [":uart"],
+    deps = [
+        ":gpio",
+        ":uart",
+    ],
 )
 
 coralnpu_v2_sim_test(
@@ -127,7 +157,10 @@ coralnpu_v2_sim_test(
     name = "dma_sim_test",
     srcs = ["sw/dma_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
-    deps = [":uart"],
+    deps = [
+        ":dma",
+        ":uart",
+    ],
     sim_timeout = 120,
 )
 
@@ -135,7 +168,11 @@ coralnpu_v2_sim_test(
     name = "spi_flash_sim_test",
     srcs = ["sw/spi_flash_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
-    deps = [":uart"],
+    deps = [
+        ":gpio",
+        ":spi",
+        ":uart",
+    ],
     sim_timeout = 240,
 )
 
@@ -143,16 +180,22 @@ coralnpu_v2_binary(
     name = "i2c_camera_test",
     srcs = ["sw/i2c_camera_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
-    deps = [":uart"],
+    deps = [
+        ":i2c",
+        ":uart",
+    ],
 )
 
 coralnpu_v2_binary(
     name = "i2c_camera_test_highmem",
     srcs = ["sw/i2c_camera_test.cc"],
     copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
-    itcm_size_kbytes = 1024,
     dtcm_size_kbytes = 1024,
-    deps = [":uart"],
+    itcm_size_kbytes = 1024,
+    deps = [
+        ":i2c",
+        ":uart",
+    ],
 )
 
 coralnpu_v2_binary(

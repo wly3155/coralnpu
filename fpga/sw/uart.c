@@ -4,12 +4,16 @@
 
 #include "fpga/sw/uart.h"
 
+#include <stdint.h>
+
 #define UART1_BASE 0x40010000
 #define UART_CTRL_OFFSET 0x10
 #define UART_STATUS_OFFSET 0x14
 #define UART_WDATA_OFFSET 0x1c
 
-#define REG32(addr) (*(volatile uint32_t*)(addr))
+#define REG32(addr) (*(volatile uint32_t*)(uintptr_t)(addr))
+
+uint32_t uart_get_base_addr(void) { return UART1_BASE; }
 
 void uart_init(uint32_t clock_frequency_mhz) {
   const uint64_t uart_ctrl_nco =

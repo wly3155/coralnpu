@@ -12,20 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stdint.h>
-
-#define SPI_MASTER_BASE 0x40020000
-
-#define SPI_REG_STATUS (SPI_MASTER_BASE + 0x00)
-#define SPI_REG_CONTROL (SPI_MASTER_BASE + 0x04)
-#define SPI_REG_TXDATA (SPI_MASTER_BASE + 0x08)
-#define SPI_REG_RXDATA (SPI_MASTER_BASE + 0x0c)
-#define SPI_REG_CSID (SPI_MASTER_BASE + 0x10)
-#define SPI_REG_CSMODE (SPI_MASTER_BASE + 0x14)
-
-#define REG32(addr) (*(volatile uint32_t*)(addr))
+#include "fpga/sw/spi.h"
 
 #include "fpga/sw/uart.h"
+
+#define SPI_MASTER_BASE 0x40020000
 
 int main() {
   uart_init(CLOCK_FREQUENCY_MHZ);
@@ -34,20 +25,20 @@ int main() {
   // Div = 20, CPOL=0, CPHA=0, Enable=1
   // Control register: Div(15:8), CPHA(2), CPOL(1), Enable(0)
   // 0x1401 -> Div=20, Enable=1
-  REG32(SPI_REG_CONTROL) = 0x1401;
+  spi_set_control(SPI_MASTER_BASE, 0x1401);
 
   // 2. Select CSID 0 and Auto Mode
-  REG32(SPI_REG_CSID) = 0;
-  REG32(SPI_REG_CSMODE) = 0;
+  spi_set_csid(SPI_MASTER_BASE, 0);
+  spi_set_csmode(SPI_MASTER_BASE, 0);
 
   // 3. Send Data
-  REG32(SPI_REG_TXDATA) = 0xDE;
-  REG32(SPI_REG_TXDATA) = 0xAD;
-  REG32(SPI_REG_TXDATA) = 0xBE;
-  REG32(SPI_REG_TXDATA) = 0xEF;
+  spi_xfer(SPI_MASTER_BASE, 0xDE);
+  spi_xfer(SPI_MASTER_BASE, 0xAD);
+  spi_xfer(SPI_MASTER_BASE, 0xBE);
+  spi_xfer(SPI_MASTER_BASE, 0xEF);
 
   // Wait for TX FIFO to empty (Status bit 2 is TX Full, bit 0 is Busy)
-  while (REG32(SPI_REG_STATUS) & 1);
+  while (spi_get_status(SPI_MASTER_BASE) & 1);
 
   uart_puts("SPI transmit complete!\n");
 

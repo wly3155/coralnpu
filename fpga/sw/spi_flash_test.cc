@@ -14,24 +14,12 @@
 
 #include <stdint.h>
 
+#include "fpga/sw/gpio.h"
+#include "fpga/sw/spi.h"
 #include "fpga/sw/uart.h"
-
-#define REG32(addr) (*(volatile uint32_t*)(addr))
 
 // SPI Flash Master registers at 0x40070000
 #define SPI_FLASH_BASE 0x40070000
-#define SPI_REG_STATUS (SPI_FLASH_BASE + 0x00)
-#define SPI_REG_CONTROL (SPI_FLASH_BASE + 0x04)
-#define SPI_REG_TXDATA (SPI_FLASH_BASE + 0x08)
-#define SPI_REG_RXDATA (SPI_FLASH_BASE + 0x0c)
-#define SPI_REG_CSID (SPI_FLASH_BASE + 0x10)
-#define SPI_REG_CSMODE (SPI_FLASH_BASE + 0x14)
-
-// GPIO registers at 0x40030000
-#define GPIO_BASE 0x40030000
-#define GPIO_REG_INPUT_VAL (GPIO_BASE + 0x00)
-#define GPIO_REG_OUTPUT_VAL (GPIO_BASE + 0x04)
-#define GPIO_REG_OUTPUT_EN (GPIO_BASE + 0x08)
 
 #define GPIO_FLASH_RST_BIT (1 << 4)
 
@@ -49,32 +37,27 @@ static void print_hex8(uint8_t val) {
 
 static void spi_init(void) {
   // Div=20, CPOL=0, CPHA=0, Enable=1
-  REG32(SPI_REG_CONTROL) = 0x1403;
+  spi_set_control(SPI_FLASH_BASE, 0x1403);
   // CSMODE=1 (manual CS control) for multi-byte transactions
-  REG32(SPI_REG_CSMODE) = 1;
+  spi_set_csmode(SPI_FLASH_BASE, 1);
   // CSID[0]=0 → CS deasserted (high) in manual mode
-  REG32(SPI_REG_CSID) = 0;
+  spi_set_csid(SPI_FLASH_BASE, 0);
 }
 
-static uint8_t spi_xfer(uint8_t tx) {
-  // Wait until TX FIFO is not full
-  while (REG32(SPI_REG_STATUS) & 0x4);
-  REG32(SPI_REG_TXDATA) = tx;
-  // Wait until not busy
-  while (REG32(SPI_REG_STATUS) & 0x1);
-  return (uint8_t)REG32(SPI_REG_RXDATA);
+static uint8_t spi_xfer_local(uint8_t tx) {
+  return spi_xfer(SPI_FLASH_BASE, tx);
 }
 
 static void spi_cs_assert(void) {
   // In manual mode, CSID[0]=1 asserts CS (drives low)
-  REG32(SPI_REG_CSID) = 1;
+  spi_set_csid(SPI_FLASH_BASE, 1);
 }
 
 static void spi_cs_deassert(void) {
   // Wait until not busy before deasserting
-  while (REG32(SPI_REG_STATUS) & 0x1);
+  while (spi_get_status(SPI_FLASH_BASE) & 0x1);
   // In manual mode, CSID[0]=0 deasserts CS (drives high)
-  REG32(SPI_REG_CSID) = 0;
+  spi_set_csid(SPI_FLASH_BASE, 0);
   // Small delay for CS deassert timing
   for (volatile int i = 0; i < 10; i++);
 }
@@ -83,9 +66,9 @@ static bool poll_status(uint8_t expected, uint8_t* result) {
   int retry_count = 100;
   uint8_t status;
   spi_cs_assert();
-  spi_xfer(0x05);
+  spi_xfer_local(0x05);
   do {
-    status = spi_xfer(0x00);
+    status = spi_xfer_local(0x00);
     if (status == expected) {
       break;
     }
@@ -102,8 +85,8 @@ int main() {
   uart_init(CLOCK_FREQUENCY_MHZ);
 
   // Initialize GPIO 4 as output and deassert flash reset (active low)
-  REG32(GPIO_REG_OUTPUT_EN) |= GPIO_FLASH_RST_BIT;
-  REG32(GPIO_REG_OUTPUT_VAL) |= GPIO_FLASH_RST_BIT;
+  gpio_set_output_enable(gpio_read_output() | GPIO_FLASH_RST_BIT);
+  gpio_write(gpio_read_output() | GPIO_FLASH_RST_BIT);
   for (volatile int i = 0; i < 100; i++);
 
   spi_init();
@@ -114,13 +97,13 @@ int main() {
 
     // Set WEL
     spi_cs_assert();
-    spi_xfer(0x06);  // WREN
+    spi_xfer_local(0x06);  // WREN
     spi_cs_deassert();
 
     // Verify WEL is set (Status Bit 1)
     spi_cs_assert();
-    spi_xfer(0x05);  // READ_STATUS
-    uint8_t status = spi_xfer(0x00);
+    spi_xfer_local(0x05);  // READ_STATUS
+    uint8_t status = spi_xfer_local(0x00);
     spi_cs_deassert();
 
     if (!(status & 0x02)) {
@@ -129,15 +112,15 @@ int main() {
     }
 
     // Pulse Reset
-    REG32(GPIO_REG_OUTPUT_VAL) &= ~GPIO_FLASH_RST_BIT;  // Assert
+    gpio_write(gpio_read_output() & ~GPIO_FLASH_RST_BIT);  // Assert
     for (volatile int i = 0; i < 100; i++);
-    REG32(GPIO_REG_OUTPUT_VAL) |= GPIO_FLASH_RST_BIT;  // Deassert
+    gpio_write(gpio_read_output() | GPIO_FLASH_RST_BIT);  // Deassert
     for (volatile int i = 0; i < 100; i++);
 
     // Verify WEL is cleared
     spi_cs_assert();
-    spi_xfer(0x05);  // READ_STATUS
-    status = spi_xfer(0x00);
+    spi_xfer_local(0x05);  // READ_STATUS
+    status = spi_xfer_local(0x00);
     spi_cs_deassert();
 
     if (status & 0x02) {
@@ -152,10 +135,10 @@ int main() {
     uart_puts("T2: JEDEC ID\r\n");
 
     spi_cs_assert();
-    spi_xfer(0x9F);  // READ_ID command
-    uint8_t mfr = spi_xfer(0x00);
-    uint8_t id1 = spi_xfer(0x00);
-    uint8_t id2 = spi_xfer(0x00);
+    spi_xfer_local(0x9F);  // READ_ID command
+    uint8_t mfr = spi_xfer_local(0x00);
+    uint8_t id1 = spi_xfer_local(0x00);
+    uint8_t id2 = spi_xfer_local(0x00);
     spi_cs_deassert();
 
     uart_puts("  MFR=");
@@ -179,7 +162,7 @@ int main() {
 
     // Write Enable
     spi_cs_assert();
-    spi_xfer(0x06);  // WREN
+    spi_xfer_local(0x06);  // WREN
     spi_cs_deassert();
     uint8_t result;
     if (!poll_status(0x2, &result)) {
@@ -191,19 +174,19 @@ int main() {
 
     // Sector Erase at address 0x000000
     spi_cs_assert();
-    spi_xfer(0xD8);  // SECTOR_ERASE
-    spi_xfer(0x10);  // Addr[23:16]
-    spi_xfer(0x10);  // Addr[15:8]
-    spi_xfer(0x10);  // Addr[7:0]
+    spi_xfer_local(0xD8);  // SECTOR_ERASE
+    spi_xfer_local(0x10);  // Addr[23:16]
+    spi_xfer_local(0x10);  // Addr[15:8]
+    spi_xfer_local(0x10);  // Addr[7:0]
     spi_cs_deassert();
 
     // Poll until the write is done...
     int poll_count = 0;
     {
       spi_cs_assert();
-      spi_xfer(0x05);
+      spi_xfer_local(0x05);
       do {
-        result = spi_xfer(0x00);
+        result = spi_xfer_local(0x00);
         poll_count++;
       } while ((result & 0x3) && poll_count < 0x7FFFFFFF);
       spi_cs_deassert();
@@ -218,14 +201,14 @@ int main() {
 
     // Read back - should be 0xFF
     spi_cs_assert();
-    spi_xfer(0x03);  // READ
-    spi_xfer(0x00);
-    spi_xfer(0x00);
-    spi_xfer(0x00);
-    uint8_t d0 = spi_xfer(0x00);
-    uint8_t d1 = spi_xfer(0x00);
-    uint8_t d2 = spi_xfer(0x00);
-    uint8_t d3 = spi_xfer(0x00);
+    spi_xfer_local(0x03);  // READ
+    spi_xfer_local(0x00);
+    spi_xfer_local(0x00);
+    spi_xfer_local(0x00);
+    uint8_t d0 = spi_xfer_local(0x00);
+    uint8_t d1 = spi_xfer_local(0x00);
+    uint8_t d2 = spi_xfer_local(0x00);
+    uint8_t d3 = spi_xfer_local(0x00);
     spi_cs_deassert();
 
     uart_puts("  Read: ");
@@ -252,14 +235,14 @@ int main() {
     {
       // Read back at address 0x000000
       spi_cs_assert();
-      spi_xfer(0x03);  // READ
-      spi_xfer(0x10);  // Addr[23:16]
-      spi_xfer(0x10);  // Addr[15:8]
-      spi_xfer(0x10);  // Addr[7:0]
-      uint8_t d0 = spi_xfer(0x00);
-      uint8_t d1 = spi_xfer(0x00);
-      uint8_t d2 = spi_xfer(0x00);
-      uint8_t d3 = spi_xfer(0x00);
+      spi_xfer_local(0x03);  // READ
+      spi_xfer_local(0x10);  // Addr[23:16]
+      spi_xfer_local(0x10);  // Addr[15:8]
+      spi_xfer_local(0x10);  // Addr[7:0]
+      uint8_t d0 = spi_xfer_local(0x00);
+      uint8_t d1 = spi_xfer_local(0x00);
+      uint8_t d2 = spi_xfer_local(0x00);
+      uint8_t d3 = spi_xfer_local(0x00);
       spi_cs_deassert();
 
       if (d0 != 0xFF || d1 != 0xFF || d2 != 0xFF || d3 != 0xFF) {
@@ -270,7 +253,7 @@ int main() {
 
     // Write Enable
     spi_cs_assert();
-    spi_xfer(0x06);  // WREN
+    spi_xfer_local(0x06);  // WREN
     spi_cs_deassert();
 
     uint8_t result;
@@ -283,14 +266,14 @@ int main() {
 
     // Page Program at address 0x000000
     spi_cs_assert();
-    spi_xfer(0x02);  // PAGE_PROGRAM
-    spi_xfer(0x10);  // Addr[23:16]
-    spi_xfer(0x10);  // Addr[15:8]
-    spi_xfer(0x10);  // Addr[7:0]
-    spi_xfer(0xDE);
-    spi_xfer(0xAD);
-    spi_xfer(0xBE);
-    spi_xfer(0xEF);
+    spi_xfer_local(0x02);  // PAGE_PROGRAM
+    spi_xfer_local(0x10);  // Addr[23:16]
+    spi_xfer_local(0x10);  // Addr[15:8]
+    spi_xfer_local(0x10);  // Addr[7:0]
+    spi_xfer_local(0xDE);
+    spi_xfer_local(0xAD);
+    spi_xfer_local(0xBE);
+    spi_xfer_local(0xEF);
     spi_cs_deassert();
 
     if (!poll_status(0x0, nullptr)) {
@@ -300,14 +283,14 @@ int main() {
 
     // Read back at address 0x000000
     spi_cs_assert();
-    spi_xfer(0x03);  // READ
-    spi_xfer(0x10);  // Addr[23:16]
-    spi_xfer(0x10);  // Addr[15:8]
-    spi_xfer(0x10);  // Addr[7:0]
-    uint8_t d0 = spi_xfer(0x00);
-    uint8_t d1 = spi_xfer(0x00);
-    uint8_t d2 = spi_xfer(0x00);
-    uint8_t d3 = spi_xfer(0x00);
+    spi_xfer_local(0x03);  // READ
+    spi_xfer_local(0x10);  // Addr[23:16]
+    spi_xfer_local(0x10);  // Addr[15:8]
+    spi_xfer_local(0x10);  // Addr[7:0]
+    uint8_t d0 = spi_xfer_local(0x00);
+    uint8_t d1 = spi_xfer_local(0x00);
+    uint8_t d2 = spi_xfer_local(0x00);
+    uint8_t d3 = spi_xfer_local(0x00);
     spi_cs_deassert();
 
     uart_puts("  Read: ");

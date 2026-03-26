@@ -11,6 +11,11 @@
 extern "C" {
 #endif
 
+#define UART0_BASE 0x40000000
+#define UART1_BASE 0x40010000
+
+uint32_t uart_get_base_addr(void);
+
 void uart_init(uint32_t clock_frequency_mhz);
 void uart_putc(char c);
 void uart_puts(const char* s);

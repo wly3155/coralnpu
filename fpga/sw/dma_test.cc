@@ -12,49 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "fpga/sw/dma.h"
+
 #include <stdint.h>
 
 #include "fpga/sw/uart.h"
 
-#define REG32(addr) (*(volatile uint32_t*)(addr))
-
-// DMA registers
-#define DMA_BASE 0x40050000
-#define DMA_CTRL (DMA_BASE + 0x00)
-#define DMA_STATUS (DMA_BASE + 0x04)
-#define DMA_DESC_ADDR (DMA_BASE + 0x08)
-
 // SRAM
 #define SRAM_BASE 0x20000000
-
-// Descriptor layout (32 bytes, must be 32-byte aligned)
-struct __attribute__((packed, aligned(32))) dma_descriptor {
-  uint32_t src_addr;
-  uint32_t dst_addr;
-  uint32_t len_flags;
-  uint32_t next_desc;
-  uint32_t poll_addr;
-  uint32_t poll_mask;
-  uint32_t poll_value;
-  uint32_t reserved;
-};
-
-static inline uint32_t make_len_flags(uint32_t len, uint32_t width_log2,
-                                      int src_fixed, int dst_fixed,
-                                      int poll_en) {
-  return (len & 0xFFFFFF) | ((width_log2 & 0x7) << 24) |
-         ((src_fixed ? 1u : 0u) << 27) | ((dst_fixed ? 1u : 0u) << 28) |
-         ((poll_en ? 1u : 0u) << 29);
-}
-
-static int dma_wait_done(void) {
-  // Bounded poll to avoid hanging forever
-  for (int i = 0; i < 1000000; i++) {
-    uint32_t s = REG32(DMA_STATUS);
-    if (s & 0x2) return (s & 0x4) ? -1 : 0;  // done: check error
-  }
-  return -2;  // timeout
-}
 
 // All buffers placed in SRAM
 static volatile uint32_t* const src32 =
@@ -82,15 +47,14 @@ int main() {
 
   desc0->src_addr = (uint32_t)(uintptr_t)src32;
   desc0->dst_addr = (uint32_t)(uintptr_t)dst32;
-  desc0->len_flags = make_len_flags(nbytes, 2, 0, 0, 0);
+  desc0->len_flags = dma_make_len_flags(nbytes, 2, 0, 0, 0);
   desc0->next_desc = 0;
   desc0->poll_addr = 0;
   desc0->poll_mask = 0;
   desc0->poll_value = 0;
   desc0->reserved = 0;
 
-  REG32(DMA_DESC_ADDR) = (uint32_t)(uintptr_t)desc0;
-  REG32(DMA_CTRL) = 0x3;
+  dma_start((uint32_t)(uintptr_t)desc0);
 
   int rc = dma_wait_done();
   if (rc) {
@@ -116,20 +80,19 @@ int main() {
 
   desc0->src_addr = (uint32_t)(uintptr_t)src32;
   desc0->dst_addr = (uint32_t)(uintptr_t)dst32;
-  desc0->len_flags = make_len_flags(nbytes, 2, 0, 0, 0);
+  desc0->len_flags = dma_make_len_flags(nbytes, 2, 0, 0, 0);
   desc0->next_desc = (uint32_t)(uintptr_t)desc1;
 
   desc1->src_addr = (uint32_t)(uintptr_t)src32b;
   desc1->dst_addr = (uint32_t)(uintptr_t)dst32b;
-  desc1->len_flags = make_len_flags(nbytes2, 2, 0, 0, 0);
+  desc1->len_flags = dma_make_len_flags(nbytes2, 2, 0, 0, 0);
   desc1->next_desc = 0;
   desc1->poll_addr = 0;
   desc1->poll_mask = 0;
   desc1->poll_value = 0;
   desc1->reserved = 0;
 
-  REG32(DMA_DESC_ADDR) = (uint32_t)(uintptr_t)desc0;
-  REG32(DMA_CTRL) = 0x3;
+  dma_start((uint32_t)(uintptr_t)desc0);
 
   rc = dma_wait_done();
   if (rc) {
@@ -158,6 +121,8 @@ int main() {
 #define UART0_STATUS (UART0_BASE + 0x14)
 #define UART0_WDATA (UART0_BASE + 0x1c)
 
+#define REG32(addr) (*(volatile uint32_t*)(addr))
+
   // Enable UART0 TX (same NCO formula as uart_init)
   {
     const uint64_t nco =
@@ -175,15 +140,14 @@ int main() {
   desc0->src_addr = (uint32_t)(uintptr_t)t3_src;
   desc0->dst_addr = UART0_WDATA;
   desc0->len_flags =
-      make_len_flags(t3_len, 0, 0, 1, 0);  // 1-byte beats, dst_fixed
+      dma_make_len_flags(t3_len, 0, 0, 1, 0);  // 1-byte beats, dst_fixed
   desc0->next_desc = 0;
   desc0->poll_addr = 0;
   desc0->poll_mask = 0;
   desc0->poll_value = 0;
   desc0->reserved = 0;
 
-  REG32(DMA_DESC_ADDR) = (uint32_t)(uintptr_t)desc0;
-  REG32(DMA_CTRL) = 0x3;
+  dma_start((uint32_t)(uintptr_t)desc0);
 
   rc = dma_wait_done();
   if (rc) {
@@ -203,15 +167,14 @@ int main() {
   // Read UART0 STATUS (a real peripheral register) repeatedly
   desc0->src_addr = UART0_STATUS;
   desc0->dst_addr = (uint32_t)(uintptr_t)dst32;
-  desc0->len_flags = make_len_flags(nbytes4, 2, 1, 0, 0);  // src_fixed=1
+  desc0->len_flags = dma_make_len_flags(nbytes4, 2, 1, 0, 0);  // src_fixed=1
   desc0->next_desc = 0;
   desc0->poll_addr = 0;
   desc0->poll_mask = 0;
   desc0->poll_value = 0;
   desc0->reserved = 0;
 
-  REG32(DMA_DESC_ADDR) = (uint32_t)(uintptr_t)desc0;
-  REG32(DMA_CTRL) = 0x3;
+  dma_start((uint32_t)(uintptr_t)desc0);
 
   rc = dma_wait_done();
   if (rc) {
@@ -247,15 +210,14 @@ int main() {
   desc0->src_addr = (uint32_t)(uintptr_t)t5_src;
   desc0->dst_addr = UART0_WDATA;
   desc0->len_flags =
-      make_len_flags(t5_len, 0, 0, 1, 1);  // 1-byte, dst_fixed, poll_en
+      dma_make_len_flags(t5_len, 0, 0, 1, 1);  // 1-byte, dst_fixed, poll_en
   desc0->next_desc = 0;
   desc0->poll_addr = UART0_STATUS;
   desc0->poll_mask = 0x00000001;   // bit 0 = TX full
   desc0->poll_value = 0x00000000;  // wait until TX not full
   desc0->reserved = 0;
 
-  REG32(DMA_DESC_ADDR) = (uint32_t)(uintptr_t)desc0;
-  REG32(DMA_CTRL) = 0x3;
+  dma_start((uint32_t)(uintptr_t)desc0);
 
   rc = dma_wait_done();
   if (rc) {
