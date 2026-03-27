@@ -21,15 +21,12 @@ load("@internal_check//:status.bzl", internal_exists = "FOLDER_EXISTS")
 
 package(default_visibility = ["//visibility:public"])
 
-_CLOCK_FREQUENCY_MHZ = "50"
-_NEXUS_CLOCK_FREQUENCY_MHZ = "50"
-
-
+_CLOCK_FREQUENCY_MHZ = "80"
+_NEXUS_CLOCK_FREQUENCY_MHZ = "80"
 
 filegroup(
     name = "rtl_files",
     srcs = glob(["**/*.sv"]) + glob(["**/*.core"]) + [
-        "//fpga/ip/ispyocto:rtl_files",
         "//fpga/ip/spi_dpi_master:rtl_files",
         "//fpga/ip/display_dpi:rtl_files",
         "//fpga/ip/gpio_dpi:rtl_files",
@@ -66,9 +63,6 @@ VERILATOR_OPTIONS_COMMON = [
     "-DVLEN_128",
     "-Wno-BLKANDNBLK",
     "-Wno-CASEX",
-    # allows verilator to ignore timing code in rtl
-    # eg: "out <= #1 RESET_STATE;"
-    "--no-timing",
 ]
 
 string_list_flag(
@@ -211,16 +205,6 @@ coralnpu_v2_binary(
     deps = [":uart"],
 )
 
-coralnpu_v2_binary(
-    name = "isp_cam_test",
-    srcs = [
-        "sw/isp_cam_test.c",
-        "sw/yocto_isp_register_address.h",
-    ],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
-    deps = [":uart"],
-)
-
 filegroup(
     name = "add_uint32_m1_bin",
     srcs = [":add_uint32_m1"],
@@ -279,8 +263,6 @@ fusesoc_build(
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi_sv.core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-        "//fpga/ip/ispyocto:ispyocto_core",
     ],
     flags = [
         "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
@@ -312,8 +294,6 @@ fusesoc_build(
         "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
         "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-        "//fpga/ip/ispyocto:ispyocto_core",
     ],
     flags = [
         "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
@@ -354,8 +334,6 @@ fusesoc_build(
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
         "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
-        "//fpga/ip/ispyocto:ispyocto_core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
     flags = [
         "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
@@ -380,8 +358,6 @@ fusesoc_build(
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
         "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
-        "//fpga/ip/ispyocto:ispyocto_core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
     flags = [
         "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
@@ -406,12 +382,3 @@ genrule(
     outs = ["Vchip_verilator"],
     cmd = "cp $< $@",
 )
-
-# Rules to available ispyocto and axi2sramcrs in the sandbox
-genrule(
-    name = "unpack_ispyocto",
-    srcs = ["@ispyocto//:ispyocto_rtl_files"],
-    outs = ["ispyocto_unpacked.done"],
-    cmd = "mkdir -p ispyocto_unpacked && cp -r $(locations @ispyocto//:ispyocto_rtl_files) ispyocto_unpacked/ && touch $@",
-)
-

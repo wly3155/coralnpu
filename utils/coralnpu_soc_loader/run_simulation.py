@@ -56,18 +56,6 @@ def main():
     args = parser.parse_args()
 
     r = runfiles.Create()
-
-    # Ensure required data files are in Current working directory
-    raw_image_path = r.Rlocation("coralnpu_hw/fpga/ip/ispyocto/grey_bars_320x240.raw")
-    linked_raw = False
-    if raw_image_path and os.path.exists(raw_image_path):
-        if not os.path.exists("grey_bars_320x240.raw"):
-            try:
-                os.symlink(raw_image_path, "grey_bars_320x240.raw")
-                linked_raw = True
-                logging.warning("RUNNER: Linked grey_bars_320x240.raw to current directory.")
-            except OSError:
-                pass
     # The genrule copies the binary to a predictable path.
     sim_bin_path = r.Rlocation("coralnpu_hw/fpga/Vchip_verilator")
     if not sim_bin_path or not os.path.exists(sim_bin_path):
@@ -95,9 +83,6 @@ def main():
         sim_cmd = [sim_bin_path]
         trace_file = args.trace or args.trace_file
         if trace_file:
-            # If relative, save it to the workspace directory to ensure it doesn't get buried in runfiles.
-            if not os.path.isabs(trace_file) and "BUILD_WORKSPACE_DIRECTORY" in os.environ:
-                trace_file = os.path.join(os.environ["BUILD_WORKSPACE_DIRECTORY"], trace_file)
             sim_cmd.append(f"--trace={trace_file}")
             logging.warning(f"RUNNER: Tracing enabled, waveform will be saved to {trace_file}")
 
@@ -167,12 +152,6 @@ def main():
     finally:
         for t in threads:
             t.join()
-        if 'linked_raw' in locals() and linked_raw:
-            try:
-                os.remove("grey_bars_320x240.raw")
-                logging.warning("RUNNER: Cleaned up grey_bars_320x240.raw.")
-            except OSError:
-                pass
         logging.warning("RUNNER: All processes terminated.")
 
     if loader_proc and loader_proc.returncode != 0:

@@ -77,7 +77,6 @@ class SecdedEncoder(val DATA_W: Int) extends Module {
   val IO_W = DATA_W match {
     case 32 => 39
     case 57 => 64
-    case 64 => 64 + 7 // 64-bit data uses a 7-bit folded ECC.
     case 128 => 128 + 7 // 128-bit data uses a 7-bit folded ECC.
     case 256 => 256 + 7 // 256-bit data uses a 7-bit folded ECC.
   }
@@ -93,11 +92,6 @@ class SecdedEncoder(val DATA_W: Int) extends Module {
     io.data_o := Secded.ecc39_32(io.data_i)
   } else if (DATA_W == 57) {
     io.data_o := Secded.ecc64_57(io.data_i)
-  } else if (DATA_W == 64) {
-    // For 64-bit data, we use the "folding" scheme: the data is split into
-    // two 32-bit chunks, and their 7-bit ECC codes are XORed together.
-    val ecc = io.data_i.asTypeOf(Vec(2, UInt(32.W))).map(x => Secded.ecc39_32(x)(38, 32)).reduce(_^_)
-    io.data_o := Cat(ecc, io.data_i)
   } else if (DATA_W == 128) {
     // For 128-bit data, we use the "folding" scheme: the data is split into
     // four 32-bit chunks, and their 7-bit ECC codes are XORed together.

@@ -15,8 +15,6 @@ filesets:
       - coralnpuv2:ip:sram:0.1
       - coralnpuv2:ip:coralnpu_tlul:0.1
       - coralnpuv2:ip:i2c_master:0.1
-      - vsi:ip:ispyocto:0.1
-      - google:ip:tlul2ahblite:0.1
     files:
       - rtl/coralnpu_soc.sv
     file_type: systemVerilogSource
@@ -36,7 +34,7 @@ parameters:
   ClockFrequencyMhz:
     datatype: int
     description: "Target clock frequency in MHz."
-    default: 50
+    default: 80
     paramtype: vlogparam
   MemInitFile:
     datatype: str

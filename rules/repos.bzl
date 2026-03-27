@@ -262,16 +262,6 @@ def fpga_repos():
         patch_args = ["-p1"],
     )
 
-    http_archive(
-        name = "ispyocto",
-        urls = ["https://opensecura.googlesource.com/3p/ip/isp/+archive/d53dc0e0ce2605cea2e3b3fc5b97e9dd40f8d55a.tar.gz"],
-        build_file = "@coralnpu_hw//fpga/ip/ispyocto:ispyocto.BUILD",
-        sha256 = "",
-        patch_cmds = [
-            "rm -f ispyocto/BUILD axi2sramcrs/BUILD ispyocto/rtl/ispyocto_filelist.txt",
-        ],
-    )
-
 def tflite_repos():
     http_archive(
         name = "tflite_micro",

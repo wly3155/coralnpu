@@ -14,7 +14,7 @@
 // limitations under the License.
 
 module clkgen_xilultrascaleplus
-    #(parameter int ClockFrequencyMhz = 50,
+    #(parameter int ClockFrequencyMhz = 80,
       // Add BUFG if not done by downstream logic
       parameter bit AddClkBuf = 1)
     (input clk_i,
@@ -23,7 +23,7 @@ module clkgen_xilultrascaleplus
      input srst_ni,
      output clk_main_o,
      output clk_48MHz_o,
-     output clk_isp_o,
+     output clk_aon_o,
      output clk_spim_o,
      output rst_no,
      output locked_o);
@@ -38,8 +38,8 @@ module clkgen_xilultrascaleplus
   logic clk_48_unbuf;
   logic clk_spim_buf;
   logic clk_spim_unbuf;
-  logic clk_isp_buf;
-  logic clk_isp_unbuf;
+  logic clk_aon_buf;
+  logic clk_aon_unbuf;
   logic clk_ibufds_o;
 
   // Input IBUFDS conver diff-pair to single-end
@@ -67,10 +67,10 @@ module clkgen_xilultrascaleplus
           .CLKOUT2_DUTY_CYCLE(0.500),
           // With CLKOUT4_CASCADE, CLKOUT6's divider is an input to CLKOUT4's
           // divider. The effective ratio is a multiplication of the two.
-          .CLKOUT4_DIVIDE(120),
+          .CLKOUT4_DIVIDE(40),
           .CLKOUT4_PHASE(0.000),
           .CLKOUT4_DUTY_CYCLE(0.500),
-          .CLKOUT4_CASCADE("FALSE"),
+          .CLKOUT4_CASCADE("TRUE"),
           .CLKOUT6_DIVIDE(120),
           .CLKIN1_PERIOD(10.000))
       pll(.CLKFBOUT(clk_fb_unbuf),
@@ -83,7 +83,7 @@ module clkgen_xilultrascaleplus
           .CLKOUT2B(),
           .CLKOUT3(),
           .CLKOUT3B(),
-          .CLKOUT4(clk_isp_unbuf),
+          .CLKOUT4(clk_aon_unbuf),
           .CLKOUT5(),
           .CLKOUT6(),
           // Input clock control
@@ -121,8 +121,8 @@ module clkgen_xilultrascaleplus
   BUFGCE clk_spim_bufgce(.I(clk_spim_unbuf),
                          .O(clk_spim_buf));
 
-  BUFGCE clk_isp_bufgce(.I(clk_isp_unbuf),
-                        .O(clk_isp_buf));
+  BUFGCE clk_aon_bufgce(.I(clk_aon_unbuf),
+                        .O(clk_aon_buf));
 
   if (AddClkBuf == 1) begin : gen_clk_bufs
     BUFGCE clk_10_bufgce(.I(clk_10_unbuf),
@@ -141,7 +141,7 @@ module clkgen_xilultrascaleplus
   // clock
   assign clk_main_o = clk_10_buf;
   assign clk_48MHz_o = clk_48_buf;
-  assign clk_isp_o = clk_isp_buf;
+  assign clk_aon_o = clk_aon_buf;
   assign clk_spim_o = clk_spim_buf;
 
   // reset

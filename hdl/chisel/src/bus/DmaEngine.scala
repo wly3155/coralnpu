@@ -16,7 +16,7 @@ package bus
 
 import chisel3._
 import chisel3.util._
-import common.{MakeValid, MakeInvalid, MuBi4}
+import common.{MakeValid, MakeInvalid}
 import coralnpu.Parameters
 
 class DmaEngine(hostParams: Parameters, deviceParams: Parameters) extends Module {
@@ -396,7 +396,7 @@ class DmaEngine(hostParams: Parameters, deviceParams: Parameters) extends Module
       state.isOneOf(sXferReadReq, sXferWriteReq) -> desc.xfer_width
     )
   )
-  host_a_bits.source  := 0x0.U
+  host_a_bits.source  := 0xa.U
   host_a_bits.address := MuxLookup(state, 0.U)(
     Seq(
       sFetchDesc0   -> xfer.desc_addr,
@@ -423,7 +423,7 @@ class DmaEngine(hostParams: Parameters, deviceParams: Parameters) extends Module
   )
   host_a_bits.data := (xfer.data_buf << (xfer.dst_addr(log2Ceil(hostTlulP.w) - 1, 0) << 3))
   host_a_bits.user := 0.U.asTypeOf(host_a_bits.user)
-  host_a_bits.user.instr_type := MuBi4.False.asUInt
+  host_a_bits.user.instr_type := 9.U // MuBi4False
 
   // Host Port Integrity Generation
   val host_intg_gen = Module(new RequestIntegrityGen(hostTlulP))

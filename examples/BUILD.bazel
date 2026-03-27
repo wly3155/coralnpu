@@ -25,4 +25,3 @@ coralnpu_v2_binary(
     name = "coralnpu_v2_rvv_add_intrinsic",
     srcs = ["rvv_add_intrinsic.cc"],
 )
-

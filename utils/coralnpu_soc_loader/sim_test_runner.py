@@ -140,15 +140,6 @@ class SimTestRunner:
         sim_env = os.environ.copy()
         sim_env["SPI_DPI_PORT"] = str(port)
 
-        # Ensure required data files are in Current working directory
-        raw_image_path = r.Rlocation("coralnpu_hw/fpga/ip/ispyocto/grey_bars_320x240.raw")
-        if raw_image_path and os.path.exists(raw_image_path):
-            if not os.path.exists("grey_bars_320x240.raw"):
-                try:
-                    os.symlink(raw_image_path, "grey_bars_320x240.raw")
-                except OSError:
-                    pass
-
         try:
             # Start simulator
             sim_cmd = [sim_bin_path]
