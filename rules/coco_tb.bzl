@@ -346,6 +346,7 @@ def _vcs_cocotb_test_suite(
         testcases = [],
         testcases_vname = "",
         tests_kwargs = {},
+        add_ci_tags = True,
         **kwargs):
     """Runs a cocotb test with a vcs model.
 
@@ -381,7 +382,8 @@ def _vcs_cocotb_test_suite(
                 tc_tests_kwargs.update({"size": tc_size})
                 tc_tests_kwargs.pop("timeout", "")
             tags = list(tc_tests_kwargs.pop("tags", []))
-            tags.append("vcs_cocotb_single_test")
+            if add_ci_tags:
+                tags.append("vcs_cocotb_single_test")
             test_args = tc_tests_kwargs.pop("test_args", [""])
             vcs_cocotb_test(
                 name = "{}_{}".format(name, tc),
@@ -397,7 +399,8 @@ def _vcs_cocotb_test_suite(
     meta_target_kwargs = dict(all_tests_kwargs)
     tags = list(meta_target_kwargs.pop("tags", []))
     tags.append("manual")
-    tags.append("vcs_cocotb_test_suite")
+    if add_ci_tags:
+        tags.append("vcs_cocotb_test_suite")
     vcs_cocotb_test(
         name = name,
         tags = tags,
@@ -453,6 +456,19 @@ def cocotb_test_suite(name, testcases, simulators = ["verilator"], **kwargs):
                 testcases = testcases,
                 testcases_vname = testcases_vname,
                 tests_kwargs = sim_tests_kwargs,
+                **sim_kwargs
+            )
+        elif sim == "vcs_netlist":
+            verilog_sources = sim_kwargs.pop("verilog_sources", [])
+            if not verilog_sources:
+                fail("vcs_netlist_verilog_sources must be specified for vcs_netlist tests")
+            _vcs_cocotb_test_suite(
+                name = "{}_{}".format(sim, name),
+                verilog_sources = verilog_sources,
+                testcases = testcases,
+                testcases_vname = testcases_vname,
+                tests_kwargs = sim_tests_kwargs,
+                add_ci_tags = False,
                 **sim_kwargs
             )
         elif sim == "vcs":

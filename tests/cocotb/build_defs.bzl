@@ -14,6 +14,9 @@
 
 """Common build arguments for cocotb tests."""
 
+load("//rules:coco_tb.bzl", "cocotb_test_suite")
+load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
+
 VERILATOR_BUILD_ARGS = [
     "-Wno-WIDTH",
     "-Wno-CASEINCOMPLETE",
@@ -43,6 +46,11 @@ VCS_BUILD_ARGS = [
     "line+cond+tgl+branch+assert",
     "-cm_hier",
     "../tests/cocotb/coverage_exclude.cfg",
+    # Required for zero-delay gate-level simulation. Without these, timing violations produce 'X'
+    # which causes cocotb to crash with "ValueError: Cannot convert Logic('X') to bool".
+    "+notimingcheck",
+    "+nospecify",
+    "-hsopt=ignoreasiccap",  # Added to speed up simulation.
     # TODO(davidgao): enable this when ready
     # "-xprop=../tests/cocotb/xprop.cfg",
 ]
@@ -61,3 +69,58 @@ VCS_DEFINES = {
     "ZVE32F_ON": "",
     "VLEN_128": "",
 }
+
+def rvv_core_mini_axi_netlist_test_suite(
+        name,
+        vcs_verilog_sources,
+        vcs_build_args_extra = [],
+        vcs_data_extra = [],
+        **kwargs):
+    """A generic template for creating netlist tests for RvvCoreMiniAxi."""
+    cocotb_test_suite(
+        name = name,
+        simulators = ["vcs_netlist"],
+        testcases = [
+            "core_mini_axi_basic_write_read_memory",
+            "core_mini_axi_run_wfi_in_all_slots",
+            "core_mini_axi_slow_bready",
+            "core_mini_axi_write_read_memory_stress_test",
+            "core_mini_axi_master_write_alignment",
+            "core_mini_axi_finish_txn_before_halt_test",
+            "core_mini_axi_riscv_tests",
+            "core_mini_axi_riscv_dv",
+            "core_mini_axi_csr_test",
+            "core_mini_axi_exceptions_test",
+            "core_mini_axi_coralnpu_isa_test",
+            "core_mini_axi_rand_instr_test",
+            "core_mini_axi_burst_types_test",
+            "core_mini_axi_float_csr_test",
+            "unreachable_prefetch_fault",
+            "core_mini_axi_frm_test",
+        ],
+        tests_kwargs = {
+            "hdl_toplevel": "RvvCoreMiniAxi",
+            "waves": False,
+            "seed": "42",
+            "tags": ["vcs", "manual"],
+            "test_module": ["//tests/cocotb:core_mini_axi_sim.py"],
+            "deps": [
+                "//coralnpu_test_utils:core_mini_axi_sim_interface",
+                "//coralnpu_test_utils:sim_test_fixture",
+                requirement("tqdm"),
+                "@bazel_tools//tools/python/runfiles",
+            ],
+            "data": ["//tests/cocotb:cocotb_test_binary_targets"],
+            "size": "enormous",
+        },
+        vcs_netlist_build_args = VCS_BUILD_ARGS + vcs_build_args_extra,
+        vcs_netlist_data = [
+            "//tests/cocotb:cocotb_test_binary_targets",
+            "//tests/cocotb:coverage_exclude.cfg",
+            "//tests/cocotb:xprop.cfg",
+        ] + vcs_data_extra,
+        vcs_netlist_defines = VCS_DEFINES,
+        vcs_netlist_test_args = VCS_TEST_ARGS,
+        vcs_netlist_verilog_sources = vcs_verilog_sources,
+        **kwargs
+    )

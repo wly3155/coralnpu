@@ -47,33 +47,33 @@ COCOTB_TEST_BINARY_TARGETS = glob(["**/*.elf"]) + glob(["**/*.o"]) + [
 
 verilator_cocotb_model(
     name = "core_mini_axi_model",
-    trace = False,
     cflags = VERILATOR_BUILD_ARGS,
     hdl_toplevel = "CoreMiniAxi",
+    trace = False,
     verilog_source = "//hdl/chisel/src/coralnpu:CoreMiniAxi.sv",
 )
 
 verilator_cocotb_model(
     name = "rvv_core_mini_axi_model",
-    trace = False,
     cflags = VERILATOR_BUILD_ARGS,
     hdl_toplevel = "RvvCoreMiniAxi",
+    trace = False,
     verilog_source = "//hdl/chisel/src/coralnpu:RvvCoreMiniAxi.sv",
 )
 
 verilator_cocotb_model(
     name = "rvv_core_mini_highmem_axi_model",
-    trace = False,
     cflags = VERILATOR_BUILD_ARGS,
     hdl_toplevel = "RvvCoreMiniHighmemAxi",
+    trace = False,
     verilog_source = "//hdl/chisel/src/coralnpu:RvvCoreMiniHighmemAxi.sv",
 )
 
 verilator_cocotb_model(
     name = "rvv_core_mini_itcm512kb_dtcm512kb_axi_model",
-    trace = False,
     cflags = VERILATOR_BUILD_ARGS,
     hdl_toplevel = "RvvCoreMini_ITCM512KB_DTCM512KBAxi",
+    trace = False,
     verilog_source = "//hdl/chisel/src/coralnpu:RvvCoreMini_ITCM512KB_DTCM512KBAxi.sv",
 )
 
@@ -121,7 +121,7 @@ RVV_CORE_MINI_AXI_SIM_TESTCASES = [
 # END_TESTCASES_FOR_rvv_core_mini_axi_sim_cocotb
 
 CORE_MINI_AXI_SIM_COMMON_TEST_KWARGS = {
-   "waves": False,
+    "waves": False,
     "seed": "42",
     "test_module": ["core_mini_axi_sim.py"],
     "deps": [
@@ -140,9 +140,9 @@ template_rule(
         "core_mini_axi_sim_cocotb": {
             "tests_kwargs": dict(
                 CORE_MINI_AXI_SIM_COMMON_TEST_KWARGS,
-                hdl_toplevel = "CoreMiniAxi",
-                default_testcase_size = "medium",
                 size = "enormous",
+                default_testcase_size = "medium",
+                hdl_toplevel = "CoreMiniAxi",
             ),
             "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:core_mini_axi_cc_library_verilog"],
             "verilator_model": ":core_mini_axi_model",
@@ -152,9 +152,9 @@ template_rule(
         "rvv_core_mini_axi_sim_cocotb": {
             "tests_kwargs": dict(
                 CORE_MINI_AXI_SIM_COMMON_TEST_KWARGS,
-                hdl_toplevel = "RvvCoreMiniAxi",
-                default_testcase_size = "medium",
                 size = "enormous",
+                default_testcase_size = "medium",
+                hdl_toplevel = "RvvCoreMiniAxi",
             ),
             "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_verilog"],
             "verilator_model": ":rvv_core_mini_axi_model",
@@ -169,7 +169,7 @@ template_rule(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_data = COCOTB_TEST_BINARY_TARGETS + [
         ":coverage_exclude.cfg",
-        ":xprop.cfg"
+        ":xprop.cfg",
     ],
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
@@ -361,7 +361,7 @@ cocotb_test_suite(
     testcases_vname = "RVV_ASSEMBLY_TESTCASES",
     tests_kwargs = {
         "hdl_toplevel": "RvvCoreMiniAxi",
-       "waves": False,
+        "waves": False,
         "seed": "42",
         "test_module": ["rvv_assembly_cocotb_test.py"],
         "deps": [
@@ -378,7 +378,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_data = ["//tests/cocotb/rvv:rvv_assem_tests"] + [
         ":coverage_exclude.cfg",
-        ":xprop.cfg"
+        ":xprop.cfg",
     ],
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
@@ -405,7 +405,6 @@ template_rule(
     coralnpu_v2_binary,
     get_wfi_slot_targets(),
 )
-
 
 cocotb_test_suite(
     name = "rvv_highmem_tests",
@@ -472,8 +471,6 @@ cocotb_test_suite(
     },
     verilator_model = ":rvv_core_mini_itcm512kb_dtcm512kb_axi_model",
 )
-
-
 
 coralnpu_v2_binary(
     name = "finish_txn_before_halt",
@@ -587,7 +584,7 @@ cocotb_test_suite(
     testcases_vname = "RVV_LOAD_STORE_TESTCASES",
     tests_kwargs = {
         "hdl_toplevel": "RvvCoreMiniAxi",
-       "waves": False,
+        "waves": False,
         "seed": "42",
         "test_module": ["rvv_load_store_test.py"],
         "deps": [
@@ -603,7 +600,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_data = ["//tests/cocotb/rvv/load_store:rvv_load_store_tests"] + [
         ":coverage_exclude.cfg",
-        ":xprop.cfg"
+        ":xprop.cfg",
     ],
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
@@ -621,7 +618,7 @@ cocotb_test_suite(
     testcases_vname = "RVV_ARITHMETIC_TESTCASES",
     tests_kwargs = {
         "hdl_toplevel": "RvvCoreMiniAxi",
-       "waves": False,
+        "waves": False,
         "seed": "42",
         "test_module": ["rvv_arithmetic_cocotb_test.py"],
         "deps": [
@@ -636,7 +633,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_data = ["//tests/cocotb/rvv/arithmetics:rvv_arith_tests"] + [
         ":coverage_exclude.cfg",
-        ":xprop.cfg"
+        ":xprop.cfg",
     ],
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
@@ -668,7 +665,7 @@ cocotb_test_suite(
     testcases_vname = "RVV_ML_OPS_TESTCASES",
     tests_kwargs = {
         "hdl_toplevel": "RvvCoreMiniAxi",
-       "waves": False,
+        "waves": False,
         "seed": "42",
         "test_module": ["rvv_ml_ops_cocotb_test.py"],
         "deps": [
@@ -681,7 +678,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_data = ["//tests/cocotb/rvv/ml_ops:rvv_mlop_tests"] + [
         ":coverage_exclude.cfg",
-        ":xprop.cfg"
+        ":xprop.cfg",
     ],
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
@@ -695,7 +692,6 @@ coralnpu_v2_binary(
         "ddr_test.cc",
     ],
 )
-
 
 cocotb_test_suite(
     name = "rvv_highmem_tests_slow",
@@ -735,9 +731,9 @@ template_rule(
         "core_mini_axi_sim_cocotb_slow": {
             "tests_kwargs": dict(
                 CORE_MINI_AXI_SIM_COMMON_TEST_KWARGS,
-                hdl_toplevel = "CoreMiniAxi",
-                default_testcase_size = "medium",
                 size = "enormous",
+                default_testcase_size = "medium",
+                hdl_toplevel = "CoreMiniAxi",
                 test_args = ["+CLOCK_NS=2.0"],
             ),
             "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:core_mini_axi_cc_library_verilog"],
@@ -748,9 +744,9 @@ template_rule(
         "rvv_core_mini_axi_sim_cocotb_slow": {
             "tests_kwargs": dict(
                 CORE_MINI_AXI_SIM_COMMON_TEST_KWARGS,
-                hdl_toplevel = "RvvCoreMiniAxi",
-                default_testcase_size = "medium",
                 size = "enormous",
+                default_testcase_size = "medium",
+                hdl_toplevel = "RvvCoreMiniAxi",
                 test_args = ["+CLOCK_NS=2.0"],
             ),
             "vcs_verilog_sources": ["//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_verilog"],
@@ -766,9 +762,19 @@ template_rule(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_data = COCOTB_TEST_BINARY_TARGETS + [
         ":coverage_exclude.cfg",
-        ":xprop.cfg"
+        ":xprop.cfg",
     ],
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS + ["+CLOCK_NS=2.0"],
 )
 
+filegroup(
+    name = "cocotb_test_binary_targets",
+    srcs = COCOTB_TEST_BINARY_TARGETS,
+)
+
+exports_files([
+    "core_mini_axi_sim.py",
+    "coverage_exclude.cfg",
+    "xprop.cfg",
+])
