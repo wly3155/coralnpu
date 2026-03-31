@@ -49,6 +49,7 @@ def main():
     """The main entry point for the script."""
     parser = argparse.ArgumentParser(description="Run the CoralNPU SoC simulation and load an ELF binary.")
     parser.add_argument("--elf_file", help="Path to the ELF binary to load. If not provided, simulation runs without loading code.")
+    parser.add_argument("--command", help="Optional: A command string to run once the simulation is ready. If provided, overrides --elf_file.")
     parser.add_argument("--trace", nargs="?", const="sim_trace.fst", help="Optional: Path to save a waveform trace file (.fst). Defaults to sim_trace.fst if no path is provided.")
     parser.add_argument("--trace_file", help="Deprecated: use --trace instead. Path to save a waveform trace file (.fst).")
     parser.add_argument("--run_time", type=int, default=10, help="Optional: Time in seconds to run simulation after loading.")
@@ -123,7 +124,36 @@ def main():
             raise RuntimeError("Timeout waiting for simulator to become ready.")
         logging.warning("RUNNER: Simulation is ready.")
 
-        if args.elf_file:
+        if args.command:
+            import shlex
+            cmd = shlex.split(args.command)
+            # Try to resolve first element as a runfile if it looks like a workspace path
+            if cmd[0].startswith("coralnpu_hw/"):
+                resolved = r.Rlocation(cmd[0])
+                if resolved:
+                    cmd[0] = resolved
+
+            logging.warning(f"RUNNER: Starting custom command: {' '.join(cmd)}")
+            loader_proc = subprocess.Popen(
+                cmd,
+                env=sim_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            # Start threads for command output
+            loader_stdout_thread = threading.Thread(target=stream_reader, args=(loader_proc.stdout, "CMD"))
+            loader_stderr_thread = threading.Thread(target=stream_reader, args=(loader_proc.stderr, "CMD_ERR"))
+            loader_stdout_thread.start()
+            loader_stderr_thread.start()
+            threads.extend([loader_stdout_thread, loader_stderr_thread])
+
+            # Wait for command to complete
+            loader_proc.wait(timeout=300)
+            logging.warning(f"RUNNER: Command finished with status {loader_proc.returncode}. Running simulation for {args.run_time} seconds...")
+
+        elif args.elf_file:
             loader_script_path = r.Rlocation("coralnpu_hw/utils/coralnpu_soc_loader/loader")
             if not loader_script_path or not os.path.exists(loader_script_path):
                 raise FileNotFoundError("Could not find loader binary in runfiles.")

@@ -21,7 +21,7 @@ import libusb_package
 import usb.core
 from pyftdi.ftdi import Ftdi, FtdiFeatureError
 from elftools.elf.elffile import ELFFile
-from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatus
+from coralnpu_test_utils.spi_constants import SPI_V2_OP_READ, SPI_V2_OP_WRITE, SPI_V2_BEAT_BYTES
 
 class FtdiSpiMaster:
     """A class to manage SPI communication using an FTDI device."""
@@ -47,76 +47,10 @@ class FtdiSpiMaster:
             initial=0x08,   # CS# high
             frequency=30E6)
 
-        # Enable 3-phase clocking to provide a hold time on data reads.
-        # This is critical for the slave device to have time to drive the MISO
-        # line before the FTDI chip samples it.
-        # Opcode: 0x8C = Enable 3-Phase Clocking
-        self.ftdi.write_data(bytes([0x8C]))
-
     def close(self):
         if self.ftdi:
             self.ftdi.close()
             self.ftdi = None
-
-    def _get_spi_exchange_cmd(self, write_data=b'', read_len=0, extra_cycles=0):
-        """
-        Generates the raw MPSSE command buffer for a complete SPI transaction.
-        This includes asserting CS, clocking data, and de-asserting CS.
-        It returns the command buffer, which can be batched by the caller.
-        """
-        cmd = bytearray()
-        # Set CS low (transaction start).
-        # The SET_BITS_LOW command sets the values for the low byte (ADBUS0-7).
-        # Value 0x00 sets bit 3 (CS) low. Direction 0x0b keeps SCK, MOSI, CS as outputs.
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])
-
-        # Handle extra clock cycles while CS is low (for CDC).
-        if extra_cycles > 0:
-            num_full_bytes = extra_cycles // 8
-            remaining_bits = extra_cycles % 8
-            if num_full_bytes > 0:
-                cmd.append(Ftdi.WRITE_BYTES_NVE_MSB)
-                length = num_full_bytes - 1
-                cmd.extend([length & 0xFF, (length >> 8) & 0xFF])
-                cmd.extend(b'\x00' * num_full_bytes)
-            if remaining_bits > 0:
-                cmd.extend([Ftdi.WRITE_BITS_NVE_MSB, remaining_bits - 1, 0x00])
-
-        # Main data exchange command. All operations are duplex (RW_BYTES) to match
-        # the behavior of the original pyftdi.spi library, which was found to be
-        # necessary for this specific slave device.
-        if write_data or read_len:
-            # If only writing, we still perform a duplex exchange but will ignore the read data.
-            # If only reading, we write dummy bytes to clock the data in.
-            exchange_len = max(len(write_data), read_len)
-            if len(write_data) < exchange_len:
-                write_data += b'\x00' * (exchange_len - len(write_data))
-
-            cmd.append(Ftdi.RW_BYTES_PVE_NVE_MSB)
-            length = exchange_len - 1
-            cmd.extend([length & 0xFF, (length >> 8) & 0xFF])
-            cmd.extend(write_data[:exchange_len])
-
-        # Set CS high (transaction end). Value 0x08 sets bit 3 (CS) high.
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])
-        return cmd
-
-    def _spi_exchange(self, write_data=b'', read_len=0, extra_cycles=0):
-        """Executes a complete SPI transaction."""
-        cmd = self._get_spi_exchange_cmd(write_data, read_len, extra_cycles)
-
-        if read_len > 0:
-            cmd.append(Ftdi.SEND_IMMEDIATE)
-
-        self.ftdi.write_data(cmd)
-
-        if read_len > 0:
-            read_buf = self.ftdi.read_data_bytes(read_len, attempt=4)
-            if len(read_buf) != read_len:
-                print(f"Warning: SPI exchange expected {read_len} bytes, "
-                      f"received {len(read_buf)}")
-            return read_buf
-        return None
 
     def device_reset(self):
         """Drives ADBUS7 low to reset the device, then returns it high."""
@@ -139,65 +73,100 @@ class FtdiSpiMaster:
         self.ftdi.write_data(bytes([Ftdi.SET_BITS_LOW, 0x08, 0x0b]))
         print("Reset complete.")
 
+    def v2_send_header(self, op, addr, length):
+        """Generates the MPSSE command to send a 7-byte V2 header."""
+        header = bytearray([
+            op & 0xFF,
+            (addr >> 24) & 0xFF,
+            (addr >> 16) & 0xFF,
+            (addr >> 8) & 0xFF,
+            addr & 0xFF,
+            (length >> 8) & 0xFF,
+            length & 0xFF
+        ])
+        return self._get_spi_write_bytes_cmd(header)
+
     def read_line(self, address):
-        """Reads a single 128-bit line from memory via SPI."""
-        # 1. Configure the read
-        self.write_reg(SpiRegAddress.TL_ADDR_REG_0, (address >> 0) & 0xFF)
-        self.write_reg(SpiRegAddress.TL_ADDR_REG_1, (address >> 8) & 0xFF)
-        self.write_reg(SpiRegAddress.TL_ADDR_REG_2, (address >> 16) & 0xFF)
-        self.write_reg(SpiRegAddress.TL_ADDR_REG_3, (address >> 24) & 0xFF)
-        self.write_reg_16b(SpiRegAddress.TL_LEN_REG_L, 0)  # 1 beat
+        """Reads a single 128-bit line from memory via SPI V2 protocol."""
+        # V2 frame: [CS Low] -> [Header] -> [Wait for 0xFE and read 16B] -> [CS High]
+        cmd = bytearray()
+        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
+        cmd.extend(self.v2_send_header(SPI_V2_OP_READ, address, 0))
 
-        # 2. Issue the read command
-        self.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_READ_START, wait_cycles=0)
+        # Read enough bytes to cover CDC latency + 16B data (128B total for safety)
+        total_read_len = 128
 
-        # 3. Poll for completion of the main TL transaction
-        if not self.poll_reg_for_value(SpiRegAddress.TL_STATUS_REG, TlStatus.DONE):
-            raise RuntimeError(f"Timed out waiting for TL read at 0x{address:x}")
+        # Clock out dummy zeros and read MISO. Use 0x35 for NVE out, NVE in
+        read_cmd = bytearray([0x35])
+        length = total_read_len - 1
+        read_cmd.extend([length & 0xFF, (length >> 8) & 0xFF])
+        read_cmd.extend(b'\x00' * total_read_len)
+        cmd.extend(read_cmd)
 
-        # 4. Poll the bulk read status register for the expected number of bytes.
-        #    This must be done BEFORE clearing the command FSM.
-        bytes_available = 0
-        max_polls = 100
-        timeout = 1.0
-        start_time = time.time()
-        for i in range(max_polls):
-            bytes_available = self.read_spi_domain_reg_16b(SpiRegAddress.BULK_READ_STATUS_REG_L)
-            if bytes_available == 16:
-                break
-            if time.time() - start_time > timeout:
-                break
-            time.sleep(0.01)
+        # Extra cycles for CDC drain while CS is low (16 bytes = 128 cycles)
+        cmd.extend(self._get_spi_write_bytes_cmd(b'\x00' * 16))
 
-        if bytes_available != 16:
-            raise RuntimeError(f"Expected 16 bytes, but status reported {bytes_available} after polling.")
+        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
+        cmd.append(Ftdi.SEND_IMMEDIATE)
 
-        # 5. Perform the bulk read to retrieve the data.
-        read_data_bytes = self.bulk_read(bytes_available)
-        read_data = int.from_bytes(bytes(read_data_bytes), 'little')
+        self.ftdi.write_data(cmd)
+        miso_bytes = self.ftdi.read_data_bytes(total_read_len, attempt=4)
 
-        # 6. NOW, clear the command register to return the FSM to idle.
-        self.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
+        # Fast path: Byte-level search (enabled by hardware byte-alignment).
+        sync_idx = miso_bytes.find(b'\xfe')
+        if sync_idx != -1 and sync_idx + 1 + 16 <= len(miso_bytes):
+            data_bytes = miso_bytes[sync_idx + 1 : sync_idx + 17]
+            return int.from_bytes(data_bytes, 'little')
 
-        return read_data
+        # Fallback: Efficient bit-level search for 0xFE token (11111110) if misalignment occurs.
+        # Convert byte array to a single large integer for bitwise operations.
+        miso_int = int.from_bytes(miso_bytes, 'big')
+        total_bits = len(miso_bytes) * 8
+
+        # Sliding window search: mask 8 bits and compare to 0xFE.
+        # We search from MSB to LSB (SPI order).
+        for bit_off in range(total_bits - 8 - 128):
+            shift = total_bits - 8 - bit_off
+            if ((miso_int >> shift) & 0xFF) == 0xFE:
+                # Found token. Extract 128 data bits following it.
+                data_bits = (miso_int >> (shift - 128)) & ((1 << 128) - 1)
+
+                # Reverse byte order: SPI shifts out MSB-first, but TileLink is little-endian.
+                # data_bits currently has the first byte in the most significant 8 bits.
+                result = 0
+                for i in range(16):
+                    byte = (data_bits >> (i * 8)) & 0xFF
+                    result |= byte << ((15 - i) * 8)
+                return result
+
+        print(f"Warning: V2 start token (0xFE) not found in read from 0x{address:x}")
+        return 0
 
     def write_lines(self, start_addr, num_beats, data_as_bytes):
-        """
-        Writes a contiguous block of data and blocks until the hardware
-        confirms the write has completed.
-        """
-        write_d = self.packed_write_transaction(start_addr, num_beats, data_as_bytes)
+        """Writes multiple 128-bit lines using V2 frame protocol."""
+        if num_beats == 0:
+            return 0.0, 0.0
+        if len(data_as_bytes) != num_beats * 16:
+            raise ValueError("Data length must be num_beats * 16")
 
-        # Poll for completion of the main TL write transaction
-        if not self.poll_reg_for_value(SpiRegAddress.TL_WRITE_STATUS_REG, TlStatus.DONE, timeout=5.0):
-            raise RuntimeError(f"Timed out waiting for TL write at 0x{start_addr:x}")
+        write_start_time = time.time()
+        cmd = bytearray()
+        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
+        cmd.extend(self.v2_send_header(SPI_V2_OP_WRITE, start_addr, num_beats - 1))
+        cmd.extend(self._get_spi_write_bytes_cmd(data_as_bytes))
 
-        # Acknowledge the FSM to allow the next transaction.
-        ack_start_time = time.time()
-        self.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
-        ack_duration = time.time() - ack_start_time
+        # Extra cycles for CDC drain while CS is still low
+        cmd.extend(self._get_spi_write_bytes_cmd(b'\x00' * 16))
 
-        return write_d, ack_duration
+        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
+
+        cmd.append(Ftdi.GET_BITS_LOW)
+        cmd.append(Ftdi.SEND_IMMEDIATE)
+        self.ftdi.write_data(cmd)
+        self.ftdi.read_data_bytes(1)
+
+        write_duration = time.time() - write_start_time
+        return write_duration, 0.0
 
     def write_line(self, address, data):
         """Writes a single 128-bit line (given as an int) to an address."""
@@ -239,9 +208,9 @@ class FtdiSpiMaster:
 
         data_ptr = 0
 
-        # 1. Handle the first line if it's unaligned
+        # 1. Handle the first line if it's unaligned or if the transfer is smaller than a full line
         start_offset = start_address % 16
-        if start_offset != 0:
+        if start_offset != 0 or size < 16:
             line_addr = start_address - start_offset
             bytes_to_write = min(16 - start_offset, size)
 
@@ -319,19 +288,17 @@ class FtdiSpiMaster:
         print(f'load_elf elf_file={elf_file}')
         total_bytes_transferred = 0
         total_write_duration = 0.0
-        total_ack_duration = 0.0
         total_prep_duration = 0.0
 
         with open(elf_file, 'rb') as f:
-            elf_file = ELFFile(f)
-            entry_point = elf_file.header["e_entry"]
-            for segment in elf_file.iter_segments(type="PT_LOAD"):
+            elf_reader = ELFFile(f)
+            entry_point = elf_reader.header["e_entry"]
+            for segment in elf_reader.iter_segments(type="PT_LOAD"):
                 paddr = segment.header.p_vaddr
                 data = segment.data()
                 if not data:
                     continue
                 total_bytes_transferred += len(data)
-                data_ptr = 0
                 print(f'vaddr: {paddr:x} len: {len(data)}')
 
                 for i in range(0, len(data), 256):
@@ -350,19 +317,15 @@ class FtdiSpiMaster:
                     if not data_chunk_bytes:
                         continue
 
-                    write_d, ack_d = self.write_lines(chunk_start_addr, num_lines_in_chunk, data_chunk_bytes)
+                    write_d, _ = self.write_lines(chunk_start_addr, num_lines_in_chunk, data_chunk_bytes)
                     total_write_duration += write_d
-                    total_ack_duration += ack_d
 
-        total_duration = total_write_duration + total_ack_duration + total_prep_duration
+        total_duration = total_write_duration + total_prep_duration
         if total_duration > 0:
             rate_kbs = (total_bytes_transferred / 1024) / total_duration
             print(f"ELF data loaded. Transferred {total_bytes_transferred} bytes "
                   f"in {total_duration:.2f} seconds ({rate_kbs:.2f} KB/s).")
-            if total_duration > 0:
-                print(f"  - Breakdown: Prep: {total_prep_duration:.2f}s, "
-                      f"SPI Write: {total_write_duration:.2f}s, "
-                      f"ACK: {total_ack_duration:.2f}s")
+            print(f"  - Breakdown: Prep: {total_prep_duration:.2f}s, SPI Write: {total_write_duration:.2f}s")
 
         if start_core:
             self.set_entry_point(entry_point)
@@ -386,110 +349,6 @@ class FtdiSpiMaster:
         line_data = self.read_line(line_addr)
         word = (line_data >> (offset * 8)) & 0xFFFFFFFF
         return word
-
-    def read_spi_domain_reg(self, reg_addr):
-        """
-        Reads a register in the SPI clock domain. This uses simplex write and
-        read commands within a single transaction, with both operations in
-        SPI Mode 1.
-        """
-        cmd = bytearray()
-        # --- Start of single SPI transaction ---
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
-
-        # 1. Send the address byte using the standard SPI Mode 1.
-        #    Opcode: Clock Data Bytes Out on -ve clock edge MSB first (no read)
-        cmd.extend([Ftdi.WRITE_BYTES_NVE_MSB, 0x00, 0x00, reg_addr])
-
-        # 2. Read the result byte using the SPI Mode 1 read command.
-        #    Opcode: Clock Data Bytes In on -ve clock edge MSB first (no write)
-        cmd.extend([Ftdi.READ_BYTES_NVE_MSB, 0x00, 0x00])
-
-        # --- End of single SPI transaction ---
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
-
-        # Flush the command buffer to the FTDI chip.
-        cmd.append(Ftdi.SEND_IMMEDIATE)
-        self.ftdi.write_data(cmd)
-
-        # We expect only ONE byte back from the single read command.
-        read_buf = self.ftdi.read_data_bytes(1)
-        if not read_buf:
-            raise RuntimeError("Failed to read any data from FTDI device.")
-        return read_buf[0]
-
-    def read_spi_domain_reg_16b(self, base_addr):
-        """Reads a 16-bit value from a register pair in the SPI clock domain."""
-        val_l = self.read_spi_domain_reg(base_addr)
-        val_h = self.read_spi_domain_reg(base_addr + 1)
-        return (val_h << 8) | val_l
-
-    def bulk_read(self, num_bytes):
-        """
-        Reads a block of data using a sequence of simplex MPSSE commands to
-        correctly handle the hardware's MISO pipeline latency. This version
-        internally chunks reads to stay within the FTDI device's buffer limits,
-        while performing the entire operation in a single CS assertion.
-        """
-        if num_bytes == 0:
-            return []
-
-        # Determine a safe chunk size for FTDI transfers.
-        try:
-            ftdi_chunk_size = self.fifo_sizes[0] // 2
-        except (FtdiFeatureError, AttributeError):
-            ftdi_chunk_size = 1024
-
-        # --- Start of single SPI transaction ---
-        cmd = bytearray()
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
-
-        # Step 1: Simplex write the 4-byte command to kick off the total read.
-        num_bytes_val = num_bytes - 1
-        len_l = num_bytes_val & 0xFF
-        len_h = (num_bytes_val >> 8) & 0xFF
-        write_payload_cmd = bytes([
-            0x80 | SpiRegAddress.BULK_READ_PORT_L, len_l,
-            0x80 | SpiRegAddress.BULK_READ_PORT_H, len_h,
-        ])
-        cmd.extend(self._get_spi_write_bytes_cmd(write_payload_cmd))
-
-        # Step 2: Simplex write a single dummy byte for MISO pipeline latency.
-        cmd.extend(self._get_spi_write_bytes_cmd(bytes(1)))
-
-        # Send the setup command.
-        self.ftdi.write_data(cmd)
-
-        # Step 3: Read the data in FTDI-safe chunks.
-        read_buf = bytearray()
-        bytes_remaining = num_bytes
-        while bytes_remaining > 0:
-            chunk_read_size = min(bytes_remaining, ftdi_chunk_size)
-
-            read_cmd = bytearray()
-            read_cmd.append(Ftdi.READ_BYTES_NVE_MSB)
-            length = chunk_read_size - 1
-            read_cmd.extend([length & 0xFF, (length >> 8) & 0xFF])
-            read_cmd.append(Ftdi.SEND_IMMEDIATE)
-
-            self.ftdi.write_data(read_cmd)
-            chunk_data = self.ftdi.read_data_bytes(chunk_read_size)
-
-            if len(chunk_data) != chunk_read_size:
-                raise RuntimeError(f"Expected {chunk_read_size} bytes from FTDI, "
-                                   f"got {len(chunk_data)}")
-            read_buf.extend(chunk_data)
-            bytes_remaining -= chunk_read_size
-
-        # --- End of single SPI transaction ---
-        footer_cmd = bytearray()
-        footer_cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
-        self.ftdi.write_data(footer_cmd)
-
-        if len(read_buf) != num_bytes:
-            raise RuntimeError(f"Expected a total of {num_bytes} bytes, "
-                               f"got {len(read_buf)}")
-        return list(read_buf)
 
     def poll_for_halt(self, timeout=10.0):
         """Polls the halt status address until the core is halted."""
@@ -518,10 +377,7 @@ class FtdiSpiMaster:
         current_addr = address
 
         total_prep_duration = 0.0
-        total_setup_duration = 0.0
-        total_hw_wait_duration = 0.0
         total_spi_read_duration = 0.0
-        total_ack_duration = 0.0
 
         # 1. Handle the first line if the start address is unaligned
         start_offset = current_addr % 16
@@ -536,110 +392,38 @@ class FtdiSpiMaster:
             current_addr += bytes_to_read
             total_prep_duration += (time.time() - prep_start_time)
 
-        # 2. Read all aligned data in chunks
+        # 2. Read all aligned data in 16B chunks (V2 doesn't yet support bulk read response parsing in Python)
         while bytes_remaining > 0:
-            prep_start_time = time.time()
-            # Set the desired TL transaction size. We aim for 2kB, but don't
-            # request more than what's left.
-            tl_txn_size = min(2048, bytes_remaining)
-
-            # The number of beats must be a multiple of 16 bytes.
-            num_beats = (tl_txn_size + 15) // 16
-            expected_bytes = num_beats * 16
-            total_prep_duration += (time.time() - prep_start_time)
-
-            # Configure and issue a single TileLink read for the chunk
-            setup_start_time = time.time()
-            # Program Address / Length for TL
-            num_beats_val = num_beats - 1
-            header = bytearray([
-                0x80 | SpiRegAddress.TL_ADDR_REG_0, (current_addr >> 0) & 0xFF,
-                0x80 | SpiRegAddress.TL_ADDR_REG_1, (current_addr >> 8) & 0xFF,
-                0x80 | SpiRegAddress.TL_ADDR_REG_2, (current_addr >> 16) & 0xFF,
-                0x80 | SpiRegAddress.TL_ADDR_REG_3, (current_addr >> 24) & 0xFF,
-                0x80 | SpiRegAddress.TL_LEN_REG_L, num_beats_val & 0xFF,
-                0x80 | SpiRegAddress.TL_LEN_REG_H, (num_beats_val >> 8) & 0xFF,
-            ])
-            footer = bytearray([0x80 | SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_READ_START])
-
-            setup_cmd = bytearray()
-            setup_cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])
-            setup_cmd.extend(self._get_spi_write_bytes_cmd(header))
-            setup_cmd.extend(self._get_spi_write_bytes_cmd(footer))
-            setup_cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])
-            setup_cmd.append(Ftdi.SEND_IMMEDIATE)
-            self.ftdi.write_data(setup_cmd)
-            self.ftdi.read_data_bytes(1)
-            total_setup_duration += (time.time() - setup_start_time)
-
-            # Poll for completion
-            hw_wait_start_time = time.time()
-            if not self.poll_reg_for_value(SpiRegAddress.TL_STATUS_REG, TlStatus.DONE):
-                raise RuntimeError(f"Timed out waiting for bulk TL read at 0x{current_addr:x}")
-
-            # Manually poll the SPI-domain register for the data to be ready
-            bytes_available = 0
-            max_polls = 100
-            timeout = 1.0
-            poll_start_time = time.time()
-            for _ in range(max_polls):
-                bytes_available = self.read_spi_domain_reg_16b(SpiRegAddress.BULK_READ_STATUS_REG_L)
-                if bytes_available == expected_bytes:
-                    break
-                if time.time() - poll_start_time > timeout:
-                    break
-                time.sleep(0.01)
-            total_hw_wait_duration += (time.time() - hw_wait_start_time)
-
-            if bytes_available != expected_bytes:
-                raise RuntimeError(f"Timed out waiting for {expected_bytes} bytes at 0x{current_addr:x}, "
-                                   f"got {bytes_available}")
-
-            # Perform a single bulk read to get the chunk
+            bytes_to_read = min(16, bytes_remaining)
             spi_read_start_time = time.time()
-            read_data_bytes = self.bulk_read(expected_bytes)
-            data.extend(read_data_bytes)
+            line_data = self.read_line(current_addr)
+            line_bytes = line_data.to_bytes(16, 'little')
+            data.extend(line_bytes[:bytes_to_read])
             total_spi_read_duration += (time.time() - spi_read_start_time)
 
-            # Clear the command FSM
-            ack_start_time = time.time()
-            self.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
-            total_ack_duration += (time.time() - ack_start_time)
+            bytes_remaining -= bytes_to_read
+            current_addr += bytes_to_read
 
-            bytes_remaining -= expected_bytes
-            current_addr += expected_bytes
-
-        total_duration = (total_prep_duration + total_setup_duration +
-                          total_hw_wait_duration + total_spi_read_duration +
-                          total_ack_duration)
+        total_duration = total_prep_duration + total_spi_read_duration
         if verbose and total_duration > 0:
             rate_kbs = (size / 1024) / total_duration
             print(f"Read complete. Transferred {size} bytes "
                   f"in {total_duration:.2f} seconds ({rate_kbs:.2f} KB/s).")
-            if total_duration > 0:
-                print(f"  - Breakdown: Prep: {total_prep_duration:.2f}s, "
-                      f"Setup: {total_setup_duration:.2f}s, "
-                      f"HW Wait: {total_hw_wait_duration:.2f}s, "
-                      f"SPI Read: {total_spi_read_duration:.2f}s, "
-                      f"ACK: {total_ack_duration:.2f}s")
 
-        # Return only the originally requested number of bytes
         return data[:size]
 
     def _get_spi_rw_bytes_cmd(self, write_data):
         """
         Generates the core MPSSE command for a duplex SPI data exchange,
-        without any CS# toggling.
+        without any CS# toggling. Uses SPI Mode 1 (Shift on Rise, Sample on Fall).
         """
         cmd = bytearray()
         exchange_len = len(write_data)
         if exchange_len == 0:
             return cmd
 
-        # Command for clocking bytes with positive clock edge data capture (output)
-        # and negative clock edge data change (input).
-        cmd.append(Ftdi.RW_BYTES_PVE_NVE_MSB)
-        # Length is encoded as (len - 1)
+        # 0x34: RW Bytes, MSB first, +ve out (Rise), -ve in (Fall) -> Mode 1
+        cmd.append(0x34)
         length = exchange_len - 1
         cmd.extend([length & 0xFF, (length >> 8) & 0xFF])
         cmd.extend(write_data)
@@ -648,194 +432,19 @@ class FtdiSpiMaster:
     def _get_spi_write_bytes_cmd(self, write_data):
         """
         Generates the core MPSSE command for a simplex SPI data write,
-        without any CS# toggling.
+        without any CS# toggling. Uses SPI Mode 1 (Shift on Rise).
         """
         cmd = bytearray()
         exchange_len = len(write_data)
         if exchange_len == 0:
             return cmd
 
-        # Command for clocking bytes out on negative clock edge, MSB first (no read)
-        cmd.append(Ftdi.WRITE_BYTES_NVE_MSB)
-        # Length is encoded as (len - 1)
+        # 0x11: Write Bytes, MSB first, -ve out (Fall)
+        cmd.append(0x11)
         length = exchange_len - 1
         cmd.extend([length & 0xFF, (length >> 8) & 0xFF])
         cmd.extend(write_data)
         return cmd
-
-    def packed_write_transaction(self, target_addr, num_beats, data_bytes):
-        """
-        Performs a packed write transaction in a single SPI transaction using the
-        efficient bulk write command. This version chunks the data payload to
-        avoid overflowing the FTDI device's USB buffer and uses simplex
-        (write-only) commands to avoid filling the read buffer.
-        """
-        if len(data_bytes) != num_beats * 16:
-            raise ValueError("Data length must be num_beats * 16")
-
-        try:
-            chunk_size = self.fifo_sizes[0] // 2
-        except (FtdiFeatureError, AttributeError):
-            chunk_size = 1024
-
-        # 1. Construct the logical payload components
-        num_beats_val = num_beats - 1
-        header = bytearray([
-            0x80 | SpiRegAddress.TL_ADDR_REG_0, (target_addr >> 0) & 0xFF,
-            0x80 | SpiRegAddress.TL_ADDR_REG_1, (target_addr >> 8) & 0xFF,
-            0x80 | SpiRegAddress.TL_ADDR_REG_2, (target_addr >> 16) & 0xFF,
-            0x80 | SpiRegAddress.TL_ADDR_REG_3, (target_addr >> 24) & 0xFF,
-            0x80 | SpiRegAddress.TL_LEN_REG_L, num_beats_val & 0xFF,
-            0x80 | SpiRegAddress.TL_LEN_REG_H, (num_beats_val >> 8) & 0xFF,
-        ])
-
-        num_bytes_val = len(data_bytes) - 1
-        bulk_write_header = bytearray([
-            0x80 | SpiRegAddress.BULK_WRITE_PORT_L, num_bytes_val & 0xFF,
-            0x80 | SpiRegAddress.BULK_WRITE_PORT_H, (num_bytes_val >> 8) & 0xFF,
-        ])
-
-        footer = bytearray([0x80 | SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_WRITE_START])
-
-        # 2. Build and send the command in chunks
-        write_start_time = time.time()
-
-        # Part 1: Send setup commands (CS# Low, header, bulk header)
-        setup_cmd = bytearray()
-        setup_cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b]) # CS Low
-        setup_cmd.extend(self._get_spi_write_bytes_cmd(header))
-        setup_cmd.extend(self._get_spi_write_bytes_cmd(bulk_write_header))
-        self.ftdi.write_data(setup_cmd)
-
-        # Part 2: Send data payload in chunks
-        for i in range(0, len(data_bytes), chunk_size):
-            chunk = data_bytes[i:i + chunk_size]
-            self.ftdi.write_data(self._get_spi_write_bytes_cmd(chunk))
-
-        # Part 3: Send footer, CS# High, and force execution
-        footer_cmd = bytearray()
-        footer_cmd.extend(self._get_spi_write_bytes_cmd(footer))
-        footer_cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b]) # CS High
-        footer_cmd.append(Ftdi.GET_BITS_LOW)
-        footer_cmd.append(Ftdi.SEND_IMMEDIATE)
-        self.ftdi.write_data(footer_cmd)
-        
-        write_duration = time.time() - write_start_time
-
-        # Wait for and discard the 1-byte response from GET_BITS_LOW.
-        self.ftdi.read_data_bytes(1)
-        
-        return write_duration
-
-    def _get_write_reg_cmd(self, addr, data):
-        """
-        Generates the raw MPSSE command buffer for a write_reg operation
-        using simplex (write-only) commands for efficiency and robustness.
-        """
-        write_cmd_byte = (1 << 7) | addr
-        cmd = bytearray()
-
-        # Transaction 1: Write the address byte
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
-        cmd.extend([Ftdi.WRITE_BYTES_NVE_MSB, 0x00, 0x00, write_cmd_byte])
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
-
-        # Transaction 2: Write the data byte
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
-        cmd.extend([Ftdi.WRITE_BYTES_NVE_MSB, 0x00, 0x00, data])
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
-
-        return cmd
-
-    def write_reg(self, addr, data, wait_cycles=10):
-        """
-        Writes a byte to a register using simplex commands.
-        """
-        cmd = self._get_write_reg_cmd(addr, data)
-        if wait_cycles > 0:
-            cmd.extend(self._get_idle_clocking_cmd(wait_cycles))
-
-        # Simplex writes do not return any data from the device, so we just
-        # send the command buffer and don't wait for a response.
-        self.ftdi.write_data(cmd)
-
-    def write_reg_16b(self, base_addr, data, wait_cycles=10):
-        """Writes a 16-bit value to a register pair via SPI."""
-        self.write_reg(base_addr, data & 0xFF, wait_cycles=0)
-        self.write_reg(base_addr + 1, (data >> 8) & 0xFF, wait_cycles=0)
-        if wait_cycles > 0:
-            self.idle_clocking(wait_cycles)
-
-
-    def _get_read_reg_cmd(self, addr):
-        """
-        Generates the raw MPSSE command buffer for a complete read_reg operation
-        using simplex commands.
-        """
-        read_cmd = addr # MSB is 0 for read
-        cmd = bytearray()
-
-        # Part 1: Write the read command (simplex write)
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
-        cmd.extend([Ftdi.WRITE_BYTES_NVE_MSB, 0x00, 0x00, read_cmd])
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
-
-        # Part 2: Idle clocking
-        cmd.extend(self._get_idle_clocking_cmd(5))
-
-        # Part 3: Read the data byte (simplex read)
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x00, 0x0b])  # CS Low
-        cmd.extend([Ftdi.READ_BYTES_NVE_MSB, 0x00, 0x00])
-        cmd.extend([Ftdi.SET_BITS_LOW, 0x08, 0x0b])  # CS High
-
-        # This sequence will ask the FTDI chip to return exactly one byte.
-        return (cmd, 1)
-
-    def read_reg(self, addr):
-        """Reads a byte from a register using simplex commands."""
-        cmd, total_bytes_to_read = self._get_read_reg_cmd(addr)
-        cmd.append(Ftdi.SEND_IMMEDIATE)
-        self.ftdi.write_data(cmd)
-        read_buf = self.ftdi.read_data_bytes(total_bytes_to_read, attempt=4)
-
-        # The single byte returned is the data we want.
-        return read_buf[0]
-
-    def poll_reg_for_value(self, addr, expected_value, max_polls=100, timeout=1.0):
-        """Polls a register until it reads an expected value."""
-        start_time = time.time()
-        for i in range(max_polls):
-            value = self.read_reg(addr)
-            if value == expected_value:
-                return True
-            if time.time() - start_time > timeout:
-                break
-        print(f"Timed out after {max_polls} polls waiting for register "
-              f"0x{addr:x} to be 0x{expected_value:x}, got 0x{value:x}")
-        return False
-
-    def bulk_write(self, addr, data, num_bytes):
-        """
-        Writes a block of data to a single register by batching commands and
-        then synchronizing with the FTDI chip.
-        """
-        full_cmd = bytearray()
-        for i in range(num_bytes):
-            byte = (data >> (i * 8)) & 0xFF
-            full_cmd.extend(self._get_write_reg_cmd(addr, byte))
-
-        # Add a command that requires a response to force the MPSSE to finish
-        # executing the buffer before this function returns. This is a robust
-        # way to "wait" and prevent race conditions.
-        full_cmd.append(Ftdi.GET_BITS_LOW)
-        full_cmd.append(Ftdi.SEND_IMMEDIATE)
-
-        self.ftdi.write_data(full_cmd)
-        # Wait for and discard the 1-byte response from GET_BITS_LOW.
-        # We expect 1 byte for GET_BITS_LOW, plus 2 junk bytes for each
-        # write_reg call in the loop.
-        bytes_to_read = 1 + (num_bytes * 2)
-        self.ftdi.read_data_bytes(bytes_to_read)
 
     def _get_idle_clocking_cmd(self, cycles):
         """Generates the raw MPSSE command for idle clocking with bit-level precision."""
@@ -872,38 +481,26 @@ class FtdiSpiMaster:
 
 def main():
     """Main function to handle command-line arguments."""
-    parser = argparse.ArgumentParser(description="FTDI SPI Master Utility")
+    parser = argparse.ArgumentParser(description="FTDI SPI Master Utility (V2 Protocol)")
     parser.add_argument("--usb-serial", required=True, help="USB serial number of the FTDI device.")
     parser.add_argument("--ftdi-port", type=int, default=1, help="Port number of the FTDI device.")
     parser.add_argument("--csr-base-addr", type=lambda x: int(x, 0), default=0x30000, help="Base address for CSR registers (can be hex, default: 0x30000).")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Write command
-    write_parser = subparsers.add_parser("write", help="Write to a register")
-    write_parser.add_argument("addr", type=lambda x: int(x, 0), help="Register address (can be hex)")
+    # Write command (word-based)
+    write_parser = subparsers.add_parser("write-word", help="Write a 32-bit word to memory")
+    write_parser.add_argument("addr", type=lambda x: int(x, 0), help="Memory address (can be hex)")
     write_parser.add_argument("data", type=lambda x: int(x, 0), help="Data to write (can be hex)")
 
-    # Read command
-    read_parser = subparsers.add_parser("read", help="Read from a register")
-    read_parser.add_argument("addr", type=lambda x: int(x, 0), help="Register address (can be hex)")
-
-    # Poll command
-    poll_parser = subparsers.add_parser("poll", help="Poll a register for a value")
-    poll_parser.add_argument("addr", type=lambda x: int(x, 0), help="Register address (can be hex)")
-    poll_parser.add_argument("expected_value", type=lambda x: int(x, 0), help="Value to poll for (can be hex)")
-    poll_parser.add_argument("--timeout", type=float, default=1.0, help="Polling timeout in seconds")
-
-    # Bulk write command
-    bulk_write_parser = subparsers.add_parser("bulk-write", help="Write a block of data")
-    bulk_write_parser.add_argument("addr", type=lambda x: int(x, 0), help="Register address (can be hex)")
-    bulk_write_parser.add_argument("data", type=lambda x: int(x, 0), help="Data to write (can be hex)")
-    bulk_write_parser.add_argument("num_bytes", type=int, help="Number of bytes to write")
+    # Read command (word-based)
+    read_parser = subparsers.add_parser("read-word", help="Read a 32-bit word from memory")
+    read_parser.add_argument("addr", type=lambda x: int(x, 0), help="Memory address (can be hex)")
 
     load_elf_parser = subparsers.add_parser("load-elf", help="Load an ELF file")
     load_elf_parser.add_argument("elf_file", type=str)
 
-    read_line_parser = subparsers.add_parser("read-line", help="Read a line via TL")
+    read_line_parser = subparsers.add_parser("read-line", help="Read a 128-bit line")
     read_line_parser.add_argument("addr", type=lambda x: int(x, 0), help="Memory address (can be hex)")
 
     reset_parser = subparsers.add_parser("reset", help="Reset the target device")
@@ -917,27 +514,18 @@ def main():
     try:
         spi_master = FtdiSpiMaster(args.usb_serial, args.ftdi_port, args.csr_base_addr)
         spi_master.idle_clocking(20)
-        # time.sleep(1)
 
-        if args.command == "write":
-            spi_master.write_reg(args.addr, args.data)
-            print(f"Wrote 0x{args.data:02x} to register 0x{args.addr:02x}")
-        elif args.command == "read":
-            value = spi_master.read_reg(args.addr)
-            print(f"Read 0x{value:02x} from register 0x{args.addr:02x}")
-        elif args.command == "poll":
-            if spi_master.poll_reg_for_value(args.addr, args.expected_value, timeout=args.timeout):
-                print("Poll successful.")
-            else:
-                raise RuntimeError("Poll timed out.")
-        elif args.command == "bulk-write":
-            spi_master.bulk_write(args.addr, args.data, args.num_bytes)
-            print("Bulk write complete.")
+        if args.command == "write-word":
+            spi_master.write_word(args.addr, args.data)
+            print(f"Wrote 0x{args.data:08x} to 0x{args.addr:x}")
+        elif args.command == "read-word":
+            value = spi_master.read_word(args.addr)
+            print(f"Read 0x{value:08x} from 0x{args.addr:x}")
         elif args.command == "load-elf":
             spi_master.load_elf(args.elf_file)
         elif args.command == "read-line":
             line_data = spi_master.read_line(args.addr)
-            print(f"Line data: 0x{line_data:x}")
+            print(f"Line data: 0x{line_data:032x}")
         elif args.command == "reset":
             spi_master.device_reset()
         elif args.command == "load-file":
@@ -945,11 +533,13 @@ def main():
 
     except (ValueError, RuntimeError, FileNotFoundError) as e:
         print(f"Error: {e}")
+        import sys
         sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         import traceback
         traceback.print_exc()
+        import sys
         sys.exit(1)
 
 if __name__ == "__main__":

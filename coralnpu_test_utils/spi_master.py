@@ -15,7 +15,7 @@
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, FallingEdge
-from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatus, CMD_WRITE
+from coralnpu_test_utils.spi_constants import SPI_V2_OP_READ, SPI_V2_OP_WRITE, SPI_V2_BEAT_BYTES
 
 
 class SPIMaster:
@@ -26,7 +26,7 @@ class SPIMaster:
         self.miso = miso
         self.main_clk = main_clk
         self.log = log
-        self.spi_clk_driver = Clock(self.clk, 10, "ns")
+        self.spi_clk_driver = Clock(self.clk, 26, "ns")  # Must not divide evenly into sys clock (10ns)
         self.clock_task = None
 
         # Initialize signal values
@@ -59,183 +59,125 @@ class SPIMaster:
         await ClockCycles(self.clk, cycles)
         await self.stop_clock()
 
-    async def spi_transaction(self, byte_out):
-        # Provide a setup time for CSb before the clock starts
-        await self._set_cs(True)
-        await ClockCycles(self.main_clk, 1)
+    async def send_header(self, op, addr, length):
+        """Send a 7-byte V2 frame header: [op, addr(4B BE), len(2B BE)]."""
+        await self._clock_byte(op & 0xFF)
+        await self._clock_byte((addr >> 24) & 0xFF)
+        await self._clock_byte((addr >> 16) & 0xFF)
+        await self._clock_byte((addr >> 8) & 0xFF)
+        await self._clock_byte(addr & 0xFF)
+        await self._clock_byte((length >> 8) & 0xFF)
+        await self._clock_byte(length & 0xFF)
 
-        await self.start_clock()
-        byte_in = await self._clock_byte(byte_out)
-        await self.stop_clock()
-
-        # Provide a hold time for CSb after the clock stops
-        await ClockCycles(self.main_clk, 1)
-        await self._set_cs(False)
-        await ClockCycles(self.main_clk, 2) # Small delay between transactions
-        return byte_in
-
-    async def write_reg(self, reg_addr, data, wait_cycles=10):
-        """Writes a byte to a register via SPI."""
-        write_cmd = CMD_WRITE | reg_addr
-        await self.spi_transaction(write_cmd)
-        await self.spi_transaction(data)
-        if wait_cycles > 0:
-            await ClockCycles(self.main_clk, wait_cycles)
-
-    async def write_reg_16b(self, base_addr, data, wait_cycles=10):
-        """Writes a 16-bit value to a register pair via SPI."""
-        await self.write_reg(base_addr, data & 0xFF, wait_cycles=0)
-        await self.write_reg(base_addr + 1, (data >> 8) & 0xFF, wait_cycles=0)
-        if wait_cycles > 0:
-            await ClockCycles(self.main_clk, wait_cycles)
-
-    async def read_reg(self, reg_addr):
-        """Reads a byte from a register via SPI."""
-        read_cmd = reg_addr # MSB is 0 for read
-        await self.spi_transaction(read_cmd)
-        await ClockCycles(self.main_clk, 10)
-        await self.idle_clocking(5)
-        await ClockCycles(self.main_clk, 10)
-        read_data = await self.spi_transaction(0x00)
-        return read_data
-
-    async def read_spi_domain_reg(self, reg_addr):
-        """Reads a byte from a register that lives in the SPI clock domain."""
+    async def write_line(self, addr, data_128bit):
+        """Write a single 128-bit line using V2 frame protocol."""
         await self._set_cs(True)
         await ClockCycles(self.main_clk, 1)
         await self.start_clock()
-        await self._clock_byte(reg_addr)
-        read_data = await self._clock_byte(0x00)
+
+        # Send header: op=WRITE, len=0 (single beat)
+        await self.send_header(SPI_V2_OP_WRITE, addr, 0)
+
+        # Send 16 payload bytes, LSB first
+        for i in range(SPI_V2_BEAT_BYTES):
+            await self._clock_byte((data_128bit >> (i * 8)) & 0xFF)
+
+        # Keep SPI clock running so AsyncQueue CDC pipeline can drain
+        # (both clocks must be active for the handshake protocol).
+        await ClockCycles(self.main_clk, 100)
         await self.stop_clock()
         await ClockCycles(self.main_clk, 1)
         await self._set_cs(False)
-        await ClockCycles(self.main_clk, 1)
-        return read_data
+        await ClockCycles(self.main_clk, 50)
 
-    async def read_spi_domain_reg_16b(self, base_addr):
-        """Reads a 16-bit value from a register pair in the SPI clock domain."""
-        val_l = await self.read_spi_domain_reg(base_addr)
-        val_h = await self.read_spi_domain_reg(base_addr + 1)
-        return (val_h << 8) | val_l
+    async def read_line(self, addr):
+        """Read a single 128-bit line using V2 frame protocol.
 
-    async def poll_reg_for_value(self, reg_addr, expected_value, max_polls=20):
-        """Polls a register until it reads an expected value."""
-        read_cmd = reg_addr # MSB is 0 for read
-        read_data = -1
-
-        # The first transaction just kicks off the read pipeline. The data is junk.
-        await self.spi_transaction(read_cmd)
-
-        for i in range(max_polls):
-            # Each subsequent transaction sends a new read command and receives the
-            # result of the PREVIOUS command.
-            read_data = await self.spi_transaction(read_cmd)
-            if read_data == expected_value:
-                self.log.info(f"Successfully polled 0x{reg_addr:x} and got 0x{expected_value:x} after {i+1} attempts.")
-                return True
-            await ClockCycles(self.main_clk, 5) # Wait before next poll
-
-        self.log.error(f"Timed out after {max_polls} polls waiting for register 0x{reg_addr:x} to be 0x{expected_value:x}, got 0x{read_data:x}")
-        return False
-
-    async def packed_write_transaction(self, target_addr, data):
-        """Writes a block of data using a packed SPI transaction.
-
-        Args:
-            target_addr: The starting address for the write.
-            data: A list of 128-bit integers to write.
+        Returns the 128-bit data as an integer.
         """
         await self._set_cs(True)
         await ClockCycles(self.main_clk, 1)
-
         await self.start_clock()
 
-        # Write addr
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.TL_ADDR_REG_0)
-        await self._clock_byte((target_addr >> 0) & 0xFF)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.TL_ADDR_REG_1)
-        await self._clock_byte((target_addr >> 8) & 0xFF)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.TL_ADDR_REG_2)
-        await self._clock_byte((target_addr >> 16) & 0xFF)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.TL_ADDR_REG_3)
-        await self._clock_byte((target_addr >> 24) & 0xFF)
+        # Send header: op=READ, len=0 (single beat)
+        await self.send_header(SPI_V2_OP_READ, addr, 0)
 
-        # Write beats
-        num_beats = len(data)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.TL_LEN_REG_L)
-        await self._clock_byte((num_beats - 1) & 0xFF)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.TL_LEN_REG_H)
-        await self._clock_byte(((num_beats - 1) >> 8) & 0xFF)
-
-        # Write data using bulk transfer
-        all_data_bytes = []
-        for beat in data:
-            for i in range(16):
-                all_data_bytes.append((beat >> (i * 8)) & 0xFF)
-
-        # Command for bulk write
-        num_bytes = len(all_data_bytes)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.BULK_WRITE_PORT_L)
-        await self._clock_byte((num_bytes - 1) & 0xFF)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.BULK_WRITE_PORT_H)
-        await self._clock_byte(((num_bytes - 1) >> 8) & 0xFF)
-        # Data stream
-        for byte in all_data_bytes:
-            await self._clock_byte(byte)
-
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.TL_CMD_REG)
-        await self._clock_byte(SpiCommand.CMD_WRITE_START)
-
-        await self.stop_clock()
-        await ClockCycles(self.main_clk, 1)
-        await self._set_cs(False)
-
-    async def bulk_write(self, data: list[int]):
-        """Writes a block of data using a single bulk SPI transaction."""
-        await self._set_cs(True)
-        await ClockCycles(self.main_clk, 1)
-
-        await self.start_clock()
-
-        # Command and Length for bulk write (L, H)
-        num_bytes = len(data)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.BULK_WRITE_PORT_L)
-        await self._clock_byte((num_bytes - 1) & 0xFF)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.BULK_WRITE_PORT_H)
-        await self._clock_byte(((num_bytes - 1) >> 8) & 0xFF)
-
-        # Data stream
-        for byte in data:
-            await self._clock_byte(byte)
-
-        await self.stop_clock()
-        await ClockCycles(self.main_clk, 1)
-        await self._set_cs(False)
-
-    async def bulk_read(self, num_bytes: int) -> list[int]:
-        """Reads a block of data using a single bulk SPI transaction."""
-        await self._set_cs(True)
-        await ClockCycles(self.main_clk, 1)
-
-        await self.start_clock()
-
-        # Command and Length to initiate a bulk read (L, H)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.BULK_READ_PORT_L)
-        await self._clock_byte((num_bytes - 1) & 0xFF)
-        await self._clock_byte(CMD_WRITE | SpiRegAddress.BULK_READ_PORT_H)
-        await self._clock_byte(((num_bytes - 1) >> 8) & 0xFF)
-
-        # The MISO pipeline has latency. The first dummy transfer flushes a junk byte.
-        await self._clock_byte(0x00)
-
-        # The subsequent transfers clock in the actual data.
-        received_bytes = []
-        for _ in range(num_bytes):
+        # Collect MISO bits — V2 response has variable CDC latency.
+        # Collect extra bits and search for the response data pattern.
+        # We need 128 bits (16 bytes) of response data, but there's latency
+        # through the CDC path, so we collect extra and search.
+        num_extra_bytes = 64  # generous margin for AsyncQueue CDC latency
+        total_bytes = SPI_V2_BEAT_BYTES + num_extra_bytes
+        miso_bytes = []
+        for _ in range(total_bytes):
             byte_in = await self._clock_byte(0x00)
-            received_bytes.append(byte_in)
+            miso_bytes.append(byte_in)
+
+        # Keep SPI clock running so AsyncQueue CDC can drain
+        await ClockCycles(self.main_clk, 100)
+        await self.stop_clock()
+        await ClockCycles(self.main_clk, 1)
+        await self._set_cs(False)
+        await ClockCycles(self.main_clk, 50)
+
+        # Fast path: Byte-level search (enabled by hardware byte-alignment).
+        miso_bytes_raw = bytes(miso_bytes)
+        sync_idx = miso_bytes_raw.find(b'\xfe')
+        if sync_idx != -1 and sync_idx + 1 + 16 <= len(miso_bytes_raw):
+            data_bytes = miso_bytes_raw[sync_idx + 1 : sync_idx + 17]
+            return int.from_bytes(data_bytes, 'little')
+
+        # Fallback: Efficient bit-level search for 0xFE token (11111110) if misalignment occurs.
+        # Convert byte array to a single large integer for bitwise operations.
+        miso_int = int.from_bytes(miso_bytes_raw, 'big')
+        total_bits = len(miso_bytes_raw) * 8
+
+        # Sliding window search: mask 8 bits and compare to 0xFE.
+        # We search from MSB to LSB (SPI order).
+        for bit_off in range(total_bits - 8 - 128):
+            shift = total_bits - 8 - bit_off
+            if ((miso_int >> shift) & 0xFF) == 0xFE:
+                # Found token. Extract 128 data bits following it.
+                data_bits = (miso_int >> (shift - 128)) & ((1 << 128) - 1)
+
+                # Reverse byte order: SPI shifts out MSB-first, but TileLink is little-endian.
+                result = 0
+                for i in range(16):
+                    byte = (data_bits >> (i * 8)) & 0xFF
+                    result |= byte << ((15 - i) * 8)
+                return result
+
+        return 0
+
+    async def write_multi(self, addr, data_list):
+        """Write multiple 128-bit beats using V2 frame protocol."""
+        await self._set_cs(True)
+        await ClockCycles(self.main_clk, 1)
+        await self.start_clock()
+
+        # Send header: len = num_beats - 1
+        await self.send_header(SPI_V2_OP_WRITE, addr, len(data_list) - 1)
+
+        # Send payload bytes for each beat, LSB first
+        for data_128bit in data_list:
+            for i in range(SPI_V2_BEAT_BYTES):
+                await self._clock_byte((data_128bit >> (i * 8)) & 0xFF)
 
         await self.stop_clock()
         await ClockCycles(self.main_clk, 1)
         await self._set_cs(False)
+        await ClockCycles(self.main_clk, 50)
 
-        return received_bytes
+    async def read_multi(self, addr, num_beats):
+        """Read multiple 128-bit beats using V2 frame protocol.
+
+        Returns a list of 128-bit integers.
+        """
+        results = []
+        # For simplicity, do individual reads (multi-beat read response
+        # parsing through CDC is complex in cocotb)
+        for i in range(num_beats):
+            beat_addr = addr + i * SPI_V2_BEAT_BYTES
+            result = await self.read_line(beat_addr)
+            results.append(result)
+        return results

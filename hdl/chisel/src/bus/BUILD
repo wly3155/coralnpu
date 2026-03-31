@@ -37,6 +37,7 @@ chisel_library(
         "GPIO.scala",
         "SecdedEncoderTestbench.scala",
         "Spi2TLUL.scala",
+        "Spi2TLULV2.scala",
         "SpiMaster.scala",
         "TLUL2Axi.scala",
         "TileLinkUL.scala",
@@ -105,20 +106,6 @@ chisel_cc_library(
     module_name = "TlulSocketM1_3_128",
 )
 
-chisel_cc_library(
-    name = "spi2tlul_128_cc_library",
-    chisel_lib = ":bus",
-    emit_class = "bus.Spi2TLUL_128_Emitter",
-    module_name = "Spi2TLUL",
-)
-
-verilator_cocotb_model(
-    name = "spi2tlul_128_model",
-    cflags = VERILATOR_BUILD_ARGS,
-    hdl_toplevel = "Spi2TLUL",
-    trace = True,
-    verilog_source = "//hdl/chisel/src/bus:Spi2TLUL.sv",
-)
 
 verilator_cocotb_model(
     name = "tlul_socket_m1_2_128_model",
@@ -251,6 +238,16 @@ chisel_test(
 chisel_test(
     name = "dma_engine_test",
     srcs = ["DmaEngineTest.scala"],
+    deps = [
+        ":bus",
+        "//hdl/chisel/src/common:testing",
+        "//hdl/chisel/src/coralnpu:coralnpu_params",
+    ],
+)
+
+chisel_test(
+    name = "spi2tlulv2_test",
+    srcs = ["Spi2TLULV2Test.scala"],
     deps = [
         ":bus",
         "//hdl/chisel/src/common:testing",

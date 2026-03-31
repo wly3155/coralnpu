@@ -44,3 +44,8 @@ class TlStatus(IntEnum):
     ERROR = 0xFF
 
 CMD_WRITE = 0x80
+
+# V2 frame-based protocol constants
+SPI_V2_OP_READ = 0x01
+SPI_V2_OP_WRITE = 0x02
+SPI_V2_BEAT_BYTES = 16  # 128 bits per beat

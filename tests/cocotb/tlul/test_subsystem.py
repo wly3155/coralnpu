@@ -23,7 +23,6 @@ from bazel_tools.tools.python.runfiles import runfiles
 from coralnpu_test_utils.TileLinkULInterface import TileLinkULInterface, create_a_channel_req
 from coralnpu_test_utils.axi_slave import AxiSlave
 from coralnpu_test_utils.spi_master import SPIMaster
-from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatus
 
 # --- Constants ---
 BUS_WIDTH_BITS = 128
@@ -124,40 +123,14 @@ async def load_elf_via_spi(dut, elf_file, spi_master):
 async def read_line_via_spi(spi_master, address):
     """Reads a full 128-bit bus line from a given address via the SPI bridge."""
     assert address % BUS_WIDTH_BYTES == 0, f"Address 0x{address:X} is not aligned to the bus width of {BUS_WIDTH_BYTES} bytes"
-
-    # 1. Configure the TileLink read via SPI
-    # Write address (32 bits) byte by byte
-    for j in range(4):
-        addr_byte = (address >> (j * 8)) & 0xFF
-        await spi_master.write_reg(SpiRegAddress.TL_ADDR_REG_0 + j, addr_byte)
-
-    # Write length (0 means 1 beat of 128 bits)
-    await spi_master.write_reg_16b(SpiRegAddress.TL_LEN_REG_L, 0)
-
-    # 2. Issue the read command
-    await spi_master.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_READ_START, wait_cycles=0)
-
-    # 3. Poll the status register until the transaction is done
-    assert await spi_master.poll_reg_for_value(SpiRegAddress.TL_STATUS_REG, TlStatus.DONE), \
-        f"Timed out waiting for SPI read from 0x{address:08x} to complete"
-
-    # 4. Read the data from the buffer port
-    read_data = await spi_master.bulk_read(BUS_WIDTH_BYTES)
-
-    # 5. Clear the status to return FSM to Idle
-    await spi_master.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
-
-    return int.from_bytes(bytes(read_data), byteorder='little')
+    return await spi_master.read_line(address)
 
 
 async def update_line_via_spi(spi_master, address, data, mask):
     """Performs a read-modify-write to update a 128-bit line via SPI."""
     assert address % BUS_WIDTH_BYTES == 0, f"Address 0x{address:X} is not aligned to the bus width of {BUS_WIDTH_BYTES} bytes"
-    # Read the current line from memory
     line_data = await read_line_via_spi(spi_master, address)
 
-    # Apply the masked data update
-    # The mask is a bitmask where each bit corresponds to a byte.
     updated_data = 0
     for i in range(BUS_WIDTH_BYTES):
         byte_mask = (mask >> i) & 1
@@ -166,23 +139,13 @@ async def update_line_via_spi(spi_master, address, data, mask):
         else:
             updated_data |= ((line_data >> (i * 8)) & 0xFF) << (i * 8)
 
-    # Write the modified line back to memory
     await write_line_via_spi(spi_master, address, updated_data)
 
 
 async def write_line_via_spi(spi_master, address, data):
     """Writes a 128-bit bus line to a given address via the SPI bridge."""
     assert address % BUS_WIDTH_BYTES == 0, f"Address 0x{address:X} is not aligned to the bus width of {BUS_WIDTH_BYTES} bytes"
-
-    # Emit a full transaction for the line.
-    await spi_master.packed_write_transaction(target_addr=address, data=[data])
-
-    # Poll status register until the transaction is done.
-    assert await spi_master.poll_reg_for_value(SpiRegAddress.TL_WRITE_STATUS_REG, TlStatus.DONE), \
-        f"Timed out waiting for SPI write to 0x{address:08x} to complete"
-
-    # Clear the status to return FSM to Idle.
-    await spi_master.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
+    await spi_master.write_line(address, data)
 
 
 async def write_word_via_spi(spi_master, address, data):
@@ -194,7 +157,7 @@ async def write_word_via_spi(spi_master, address, data):
     """
     line_addr = (address // BUS_WIDTH_BYTES) * BUS_WIDTH_BYTES
     offset = address % BUS_WIDTH_BYTES
-    mask = 0xF << offset  # 4-byte mask at the correct offset
+    mask = 0xF << offset
     shifted_data = data << (offset * 8)
     await update_line_via_spi(spi_master, line_addr, shifted_data, mask)
 

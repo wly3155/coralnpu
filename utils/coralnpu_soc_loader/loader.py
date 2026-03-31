@@ -18,66 +18,24 @@ import time
 
 from elftools.elf.elffile import ELFFile
 from coralnpu_hw.utils.coralnpu_soc_loader.spi_driver import SPIDriver
-from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatus
 
 def write_line_via_spi(driver: SPIDriver, address: int, data: int):
     """Writes a 16-byte bus line to a given address via the SPI bridge."""
-    # 1. Use the packed write transaction for efficiency
-    driver.packed_write_transaction(address, 1, data)
-
-    # 2. Poll status register until the transaction is done
-    if not driver.poll_reg_for_value(SpiRegAddress.TL_WRITE_STATUS_REG, TlStatus.DONE, max_polls=2000):
-        raise RuntimeError(f"Timed out waiting for SPI write to 0x{address:08x} to complete")
-
-    # 3. Clear the status to return FSM to Idle
-    driver.write_reg(SpiRegAddress.TL_CMD_REG, TlStatus.IDLE)
+    data_bytes = data.to_bytes(16, byteorder='little')
+    driver.v2_write(address, data_bytes)
 
 def write_lines_via_spi(driver: SPIDriver, address: int, data_bytes: bytes):
     """Writes multiple 16-byte bus lines to a given address via the SPI bridge."""
     if len(data_bytes) % 16 != 0:
         raise ValueError("Data length must be a multiple of 16 bytes")
-    num_lines = len(data_bytes) // 16
-    if num_lines == 0:
+    if len(data_bytes) == 0:
         return
-
-    data_int = int.from_bytes(data_bytes, byteorder='little')
-
-    # 1. Use the packed write transaction for efficiency
-    driver.packed_write_transaction(address, num_lines, data_int)
-
-    # 2. Poll status register until the transaction is done
-    if not driver.poll_reg_for_value(SpiRegAddress.TL_WRITE_STATUS_REG, TlStatus.DONE, max_polls=2000):
-        raise RuntimeError(f"Timed out waiting for SPI write to 0x{address:08x} to complete")
-
-    # 3. Clear the status to return FSM to Idle
-    driver.write_reg(SpiRegAddress.TL_CMD_REG, TlStatus.IDLE)
-
+    driver.v2_write(address, data_bytes)
 
 def read_line_via_spi(driver: SPIDriver, address: int) -> int:
     """Reads a single 128-bit line from memory via SPI."""
-    # 1. Configure the read
-    driver.write_reg(SpiRegAddress.TL_ADDR_REG_0, (address >> 0) & 0xFF)
-    driver.write_reg(SpiRegAddress.TL_ADDR_REG_1, (address >> 8) & 0xFF)
-    driver.write_reg(SpiRegAddress.TL_ADDR_REG_2, (address >> 16) & 0xFF)
-    driver.write_reg(SpiRegAddress.TL_ADDR_REG_3, (address >> 24) & 0xFF)
-    driver.write_reg_16b(SpiRegAddress.TL_LEN_REG_L, 0) # 1 beat
-
-    # 2. Issue the read command
-    driver.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_READ_START)
-
-    # 3. Poll for completion
-    if not driver.poll_reg_for_value(SpiRegAddress.TL_STATUS_REG, TlStatus.DONE):
-        raise RuntimeError(f"Timed out waiting for TL read at address 0x{address:x} to complete.")
-
-    # 4. Check bytes available and read the data using the new method
-    bytes_available = driver.read_spi_domain_reg_16b(SpiRegAddress.BULK_READ_STATUS_REG_L)
-    if bytes_available != 16:
-        raise RuntimeError(f"Expected 16 bytes, but status reg reported {bytes_available}")
-    read_data_bytes = driver.bulk_read(bytes_available)
-    read_data = int.from_bytes(bytes(read_data_bytes), 'little')
-
-    # 5. Clear the command register
-    driver.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
+    read_data_bytes = driver.v2_read(address, 1)
+    read_data = int.from_bytes(bytes(read_data_bytes), byteorder='little')
     return read_data
 
 def write_word_via_spi(driver: SPIDriver, address: int, data: int):
@@ -111,11 +69,6 @@ def main():
         logging.warning("LOADER: Sending initial idle clocks to flush reset...")
         driver.idle_clocking(20)
 
-        logging.warning("LOADER: Waiting for SPI bridge to be ready...")
-        if not driver.poll_reg_for_value(SpiRegAddress.TL_STATUS_REG, 0):
-            raise RuntimeError("Timed out waiting for SPI bridge to become ready.")
-        logging.warning("LOADER: SPI bridge is ready.")
-
         entry_point = 0
         logging.warning(f"LOADER: Opening ELF file: {args.binary}")
         with open(args.binary, 'rb') as f:
@@ -130,7 +83,7 @@ def main():
                 data = segment.data()
                 logging.warning(f"LOADER: Loading segment to address 0x{paddr:08x}, size {len(data)} bytes")
 
-                # Load data in pages of up to 16 lines (256 bytes)
+                # Load data in pages (up to some reasonable size)
                 original_len = len(data)
                 # Pad data to be a multiple of 16 bytes (a line)
                 if len(data) % 16 != 0:

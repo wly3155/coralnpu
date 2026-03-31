@@ -41,6 +41,7 @@ py_binary(
     data = [
         ":loader",
         "//fpga:copy_chip_verilator_binary",
+        "//coralnpu_test_utils:run_sram_test",
     ],
     tags = ["manual"],
     deps = [
@@ -56,6 +57,7 @@ py_binary(
         ":loader",
         "//fpga/ip/ispyocto:grey_bars_320x240.raw",
         "//fpga:copy_chip_verilator_binary",
+        "//coralnpu_test_utils:run_sram_test",
     ],
     tags = ["manual"],
     deps = [

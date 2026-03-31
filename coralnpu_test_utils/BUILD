@@ -129,6 +129,7 @@ py_binary(
 py_binary(
     name = "run_sram_test",
     srcs = ["run_sram_test.py"],
+    visibility = ["//visibility:public"],
     deps = [
         ":ftdi_spi_master_lib",
         requirement("numpy"),

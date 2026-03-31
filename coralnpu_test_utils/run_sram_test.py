@@ -26,15 +26,12 @@ try:
 except ImportError:
     FtdiSpiMaster = None
 
-from coralnpu_test_utils.spi_constants import SpiRegAddress, SpiCommand, TlStatus
-
 
 class SimSpiMaster:
     """A simulation-compatible SPI master using the TCP DPI interface."""
 
     def __init__(self, port=5555):
         # Try to import SPIDriver from the utils directory
-        # Adjust path assuming this script is in coralnpu_test_utils/
         driver_path = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "../utils/coralnpu_soc_loader")
         )
@@ -74,75 +71,14 @@ class SimSpiMaster:
     def idle_clocking(self, cycles):
         self.driver.idle_clocking(cycles)
 
-    def write_reg(self, addr, data):
-        self.driver.write_reg(addr, data)
-
-    def read_spi_domain_reg_16b(self, addr):
-        return self.driver.read_spi_domain_reg_16b(addr)
-
-    def poll_reg_for_value(self, addr, expected, timeout=1.0):
-        # SPIDriver's poll is blocking on the server side with a count.
-        # We'll use a reasonable count.
-        return self.driver.poll_reg_for_value(addr, expected, max_polls=1000)
-
     def read_line(self, address):
-        """Reads a single 128-bit line from memory via SPI."""
-        # 1. Configure the read
-        self.driver.write_reg(SpiRegAddress.TL_ADDR_REG_0, (address >> 0) & 0xFF)
-        self.driver.write_reg(SpiRegAddress.TL_ADDR_REG_1, (address >> 8) & 0xFF)
-        self.driver.write_reg(SpiRegAddress.TL_ADDR_REG_2, (address >> 16) & 0xFF)
-        self.driver.write_reg(SpiRegAddress.TL_ADDR_REG_3, (address >> 24) & 0xFF)
-        self.driver.write_reg_16b(SpiRegAddress.TL_LEN_REG_L, 0)  # 1 beat
-
-        # 2. Issue the read command
-        self.driver.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_READ_START)
-
-        # 3. Poll for completion
-        if not self.driver.poll_reg_for_value(
-            SpiRegAddress.TL_STATUS_REG, TlStatus.DONE
-        ):
-            raise RuntimeError(f"Timed out waiting for TL read at 0x{address:x}")
-
-        # 4. Check status
-        bytes_available = self.driver.read_spi_domain_reg_16b(
-            SpiRegAddress.BULK_READ_STATUS_REG_L
-        )
-        if bytes_available != 16:
-            raise RuntimeError(
-                f"Expected 16 bytes, but status reported {bytes_available}"
-            )
-
-        # 5. Bulk read
-        read_data_bytes = self.driver.bulk_read(bytes_available)
-        read_data = int.from_bytes(bytes(read_data_bytes), "little")
-
-        # 6. Clear command
-        self.driver.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
-
-        return read_data
+        """Reads a single 128-bit line from memory via SPI V2."""
+        read_data_bytes = self.driver.v2_read(address, 1)
+        return int.from_bytes(bytes(read_data_bytes), "little")
 
     def write_lines(self, start_addr, num_beats, data_as_bytes):
-        """Writes a contiguous block of data."""
-        # SPIDriver has a packed_write_transaction that handles this
-        data_int = int.from_bytes(data_as_bytes, "little")
-        # Note: SPIDriver.packed_write_transaction takes data as int if using older version?
-        # Let's check spi_driver.py again.
-        # It takes `data` and does `payload = data.to_bytes(...)`. So yes, expects int.
-
-        # However, `write_lines_via_spi` in loader.py does:
-        # data_int = int.from_bytes(data_bytes, byteorder='little')
-        # driver.packed_write_transaction(address, num_lines, data_int)
-
-        self.driver.packed_write_transaction(start_addr, num_beats, data_int)
-
-        # Poll for completion
-        if not self.driver.poll_reg_for_value(
-            SpiRegAddress.TL_WRITE_STATUS_REG, TlStatus.DONE, max_polls=2000
-        ):
-            raise RuntimeError(f"Timed out waiting for TL write at 0x{start_addr:x}")
-
-        # Acknowledge
-        self.driver.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
+        """Writes a contiguous block of data via SPI V2."""
+        self.driver.v2_write(start_addr, data_as_bytes)
 
     def write_line(self, address, data):
         data_as_bytes = data.to_bytes(16, "little")
@@ -160,9 +96,7 @@ class SimSpiMaster:
         if start_offset != 0:
             line_addr = start_address - start_offset
             bytes_to_write = min(16 - start_offset, size)
-
             data_chunk = data[data_ptr : data_ptr + bytes_to_write]
-            data_ptr += bytes_to_write
 
             old_line_int = self.read_line(line_addr)
             old_line_bytes = old_line_int.to_bytes(16, "little")
@@ -172,42 +106,32 @@ class SimSpiMaster:
             new_line_int = int.from_bytes(new_line_bytes, "little")
 
             self.write_line(line_addr, new_line_int)
+            data_ptr += bytes_to_write
+            current_addr = start_address + bytes_to_write
+        else:
+            current_addr = start_address
 
-        # 2. Handle aligned middle
-        loop_start_addr = (start_address + 15) & ~0xF
-        loop_end_addr = end_address & ~0xF
-        if loop_end_addr > loop_start_addr:
-            full_lines_data_size = loop_end_addr - loop_start_addr
-
-            # Chunking 4096 bytes
-            for i in range(0, full_lines_data_size, 4096):
-                chunk_start_addr = loop_start_addr + i
-                chunk_size = min(4096, full_lines_data_size - i)
-                num_lines = chunk_size // 16
-
-                data_chunk_bytes = data[data_ptr : data_ptr + chunk_size]
-                data_ptr += chunk_size
-
-                self.write_lines(chunk_start_addr, num_lines, data_chunk_bytes)
+        # 2. Middle aligned blocks
+        while (end_address - current_addr) >= 16:
+            data_chunk = data[data_ptr : data_ptr + 16]
+            self.write_line(current_addr, int.from_bytes(data_chunk, "little"))
+            data_ptr += 16
+            current_addr += 16
 
         # 3. Handle unaligned end
-        end_offset = end_address % 16
-        if end_offset != 0:
-            line_addr = end_address - end_offset
-            # Avoid re-writing start line if it was already handled in Step 1
-            # (Step 1 handles the line if start_offset != 0)
-            if start_offset == 0 or line_addr != (start_address - start_offset):
-                bytes_to_write = end_offset
-                data_chunk = data[data_ptr : data_ptr + bytes_to_write]
+        bytes_remaining = end_address - current_addr
+        if bytes_remaining > 0:
+            line_addr = current_addr
+            data_chunk = data[data_ptr : data_ptr + bytes_remaining]
 
-                old_line_int = self.read_line(line_addr)
-                old_line_bytes = old_line_int.to_bytes(16, "little")
+            old_line_int = self.read_line(line_addr)
+            old_line_bytes = old_line_int.to_bytes(16, "little")
 
-                new_line_bytes = bytearray(old_line_bytes)
-                new_line_bytes[0:bytes_to_write] = data_chunk
-                new_line_int = int.from_bytes(new_line_bytes, "little")
+            new_line_bytes = bytearray(old_line_bytes)
+            new_line_bytes[0:bytes_remaining] = data_chunk
+            new_line_int = int.from_bytes(new_line_bytes, "little")
 
-                self.write_line(line_addr, new_line_int)
+            self.write_line(line_addr, new_line_int)
 
     def read_data(self, address, size, verbose=False):
         if size == 0:
@@ -230,71 +154,12 @@ class SimSpiMaster:
 
         # 2. Aligned chunks
         while bytes_remaining > 0:
-            # TL transaction size limit (2kB)
-            tl_txn_size = min(2048, bytes_remaining)
-            num_beats = (tl_txn_size + 15) // 16
-            expected_bytes = num_beats * 16
-
-            # Configure read
-            num_beats_val = num_beats - 1
-            # We don't have packed write helper for the setup command buffer like FtdiSpiMaster does.
-            # We have to issue writes to registers.
-            self.driver.write_reg(
-                SpiRegAddress.TL_ADDR_REG_0, (current_addr >> 0) & 0xFF
-            )
-            self.driver.write_reg(
-                SpiRegAddress.TL_ADDR_REG_1, (current_addr >> 8) & 0xFF
-            )
-            self.driver.write_reg(
-                SpiRegAddress.TL_ADDR_REG_2, (current_addr >> 16) & 0xFF
-            )
-            self.driver.write_reg(
-                SpiRegAddress.TL_ADDR_REG_3, (current_addr >> 24) & 0xFF
-            )
-            self.driver.write_reg(SpiRegAddress.TL_LEN_REG_L, num_beats_val & 0xFF)
-            self.driver.write_reg(
-                SpiRegAddress.TL_LEN_REG_H, (num_beats_val >> 8) & 0xFF
-            )
-
-            self.driver.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_READ_START)
-
-            if not self.driver.poll_reg_for_value(
-                SpiRegAddress.TL_STATUS_REG, TlStatus.DONE
-            ):
-                raise RuntimeError(
-                    f"Timed out waiting for bulk TL read at 0x{current_addr:x}"
-                )
-
-            # Check available bytes
-            # Note: polling loop logic in driver
-            bytes_available = self.driver.read_spi_domain_reg_16b(
-                SpiRegAddress.BULK_READ_STATUS_REG_L
-            )
-            # Retry a few times if 0? FtdiSpiMaster polls this.
-            # SPIDriver.read_spi_domain_reg_16b is a single transaction.
-            # We might need to poll it.
-            for _ in range(100):
-                if bytes_available == expected_bytes:
-                    break
-                time.sleep(0.01)
-                bytes_available = self.driver.read_spi_domain_reg_16b(
-                    SpiRegAddress.BULK_READ_STATUS_REG_L
-                )
-
-            if bytes_available != expected_bytes:
-                raise RuntimeError(
-                    f"Timed out waiting for {expected_bytes} bytes at 0x{current_addr:x}, got {bytes_available}"
-                )
-
-            # Bulk read
-            chunk_data = self.driver.bulk_read(expected_bytes)
-            data.extend(chunk_data)
-
-            # Ack
-            self.driver.write_reg(SpiRegAddress.TL_CMD_REG, SpiCommand.CMD_NULL)
-
-            bytes_remaining -= expected_bytes
-            current_addr += expected_bytes
+            bytes_to_read = min(16, bytes_remaining)
+            line_data = self.read_line(current_addr)
+            line_bytes = line_data.to_bytes(16, "little")
+            data.extend(line_bytes[:bytes_to_read])
+            bytes_remaining -= bytes_to_read
+            current_addr += bytes_to_read
 
         return data[:size]
 
@@ -315,14 +180,6 @@ class SramTestRunner:
         max_size=256,
     ):
         self.MAX_SIZE = max_size
-        """
-        Initializes the SramTestRunner.
-
-        Args:
-            usb_serial: USB serial number of the FTDI device.
-            ftdi_port: Port number of the FTDI device.
-            continue_on_error: Whether to continue testing after a failure.
-        """
         if simulation:
             print(f"Initializing Simulation SPI Master on port {sim_port}")
             self.spi_master = SimSpiMaster(sim_port)
@@ -371,120 +228,90 @@ class SramTestRunner:
             print(f"Starting SRAM Test Suite.")
             print(f"Target Address: 0x{self.SRAM_ADDR:x}")
             print(f"Max Size: {self.MAX_SIZE} bytes")
-            if getattr(self, "single_size", None):
-                print(f"Filtering: Size={self.single_size}")
-                sizes = [self.single_size]
-            if getattr(self, "single_pattern", None):
-                print(f"Filtering: Pattern={self.single_pattern}")
-                patterns = [self.single_pattern]
 
-            print("-" * 40)
+            total_tests = 0
+            passed_tests = 0
+
+            # If user specified a single test/size, override
+            if getattr(self, "single_pattern", None):
+                patterns = [self.single_pattern]
+            if getattr(self, "single_size", None):
+                sizes = [self.single_size]
 
             for size in sizes:
                 for pattern in patterns:
-                    try:
-                        success, message = self._run_single_test(size, pattern)
-                        self.results.append(
-                            {
-                                "size": size,
-                                "pattern": pattern,
-                                "success": success,
-                                "message": message,
-                            }
-                        )
+                    total_tests += 1
+                    success, details = self._run_single_test(size, pattern)
+                    self.results.append(
+                        {
+                            "size": size,
+                            "pattern": pattern,
+                            "success": success,
+                            "details": details,
+                        }
+                    )
+                    if success:
+                        passed_tests += 1
+                    elif not self.continue_on_error:
+                        self._print_summary()
+                        raise RuntimeError(f"SRAM test failed: {details}")
 
-                        if not success and not self.continue_on_error:
-                            self._print_summary()
-                            raise RuntimeError(f"SRAM test failed: {message}")
-                    except Exception as e:
-                        if isinstance(e, RuntimeError) and "SRAM test failed" in str(e):
-                            raise
-                        self.results.append(
-                            {
-                                "size": size,
-                                "pattern": pattern,
-                                "success": False,
-                                "message": f"Exception: {str(e)}",
-                            }
-                        )
-                        if not self.continue_on_error:
-                            self._print_summary()
-                            raise
-
-            print("-" * 40)
             self._print_summary()
-
-            if any(not r["success"] for r in self.results):
-                raise RuntimeError("One or more SRAM tests failed.")
+            if passed_tests < total_tests:
+                sys.exit(1)
 
         finally:
-            if hasattr(self, "spi_master") and self.spi_master:
-                self.spi_master.close()
+            self.spi_master.close()
 
     def _print_summary(self):
-        """Prints a summary of test results."""
         print("\nTest Summary:")
         print(f"{'Size':<10} | {'Pattern':<10} | {'Result':<10} | {'Details'}")
         print("-" * 80)
-
-        failures = 0
-        for r in self.results:
-            status = "PASS" if r["success"] else "FAIL"
-            if not r["success"]:
-                failures += 1
+        for res in self.results:
+            result_str = "PASS" if res["success"] else "FAIL"
             print(
-                f"{r['size']:<10} | {r['pattern']:<10} | {status:<10} | {r['message']}"
+                f"{res['size']:<10} | {res['pattern']:<10} | {result_str:<10} | {res['details']}"
             )
-
         print("-" * 80)
-        print(f"Total Tests: {len(self.results)}")
-        print(f"Passed:      {len(self.results) - failures}")
-        print(f"Failed:      {failures}")
+        total = len(self.results)
+        passed = sum(1 for r in self.results if r["success"])
+        print(f"Total Tests: {total}")
+        print(f"Passed:      {passed}")
+        print(f"Failed:      {total - passed}")
 
-    def _get_mismatch_ranges(self, indices):
-        """Groups a list of sorted indices into contiguous ranges."""
-        if len(indices) == 0:
+    def _get_mismatch_ranges(self, mismatch_indices):
+        if len(mismatch_indices) == 0:
             return []
-
         ranges = []
-        start = indices[0]
-        prev = start
-
-        for curr in indices[1:]:
-            if curr != prev + 1:
+        start = mismatch_indices[0]
+        prev = mismatch_indices[0]
+        for i in range(1, len(mismatch_indices)):
+            if mismatch_indices[i] == prev + 1:
+                prev = mismatch_indices[i]
+            else:
                 ranges.append((start, prev))
-                start = curr
-            prev = curr
+                start = mismatch_indices[i]
+                prev = mismatch_indices[i]
         ranges.append((start, prev))
         return ranges
 
-    def _format_ranges(self, ranges, limit=None):
-        """Formats range tuples into a string string, with optional limiting."""
-        formatted = []
-        for start, end in ranges:
-            if start == end:
-                formatted.append(f"0x{start:x}")
-            else:
-                formatted.append(f"0x{start:x}-0x{end:x}")
+    def _format_ranges(self, ranges):
+        return ", ".join(
+            [f"0x{s:x}" if s == e else f"0x{s:x}-0x{e:x}" for s, e in ranges]
+        )
 
-        if limit and len(formatted) > limit:
-            return (
-                ", ".join(formatted[:limit]) + f", ... ({len(formatted)} total ranges)"
-            )
-        return ", ".join(formatted)
+    def _run_single_test(self, size, pattern_type):
+        """Runs a single test case with a specific size and pattern."""
+        print(f"Running test: size={size}, pattern={pattern_type}")
+        golden_data = self._generate_pattern_data(size, pattern_type)
 
-    def _run_single_test(self, size, pattern):
-        """Runs a single read/write verification test."""
-        print(f"Running test: size={size}, pattern={pattern}")
-        golden_data = self._generate_pattern_data(size, pattern)
-
-        # 1. Load data
+        # 1. Load
         print(f"(Loading {size} bytes to 0x{self.SRAM_ADDR:x}...)")
         self.spi_master.load_data(golden_data.tobytes(), self.SRAM_ADDR)
 
         # 2. Read back
         print(f"(Reading back {size} bytes from 0x{self.SRAM_ADDR:x}...)")
-        result_data = self.spi_master.read_data(self.SRAM_ADDR, size, verbose=False)
+        result_data = self.spi_master.read_data(self.SRAM_ADDR, size)
         result_array = np.frombuffer(result_data, dtype=np.uint8)
 
         # 3. Verify
@@ -494,7 +321,6 @@ class SramTestRunner:
             count = len(mismatch_indices)
             ranges = self._get_mismatch_ranges(mismatch_indices)
             print(f"FAILED: {count} errors found.")
-            # Print up to 16 errors for debugging
             for idx in mismatch_indices[:16]:
                 print(
                     f"  Addr 0x{self.SRAM_ADDR + idx:x}: Expected 0x{golden_data[idx]:02x}, Got 0x{result_array[idx]:02x}"
@@ -507,7 +333,6 @@ class SramTestRunner:
 
 
 def main():
-    # Force unbuffered stdout
     sys.stdout.reconfigure(line_buffering=True)
     print("SRAM Test Script Started.", flush=True)
 
@@ -520,7 +345,7 @@ def main():
         "--csr-base-addr",
         type=lambda x: int(x, 0),
         default=0x30000,
-        help="Base address for CSR registers (can be hex, default: 0x30000).",
+        help="Base address for CSR registers (default: 0x30000).",
     )
     parser.add_argument(
         "--continue-on-error",
@@ -533,7 +358,7 @@ def main():
         help="Run in simulation mode (connect to TCP port).",
     )
     parser.add_argument(
-        "--sim-port", type=int, default=5555, help="TCP port for simulation mode."
+        "--sim-port", type=int, help="TCP port for simulation mode (defaults to SPI_DPI_PORT or 5555)."
     )
     parser.add_argument(
         "--max-size", type=int, default=256, help="Maximum test size in bytes."
@@ -546,7 +371,10 @@ def main():
     )
     args = parser.parse_args()
 
-    if not args.simulation and not args.usb_serial:
+    if args.simulation:
+        if args.sim_port is None:
+            args.sim_port = int(os.environ.get("SPI_DPI_PORT", 5555))
+    elif not args.usb_serial:
         parser.error("--usb-serial is required unless --simulation is used.")
 
     try:
@@ -560,14 +388,8 @@ def main():
             max_size=args.max_size,
         )
 
-        runner.single_size = None
         if args.single_size:
-            # Monkey patch run_test method or just use internal logic?
-            # Cleaner to pass these as args to run_test if I were refactoring,
-            # but I'll attach them to the runner instance for minimal intrusion
             runner.single_size = args.single_size
-
-        runner.single_pattern = None
         if args.single_test:
             runner.single_pattern = args.single_test
 

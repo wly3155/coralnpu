@@ -17,8 +17,7 @@ import socket
 import struct
 
 class SPIDriver:
-    """A driver that mimics the cocotb SPIMaster API and communicates with a
-    DPI-based server in the simulation over a TCP socket."""
+    """A driver that communicates with a DPI-based SPI V2 server in simulation."""
 
     class CommandType:
         WRITE_REG = 0
@@ -29,10 +28,12 @@ class SPIDriver:
         READ_SPI_DOMAIN_REG = 5
         WRITE_REG_16B = 6
         READ_SPI_DOMAIN_REG_16B = 7
+        V2_WRITE = 8
+        V2_READ = 9
 
-    # Format: < (little-endian), B (u8), I (u32), Q (u64), I (u32)
+    # Format: < (little-endian), B (u8 cmd), I (u32 addr), Q (u64 data), I (u32 count)
     COMMAND_FORMAT = "<BIQI"
-    # Format: < (little-endian), Q (u64), B (u8)
+    # Format: < (little-endian), Q (u64 data), B (u8 success)
     RESPONSE_FORMAT = "<QB"
 
     def __init__(self, port: int = 5555):
@@ -52,7 +53,6 @@ class SPIDriver:
     def _send_command(self, cmd_type, addr=0, data=0, count=0, payload=b''):
         cmd_header = struct.pack(self.COMMAND_FORMAT, cmd_type, addr, data, count)
         self.sock.sendall(cmd_header)
-
         if payload:
             self.sock.sendall(payload)
 
@@ -65,37 +65,31 @@ class SPIDriver:
              raise RuntimeError(f"SPI command {cmd_type} failed in simulation.")
         return unpacked[0] # data
 
-    def write_reg(self, reg_addr, data):
-        self._send_command(self.CommandType.WRITE_REG, addr=reg_addr, data=data)
-
-    def poll_reg_for_value(self, reg_addr, expected_value, max_polls=20):
-        """Sends a single command to the DPI server to perform a polling loop."""
-        response = self._send_command(self.CommandType.POLL_REG, addr=reg_addr, data=expected_value, count=max_polls)
-        return response == 1
-
     def idle_clocking(self, cycles):
         """Sends a command to toggle the SPI clock for a number of cycles."""
         self._send_command(self.CommandType.IDLE_CLOCKING, count=cycles)
 
-    def packed_write_transaction(self, target_addr, num_beats, data):
-        payload = data.to_bytes(num_beats * 16, 'little')
-        self._send_command(self.CommandType.PACKED_WRITE, addr=target_addr, count=num_beats, payload=payload)
+    def v2_write(self, target_addr, data_bytes):
+        """Writes data using the SPI V2 frame protocol."""
+        if not data_bytes:
+            return
+        if len(data_bytes) % 16 != 0:
+             raise ValueError("Data length must be a multiple of 16 bytes")
+        num_beats = len(data_bytes) // 16
+        # In V2 header, len field is num_beats - 1
+        self._send_command(self.CommandType.V2_WRITE, addr=target_addr, count=num_beats - 1, payload=data_bytes)
 
-    def read_spi_domain_reg(self, reg_addr):
-        """Sends a command to read a register in the SPI clock domain."""
-        return self._send_command(self.CommandType.READ_SPI_DOMAIN_REG, addr=reg_addr)
-
-    def write_reg_16b(self, reg_addr, data):
-        """Sends a command to write a 16-bit value to a register pair."""
-        self._send_command(self.CommandType.WRITE_REG_16B, addr=reg_addr, data=data)
-
-    def read_spi_domain_reg_16b(self, reg_addr):
-        """Sends a command to read a 16-bit register pair in the SPI clock domain."""
-        return self._send_command(self.CommandType.READ_SPI_DOMAIN_REG_16B, addr=reg_addr)
-
-    def bulk_read(self, num_bytes):
-        """Sends the new bulk read command and receives the data payload."""
-        self._send_command(self.CommandType.BULK_READ, count=num_bytes)
-        # After the command is acknowledged, the server sends the raw data payload.
-        read_payload = self.sock.recv(num_bytes)
+    def v2_read(self, target_addr, num_beats):
+        """Reads data using the SPI V2 frame protocol."""
+        if num_beats == 0:
+            return []
+        self._send_command(self.CommandType.V2_READ, addr=target_addr, count=num_beats - 1)
+        # Receive the raw data payload following the response header
+        num_bytes = num_beats * 16
+        read_payload = b''
+        while len(read_payload) < num_bytes:
+            chunk = self.sock.recv(num_bytes - len(read_payload))
+            if not chunk:
+                raise ConnectionAbortedError("Socket connection broken during data read.")
+            read_payload += chunk
         return list(read_payload)
