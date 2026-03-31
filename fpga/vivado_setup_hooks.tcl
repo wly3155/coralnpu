@@ -17,6 +17,9 @@ set_msg_config -id {[Synth 8-4445]} -new_severity ERROR
 
 set workroot [pwd]
 
+# Register the early pin assignment check to run after synthesis (or before opt_design).
+set_property STEPS.OPT_DESIGN.TCL.PRE "${workroot}/check_pin_assignments.tcl" [get_runs impl_1]
+
 # If we see the Xilinx DDR core, register the post-bitstream hook to stitch the calibration FW.
 if {[file exists "${workroot}/src/xilinx_ddr4_0_0.1_0"]} {
     set_property STEPS.WRITE_BITSTREAM.TCL.POST "${workroot}/vivado_hook_write_bitstream_post.tcl" [get_runs impl_1]
