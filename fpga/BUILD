@@ -369,6 +369,34 @@ fusesoc_build(
 )
 
 fusesoc_build(
+    name = "build_chip_nexus_synth_only",
+    srcs = CORALNPU_SOC_SRCS + [
+        "pins_nexus.xdc",
+        "vivado_setup_hooks.tcl",
+        "vivado_hook_write_bitstream_post.tcl",
+        "check_pin_assignments.tcl",
+    ] + DDR_SRCS,
+    cores = CORALNPU_SOC_CORES + [
+        ":chip_nexus.core",
+        "//fpga/ip/i2c_master:i2c_master.core",
+        "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
+        "//fpga/ip/ispyocto:ispyocto_core",
+        "//fpga/ip/ispyocto:tlul2ahblite_files",
+    ] + DDR_CORES,
+    flags = [
+        "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
+        "--pnr=none",
+    ],
+    output_groups = {
+        "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
+    },
+    systems = ["com.google.coralnpu:fpga:chip_nexus:0.1"],
+    target = "synth",
+    tags = ["manual"],
+)
+
+
+fusesoc_build(
     name = "build_chip_nexus_bitstream_highmem",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
@@ -385,6 +413,33 @@ fusesoc_build(
     ] + DDR_CORES,
     flags = [
         "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
+    ],
+    output_groups = {
+        "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
+    },
+    systems = ["com.google.coralnpu:fpga:chip_nexus:0.1"],
+    target = "synth",
+    tags = ["manual"],
+)
+
+fusesoc_build(
+    name = "build_chip_nexus_synth_only_highmem",
+    srcs = CORALNPU_SOC_SRCS + [
+        "pins_nexus.xdc",
+        "vivado_setup_hooks.tcl",
+        "vivado_hook_write_bitstream_post.tcl",
+        "check_pin_assignments.tcl",
+    ] + DDR_SRCS,
+    cores = CORALNPU_SOC_CORES + [
+        ":chip_nexus.core",
+        "//fpga/ip/i2c_master:i2c_master.core",
+        "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
+        "//fpga/ip/ispyocto:ispyocto_core",
+        "//fpga/ip/ispyocto:tlul2ahblite_files",
+    ] + DDR_CORES,
+    flags = [
+        "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
+        "--pnr=none",
     ],
     output_groups = {
         "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
