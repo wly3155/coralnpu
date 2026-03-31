@@ -382,3 +382,22 @@ genrule(
     outs = ["Vchip_verilator"],
     cmd = "cp $< $@",
 )
+
+# Ensure bazel clean is run if internal dir is added or removed from tree
+py_test(
+    name = "check_pins_test",
+    srcs = ["check_pins.py"],
+    main = "check_pins.py",
+    args = [
+        "--xdc",
+        "$(location pins_nexus.xdc)",
+    ] + (["--xdc", "$(location //internal/fpga/ip/ddr4:pins_ddr.xdc)"] if internal_exists else []) + [
+        "--sv",
+        "$(location //fpga/rtl:chip_nexus.sv)",
+    ],
+    data = [
+        "pins_nexus.xdc",
+        "//fpga/rtl:chip_nexus.sv",
+    ] + (["//internal/fpga/ip/ddr4:pins_ddr.xdc"] if internal_exists else []),
+)
+
