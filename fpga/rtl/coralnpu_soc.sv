@@ -14,8 +14,9 @@
 
 module coralnpu_soc
     #(parameter MemInitFile = "",
-      parameter int ClockFrequencyMhz = 80)
+      parameter int ClockFrequencyMhz = 50)
     (input clk_i,
+     input clk_isp_i,
      input rst_ni,
      input spi_clk_i,
      input spi_csb_i,
@@ -36,6 +37,19 @@ module coralnpu_soc
      output [7:0] gpio_o,
      output [7:0] gpio_en_o,
      input [7:0] gpio_i,
+     input ISP_DVP_D0,
+     input ISP_DVP_D1,
+     input ISP_DVP_D2,
+     input ISP_DVP_D3,
+     input ISP_DVP_D4,
+     input ISP_DVP_D5,
+     input ISP_DVP_D6,
+     input ISP_DVP_D7,
+     input ISP_DVP_PCLK,
+     input ISP_DVP_HSYNC,
+     input ISP_DVP_VSYNC,
+     input CAM_INT,           // Unused
+     output logic CAM_TRIG,   // Tied low, route to GPIO or logic to use as alternative to I2C trigger
      input prim_mubi_pkg::mubi4_t scanmode_i,
      input top_pkg::uart_sideband_i_t[1 : 0] uart_sideband_i,
      output top_pkg::uart_sideband_o_t[1 : 0] uart_sideband_o,
@@ -141,6 +155,8 @@ module coralnpu_soc
      );
 
   assign spim_flash_rst_no = gpio_o[4];
+  // Camera trigger tie off. Use as alternative to I2C trigger.
+  assign CAM_TRIG = 1'b0;
 
   import tlul_pkg::*;
   import top_pkg::*;
@@ -317,6 +333,169 @@ module coralnpu_soc
              .rdata_o(sram_rdata),
              .rvalid_o(sram_rvalid));
 
+  // --- ISP Wires ---
+  // Control (TLUL)
+  coralnpu_tlul_pkg_32::tl_h2d_t isp_tl_h2d;
+  coralnpu_tlul_pkg_32::tl_d2h_t isp_tl_d2h;
+
+  // AXI M1 (isp main path)
+  logic isp_m1_awvalid, isp_m1_awready;
+  logic [31:0] isp_m1_awaddr;
+  logic [3:0] isp_m1_awid, isp_m1_awlen, isp_m1_awcache, isp_m1_awqos, isp_m1_awregion;
+  logic [2:0] isp_m1_awsize, isp_m1_awprot;
+  logic [1:0] isp_m1_awburst, isp_m1_awlock;
+  logic isp_m1_wvalid, isp_m1_wready, isp_m1_wlast;
+  logic [63:0] isp_m1_wdata;
+  logic [7:0] isp_m1_wstrb;
+  logic [3:0] isp_m1_wid;
+  logic isp_m1_bvalid, isp_m1_bready;
+  logic [1:0] isp_m1_bresp;
+  logic [3:0] isp_m1_bid;
+  logic isp_m1_arvalid, isp_m1_arready;
+  logic [31:0] isp_m1_araddr;
+  logic [3:0] isp_m1_arid, isp_m1_arlen, isp_m1_arcache, isp_m1_arqos, isp_m1_arregion;
+  logic [2:0] isp_m1_arsize, isp_m1_arprot;
+  logic [1:0] isp_m1_arburst, isp_m1_arlock;
+  logic isp_m1_rvalid, isp_m1_rready, isp_m1_rlast;
+  logic [63:0] isp_m1_rdata;
+  logic [1:0] isp_m1_rresp;
+  logic [3:0] isp_m1_rid;
+
+  // AXI M2 (isp self path)
+  logic isp_m2_awvalid, isp_m2_awready;
+  logic [31:0] isp_m2_awaddr;
+  logic [3:0] isp_m2_awid, isp_m2_awlen, isp_m2_awcache, isp_m2_awqos, isp_m2_awregion;
+  logic [2:0] isp_m2_awsize, isp_m2_awprot;
+  logic [1:0] isp_m2_awburst, isp_m2_awlock;
+  logic isp_m2_wvalid, isp_m2_wready, isp_m2_wlast;
+  logic [63:0] isp_m2_wdata;
+  logic [7:0] isp_m2_wstrb;
+  logic [3:0] isp_m2_wid;
+  logic isp_m2_bvalid, isp_m2_bready;
+  logic [1:0] isp_m2_bresp;
+  logic [3:0] isp_m2_bid;
+
+  logic intr_mi, intr_isp;
+
+  isp_wrapper u_isp (
+    .clk_i          (clk_isp_i),
+    .clk_core_i     (clk_isp_i),
+    .clk_axi_i      (clk_isp_i),
+    .rst_ni         (rst_ni),
+
+    // TLUL Control (TLUL Control Slave (AHB internally))
+    .tl_i           (isp_tl_h2d),
+    .tl_o           (isp_tl_d2h),
+
+    // AXI M1 (Master isp main path)
+    .axi_m1_awvalid (isp_m1_awvalid),
+    .axi_m1_awready (isp_m1_awready),
+    .axi_m1_awaddr  (isp_m1_awaddr),
+    .axi_m1_awid    (isp_m1_awid),
+    .axi_m1_awlen   (isp_m1_awlen),
+    .axi_m1_awsize  (isp_m1_awsize),
+    .axi_m1_awburst (isp_m1_awburst),
+    .axi_m1_awlock  (isp_m1_awlock),
+    .axi_m1_awcache (isp_m1_awcache),
+    .axi_m1_awprot  (isp_m1_awprot),
+    .axi_m1_awqos   (isp_m1_awqos),
+    .axi_m1_awregion(isp_m1_awregion),
+    .axi_m1_wvalid  (isp_m1_wvalid),
+    .axi_m1_wready  (isp_m1_wready),
+    .axi_m1_wdata   (isp_m1_wdata),
+    .axi_m1_wstrb   (isp_m1_wstrb),
+    .axi_m1_wlast   (isp_m1_wlast),
+    .axi_m1_wid     (isp_m1_wid),
+    .axi_m1_bvalid  (isp_m1_bvalid),
+    .axi_m1_bready  (isp_m1_bready),
+    .axi_m1_bresp   (isp_m1_bresp),
+    .axi_m1_bid     (isp_m1_bid),
+    .axi_m1_arready (isp_m1_arready),
+    .axi_m1_arvalid (isp_m1_arvalid),
+    .axi_m1_araddr  (isp_m1_araddr),
+    .axi_m1_arid    (isp_m1_arid),
+    .axi_m1_arlen   (isp_m1_arlen),
+    .axi_m1_arsize  (isp_m1_arsize),
+    .axi_m1_arburst (isp_m1_arburst),
+    .axi_m1_arlock  (isp_m1_arlock),
+    .axi_m1_arcache (isp_m1_arcache),
+    .axi_m1_arprot  (isp_m1_arprot),
+    .axi_m1_arqos   (isp_m1_arqos),
+    .axi_m1_arregion(isp_m1_arregion),
+    .axi_m1_rvalid  (isp_m1_rvalid),
+    .axi_m1_rready  (isp_m1_rready),
+    .axi_m1_rdata   (isp_m1_rdata),
+    .axi_m1_rresp   (isp_m1_rresp),
+    .axi_m1_rid     (isp_m1_rid),
+    .axi_m1_rlast   (isp_m1_rlast),
+
+    // AXI M2 (Master isp self path)
+    .axi_m2_awvalid (isp_m2_awvalid),
+    .axi_m2_awready (isp_m2_awready),
+    .axi_m2_awaddr  (isp_m2_awaddr),
+    .axi_m2_awid    (isp_m2_awid),
+    .axi_m2_awlen   (isp_m2_awlen),
+    .axi_m2_awsize  (isp_m2_awsize),
+    .axi_m2_awburst (isp_m2_awburst),
+    .axi_m2_awlock  (isp_m2_awlock),
+    .axi_m2_awcache (isp_m2_awcache),
+    .axi_m2_awprot  (isp_m2_awprot),
+    .axi_m2_awqos   (isp_m2_awqos),
+    .axi_m2_awregion(isp_m2_awregion),
+    .axi_m2_wvalid  (isp_m2_wvalid),
+    .axi_m2_wready  (isp_m2_wready),
+    .axi_m2_wdata   (isp_m2_wdata),
+    .axi_m2_wstrb   (isp_m2_wstrb),
+    .axi_m2_wlast   (isp_m2_wlast),
+    .axi_m2_wid     (isp_m2_wid),
+    .axi_m2_bvalid  (isp_m2_bvalid),
+    .axi_m2_bready  (isp_m2_bready),
+    .axi_m2_bresp   (isp_m2_bresp),
+    .axi_m2_bid     (isp_m2_bid),
+    .axi_m2_arready (1'b1), // Unused by ISP wrapper
+    .axi_m2_arvalid (),
+    .axi_m2_araddr  (),
+    .axi_m2_arid    (),
+    .axi_m2_arlen   (),
+    .axi_m2_arsize  (),
+    .axi_m2_arburst (),
+    .axi_m2_arlock  (),
+    .axi_m2_arcache (),
+    .axi_m2_arprot  (),
+    .axi_m2_arqos   (),
+    .axi_m2_arregion(),
+    .axi_m2_rvalid  (1'b0),
+    .axi_m2_rready  (),
+    .axi_m2_rdata   (64'b0),
+    .axi_m2_rresp   (2'b0),
+    .axi_m2_rid     (4'b0),
+    .axi_m2_rlast   (1'b0),
+
+    // Sensor Interface
+    .cio_s_pclk_i   (ISP_DVP_PCLK),
+    .cio_s_data_i   ({ISP_DVP_D7, ISP_DVP_D6, ISP_DVP_D5, ISP_DVP_D4, ISP_DVP_D3, ISP_DVP_D2, ISP_DVP_D1, ISP_DVP_D0}),
+    .cio_s_hsync_i  (ISP_DVP_HSYNC),
+    .cio_s_vsync_i  (ISP_DVP_VSYNC),
+
+    // Interrupts
+    .intr_mi_o      (intr_mi),
+    .intr_isp_o     (intr_isp),
+
+    .disable_isp_i  (1'b0),
+    .scanmode_i     (1'b0)
+  );
+
+  logic rst_isp_nq, rst_isp_nqq;
+  always_ff @(posedge clk_isp_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      rst_isp_nq  <= 1'b0;
+      rst_isp_nqq <= 1'b0;
+    end else begin
+      rst_isp_nq  <= 1'b1;
+      rst_isp_nqq <= rst_isp_nq;
+    end
+  end
+
   CoralNPUChiselSubsystem i_chisel_subsystem (
     .io_clk_i(clk_i),
     .io_rst_ni(rst_ni),
@@ -487,6 +666,120 @@ module coralnpu_soc
 
     .io_async_ports_devices_ddr_clock(ddr_clk_i),
     .io_async_ports_devices_ddr_reset(ddr_rst),
+    .io_async_ports_devices_isp_axi_clk_clock(clk_isp_i),
+    .io_async_ports_devices_isp_axi_clk_reset(~rst_isp_nqq),
+
+    // ISP Control Interface (TLUL)
+    .io_ispyocto_ctrl_a_valid(isp_tl_h2d.a_valid),
+    .io_ispyocto_ctrl_a_ready(isp_tl_d2h.a_ready),
+    .io_ispyocto_ctrl_a_bits_opcode(isp_tl_h2d.a_opcode),
+    .io_ispyocto_ctrl_a_bits_param(isp_tl_h2d.a_param),
+    .io_ispyocto_ctrl_a_bits_size(isp_tl_h2d.a_size),
+    .io_ispyocto_ctrl_a_bits_source(isp_tl_h2d.a_source[5:0]), // Map to 6-bit port
+    .io_ispyocto_ctrl_a_bits_address(isp_tl_h2d.a_address),
+    .io_ispyocto_ctrl_a_bits_mask(isp_tl_h2d.a_mask),
+    .io_ispyocto_ctrl_a_bits_data(isp_tl_h2d.a_data),
+    .io_ispyocto_ctrl_a_bits_user_rsvd(isp_tl_h2d.a_user.rsvd),
+    .io_ispyocto_ctrl_a_bits_user_instr_type(isp_tl_h2d.a_user.instr_type),
+    .io_ispyocto_ctrl_a_bits_user_cmd_intg(isp_tl_h2d.a_user.cmd_intg),
+    .io_ispyocto_ctrl_a_bits_user_data_intg(isp_tl_h2d.a_user.data_intg),
+    .io_ispyocto_ctrl_d_ready(isp_tl_h2d.d_ready),
+    .io_ispyocto_ctrl_d_valid(isp_tl_d2h.d_valid),
+    .io_ispyocto_ctrl_d_bits_opcode(isp_tl_d2h.d_opcode),
+    .io_ispyocto_ctrl_d_bits_param(isp_tl_d2h.d_param),
+    .io_ispyocto_ctrl_d_bits_size(isp_tl_d2h.d_size),
+    .io_ispyocto_ctrl_d_bits_source(isp_tl_d2h.d_source[5:0]),
+    .io_ispyocto_ctrl_d_bits_sink(isp_tl_d2h.d_sink),
+    .io_ispyocto_ctrl_d_bits_data(isp_tl_d2h.d_data),
+    .io_ispyocto_ctrl_d_bits_error(isp_tl_d2h.d_error),
+    .io_ispyocto_ctrl_d_bits_user_rsp_intg(isp_tl_d2h.d_user.rsp_intg),
+    .io_ispyocto_ctrl_d_bits_user_data_intg(isp_tl_d2h.d_user.data_intg),
+
+    // ISP AXI M1
+    .io_ispyocto_m1_axi_write_addr_valid(isp_m1_awvalid),
+    .io_ispyocto_m1_axi_write_addr_ready(isp_m1_awready),
+    .io_ispyocto_m1_axi_write_addr_bits_addr(isp_m1_awaddr),
+    .io_ispyocto_m1_axi_write_addr_bits_prot(isp_m1_awprot),
+    .io_ispyocto_m1_axi_write_addr_bits_id(isp_m1_awid),
+    .io_ispyocto_m1_axi_write_addr_bits_len(isp_m1_awlen),
+    .io_ispyocto_m1_axi_write_addr_bits_size(isp_m1_awsize),
+    .io_ispyocto_m1_axi_write_addr_bits_burst(isp_m1_awburst),
+    .io_ispyocto_m1_axi_write_addr_bits_lock(isp_m1_awlock),
+    .io_ispyocto_m1_axi_write_addr_bits_cache(isp_m1_awcache),
+    .io_ispyocto_m1_axi_write_addr_bits_qos(isp_m1_awqos),
+    .io_ispyocto_m1_axi_write_addr_bits_region(isp_m1_awregion),
+    .io_ispyocto_m1_axi_write_data_valid(isp_m1_wvalid),
+    .io_ispyocto_m1_axi_write_data_ready(isp_m1_wready),
+    .io_ispyocto_m1_axi_write_data_bits_data(isp_m1_wdata),
+    .io_ispyocto_m1_axi_write_data_bits_last(isp_m1_wlast),
+    .io_ispyocto_m1_axi_write_data_bits_strb(isp_m1_wstrb),
+    .io_ispyocto_m1_axi_write_resp_valid(isp_m1_bvalid),
+    .io_ispyocto_m1_axi_write_resp_ready(isp_m1_bready),
+    .io_ispyocto_m1_axi_write_resp_bits_id(isp_m1_bid),
+    .io_ispyocto_m1_axi_write_resp_bits_resp(isp_m1_bresp),
+    .io_ispyocto_m1_axi_read_addr_valid(isp_m1_arvalid),
+    .io_ispyocto_m1_axi_read_addr_ready(isp_m1_arready),
+    .io_ispyocto_m1_axi_read_addr_bits_addr(isp_m1_araddr),
+    .io_ispyocto_m1_axi_read_addr_bits_prot(isp_m1_arprot),
+    .io_ispyocto_m1_axi_read_addr_bits_id(isp_m1_arid),
+    .io_ispyocto_m1_axi_read_addr_bits_len(isp_m1_arlen),
+    .io_ispyocto_m1_axi_read_addr_bits_size(isp_m1_arsize),
+    .io_ispyocto_m1_axi_read_addr_bits_burst(isp_m1_arburst),
+    .io_ispyocto_m1_axi_read_addr_bits_lock(isp_m1_arlock),
+    .io_ispyocto_m1_axi_read_addr_bits_cache(isp_m1_arcache),
+    .io_ispyocto_m1_axi_read_addr_bits_qos(isp_m1_arqos),
+    .io_ispyocto_m1_axi_read_addr_bits_region(isp_m1_arregion),
+    .io_ispyocto_m1_axi_read_data_valid(isp_m1_rvalid),
+    .io_ispyocto_m1_axi_read_data_ready(isp_m1_rready),
+    .io_ispyocto_m1_axi_read_data_bits_data(isp_m1_rdata),
+    .io_ispyocto_m1_axi_read_data_bits_id(isp_m1_rid),
+    .io_ispyocto_m1_axi_read_data_bits_resp(isp_m1_rresp),
+    .io_ispyocto_m1_axi_read_data_bits_last(isp_m1_rlast),
+
+    // ISP AXI M2
+    .io_ispyocto_m2_axi_write_addr_valid(isp_m2_awvalid),
+    .io_ispyocto_m2_axi_write_addr_ready(isp_m2_awready),
+    .io_ispyocto_m2_axi_write_addr_bits_addr(isp_m2_awaddr),
+    .io_ispyocto_m2_axi_write_addr_bits_prot(isp_m2_awprot),
+    .io_ispyocto_m2_axi_write_addr_bits_id(isp_m2_awid),
+    .io_ispyocto_m2_axi_write_addr_bits_len(isp_m2_awlen),
+    .io_ispyocto_m2_axi_write_addr_bits_size(isp_m2_awsize),
+    .io_ispyocto_m2_axi_write_addr_bits_burst(isp_m2_awburst),
+    .io_ispyocto_m2_axi_write_addr_bits_lock(isp_m2_awlock),
+    .io_ispyocto_m2_axi_write_addr_bits_cache(isp_m2_awcache),
+    .io_ispyocto_m2_axi_write_addr_bits_qos(isp_m2_awqos),
+    .io_ispyocto_m2_axi_write_addr_bits_region(isp_m2_awregion),
+    .io_ispyocto_m2_axi_write_data_valid(isp_m2_wvalid),
+    .io_ispyocto_m2_axi_write_data_ready(isp_m2_wready),
+    .io_ispyocto_m2_axi_write_data_bits_data(isp_m2_wdata),
+    .io_ispyocto_m2_axi_write_data_bits_last(isp_m2_wlast),
+    .io_ispyocto_m2_axi_write_data_bits_strb(isp_m2_wstrb),
+    .io_ispyocto_m2_axi_write_resp_valid(isp_m2_bvalid),
+    .io_ispyocto_m2_axi_write_resp_ready(isp_m2_bready),
+    .io_ispyocto_m2_axi_write_resp_bits_id(isp_m2_bid),
+    .io_ispyocto_m2_axi_write_resp_bits_resp(isp_m2_bresp),
+
+    .io_ispyocto_m2_axi_read_addr_valid(1'b0),
+    .io_ispyocto_m2_axi_read_addr_ready(),
+    .io_ispyocto_m2_axi_read_addr_bits_addr('0),
+    .io_ispyocto_m2_axi_read_addr_bits_prot('0),
+    .io_ispyocto_m2_axi_read_addr_bits_id('0),
+    .io_ispyocto_m2_axi_read_addr_bits_len('0),
+    .io_ispyocto_m2_axi_read_addr_bits_size('0),
+    .io_ispyocto_m2_axi_read_addr_bits_burst('0),
+    .io_ispyocto_m2_axi_read_addr_bits_lock('0),
+    .io_ispyocto_m2_axi_read_addr_bits_cache('0),
+    .io_ispyocto_m2_axi_read_addr_bits_qos('0),
+    .io_ispyocto_m2_axi_read_addr_bits_region('0),
+    .io_ispyocto_m2_axi_read_data_valid(),
+    .io_ispyocto_m2_axi_read_data_ready(1'b0),
+    .io_ispyocto_m2_axi_read_data_bits_data(),
+    .io_ispyocto_m2_axi_read_data_bits_id(),
+    .io_ispyocto_m2_axi_read_data_bits_resp(),
+    .io_ispyocto_m2_axi_read_data_bits_last(),
+
+    .io_async_ports_hosts_isp_axi_clk_clock(clk_isp_i),
+    .io_async_ports_hosts_isp_axi_clk_reset(~rst_isp_nqq),
 
     .io_ddr_ctrl_axi_write_addr_valid(io_ddr_ctrl_axi_aw_valid),
     .io_ddr_ctrl_axi_write_addr_ready(io_ddr_ctrl_axi_aw_ready),

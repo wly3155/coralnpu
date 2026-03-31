@@ -54,9 +54,31 @@ py_binary(
     srcs = ["sim_test_runner.py"],
     data = [
         ":loader",
+        "//fpga/ip/ispyocto:grey_bars_320x240.raw",
         "//fpga:copy_chip_verilator_binary",
     ],
     tags = ["manual"],
+    deps = [
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)
+
+py_binary(
+    name = "run_isp_cam_sim",
+    srcs = ["run_simulation.py"],
+    main = "run_simulation.py",
+    args = [
+        "--elf_file",
+        "$(location //fpga:isp_cam_test.elf)",
+        "--run_time",
+        "100",
+    ],
+    data = [
+        ":loader",
+        "//fpga:copy_chip_verilator_binary",
+        "//fpga:isp_cam_test.elf",
+        "//fpga/ip/ispyocto:grey_bars_320x240.raw",
+    ],
     deps = [
         "@bazel_tools//tools/python/runfiles",
     ],
