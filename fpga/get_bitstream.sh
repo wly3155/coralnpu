@@ -25,7 +25,7 @@ START_REF=""
 
 usage() {
     echo "Usage:"
-    echo "  get_bitsream.sh (--latest|--ref REF) [options]"
+    echo "  get_bitstream.sh (--latest|--ref REF) [options]"
     echo ""
     echo "Options:"
     echo "  -r, --ref      The git reference to start searching from"
@@ -65,6 +65,7 @@ if ! git rev-parse --is-inside-work-tree >/dev/null; then
 fi
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
+cd "${PROJECT_ROOT}"
 
 echo "Start Ref:    ${START_REF}"
 echo "Search limit: ${LIMIT} commits"
@@ -72,20 +73,16 @@ echo "Target File:  ${TARGET_FILE}"
 echo ""
 
 mkdir -p "${PROJECT_ROOT}/fpga/bitstreams"
-echo "Created ${PROJECT_ROOT}/fpga/bitstreams/"
 
-LAST_SHA=""
-for (( i=0; i<LIMIT; i++ )); do
-    # Switch to project root to resolve Git SHAs
-    pushd "${PROJECT_ROOT}" > /dev/null || exit 1
-    SHA=$(git rev-parse "${START_REF}~${i}" 2>/dev/null)
-    popd > /dev/null || exit 1
+# Get list of changes that modified fpga/ or hdl/
+SHAS=$(git log "${START_REF}" -n "${LIMIT}" --format="%H" -- fpga/ hdl/chisel/src/soc/)
 
-    if [[ -z "${SHA}" ]]; then
-        echo "Reached end of local git history or invalid reference."
-        break
-    fi
+if [[ -z "${SHAS}" ]]; then
+    echo "ERROR: No matching commits found in the history of ${START_REF} affecting fpga/ or hdl/."
+    exit 1
+fi
 
+for SHA in ${SHAS}; do
     LAST_SHA="${SHA}"
 
     # Artifact Registry Generic format uses colons as delimiters.
@@ -96,7 +93,7 @@ for (( i=0; i<LIMIT; i++ )); do
     URL+="/repositories/${AR_REPO}"
     URL+="/files/${AR_PACKAGE}%3A${SHA}%3A${TARGET_FILE}:download?alt=media"
 
-    echo "[${i}] Checking commit ${SHA:0:8}..."
+    echo "Checking commit ${SHA:0:8}..."
 
     if curl -sL --fail -o "${PROJECT_ROOT}/fpga/bitstreams/${TARGET_FILE}" "${URL}"; then
         echo "SUCCESS: Found artifact for commit ${SHA}"
