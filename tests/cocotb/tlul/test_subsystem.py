@@ -1175,3 +1175,90 @@ async def test_boot_addr_override(dut):
         f"DTCM verification failed: got 0x{read_data:08x}, expected 0x{expected:08x}"
 
     dut._log.info("Test passed: pcStartReg CSR override works correctly.")
+
+@cocotb.test()
+async def test_ddr_burst_pattern_repro(dut):
+    """Tests DDR burst patterns from the CPU's perspective."""
+    clock = await setup_dut(dut)
+
+    # 1. DDR Clock and Reset Setup
+    ddr_clk_signal = dut.io_async_ports_devices_ddr_clock
+    ddr_rst_signal = dut.io_async_ports_devices_ddr_reset
+    ddr_rst_signal.value = 1
+    ddr_clock = Clock(ddr_clk_signal, 2, "ns")
+    cocotb.start_soon(ddr_clock.start())
+    ddr_rst_signal.value = 0
+    await ClockCycles(dut.io_clk_i, 5)
+    ddr_rst_signal.value = 1
+    await ClockCycles(dut.io_clk_i, 5)
+    ddr_rst_signal.value = 0
+    await ClockCycles(dut.io_clk_i, 5)
+
+    # 2. Instantiate Host Interface (for loading ELF and programming CSRs)
+    host_if = TileLinkULInterface(
+        dut,
+        host_if_name="io_external_hosts_test_host_32",
+        clock_name="io_async_ports_hosts_test_clock",
+        reset_name="io_async_ports_hosts_test_reset",
+        width=32)
+    await host_if.init()
+
+    # 3. AXI Responder for DDR (0x80000000)
+    DDR_MEM_BASE = 0x80000000
+    ddr_mem_slave = AxiSlave(dut, "ddr_mem_axi", ddr_clk_signal, ddr_rst_signal, dut._log, has_memory=True, mem_base_addr=DDR_MEM_BASE)
+    ddr_mem_slave.start()
+    await RisingEdge(ddr_clk_signal)
+
+    # 4. Load ddr_test.elf
+    r = runfiles.Create()
+    elf_path = r.Rlocation("coralnpu_hw/tests/cocotb/ddr_test.elf")
+    assert elf_path, "Could not find ddr_test.elf"
+    with open(elf_path, "rb") as f:
+        entry_point = await load_elf(dut, f, host_if)
+    dut._log.info(f"ddr_test.elf loaded. Entry point: 0x{entry_point:08x}")
+
+    # 5. Execute Program
+    coralnpu_pc_csr_addr = 0x30004
+    coralnpu_reset_csr_addr = 0x30000
+
+    # Program PC
+    await host_if.host_put(create_a_channel_req(address=coralnpu_pc_csr_addr, data=entry_point, mask=0xF, width=32))
+    await host_if.host_get_response()
+    # Release clock gate
+    await host_if.host_put(create_a_channel_req(address=coralnpu_reset_csr_addr, data=1, mask=0xF, width=32))
+    await host_if.host_get_response()
+    await ClockCycles(dut.io_clk_i, 1)
+    # Release reset
+    await host_if.host_put(create_a_channel_req(address=coralnpu_reset_csr_addr, data=0, mask=0xF, width=32))
+    await host_if.host_get_response()
+
+    # 6. Wait for Halt
+    dut._log.info("Waiting for core to halt...")
+    timeout_cycles = 100000
+    for i in range(timeout_cycles):
+        if dut.io_external_ports_halted.value == 1:
+            break
+        await ClockCycles(dut.io_clk_i, 1)
+    else:
+        assert False, f"Timeout: Core did not halt within {timeout_cycles} cycles."
+
+    dut._log.info("Core halted. Checking DDR memory...")
+
+    # 7. Verify DDR contents (First 16 words of 0x81000000)
+    TEST_BASE_OFFSET = 0x01000000
+    for i in range(16):
+        expected = 0xA0000000 | (i << 8) | i
+        addr = TEST_BASE_OFFSET + (i * 4)
+
+        read_bytes = bytearray()
+        for b in range(4):
+            read_bytes.append(ddr_mem_slave.memory.get(addr + b, 0x00))
+        actual = int.from_bytes(read_bytes, byteorder='little')
+
+        if actual != expected:
+            dut._log.error(f"DDR Mismatch at Offset {i*4:02x}: Expected {expected:08x}, Got {actual:08x}")
+        else:
+            dut._log.info(f"DDR Match at Offset {i*4:02x}: {actual:08x}")
+
+    assert dut.io_external_ports_fault.value == 0, "Program halted with fault!"
+    dut._log.info("DDR Burst Pattern Reproduction Test Finished.")

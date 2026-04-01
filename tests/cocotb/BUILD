@@ -675,3 +675,9 @@ cocotb_test_suite(
     verilator_model = ":rvv_core_mini_axi_model",
 )
 
+coralnpu_v2_binary(
+    name = "ddr_test",
+    srcs = [
+        "ddr_test.cc",
+    ],
+)

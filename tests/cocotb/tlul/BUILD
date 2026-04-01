@@ -414,6 +414,7 @@ CORALNPU_CHISEL_SUBSYSTEM_TESTCASES = [
     "test_boot_addr_sram",
     "test_boot_addr_override",
     "test_timer_interrupt",
+    "test_ddr_burst_pattern_repro",
 ]
 # END_TESTCASES_FOR_coralnpu_chisel_subsystem_cocotb
 
@@ -437,6 +438,7 @@ cocotb_test_suite(
         "data": [
             "//tests/cocotb/rvv/arithmetics:rvv_add_int32_m1.elf",
             "//tests/cocotb:timer_interrupt_test.elf",
+            "//tests/cocotb:ddr_test.elf",
         ],
         "default_testcase_size": "small",
         "size": "enormous",
@@ -446,6 +448,7 @@ cocotb_test_suite(
     vcs_data = [
         "//tests/cocotb/rvv/arithmetics:rvv_add_int32_m1.elf",
         "//tests/cocotb:timer_interrupt_test.elf",
+        "//tests/cocotb:ddr_test.elf",
     ],
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,

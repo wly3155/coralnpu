@@ -212,8 +212,10 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
   // ==========================================================================
   } else if (hostWidth < deviceWidth) {
     val wideBytes = deviceWidth / 8
+    val hostBytes = hostWidth / 8
     val numSourceIds = 1 << host_p.o
     val addr_lsb_width = log2Ceil(wideBytes)
+    val host_align_bits = log2Ceil(hostBytes)
     val index_width = log2Ceil(numSourceIds)
     val addr_lsb_regs = RegInit(VecInit(Seq.fill(numSourceIds)(0.U(addr_lsb_width.W))))
 
@@ -236,13 +238,21 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     wide_req.param   := io.tl_h.a.bits.param
     wide_req.size    := io.tl_h.a.bits.size
     wide_req.source  := io.tl_h.a.bits.source
+
+    // Address Alignment: Keep address unaligned. Downstream bridges/devices
+    // should handle unaligned TileLink addresses. Our internal steering handles
+    // alignment within this bridge's width conversion.
     wide_req.address := io.tl_h.a.bits.address
     wide_req.user.rsvd := io.tl_h.a.bits.user.rsvd
     wide_req.user.instr_type := io.tl_h.a.bits.user.instr_type
     wide_req.user.cmd_intg := io.tl_h.a.bits.user.cmd_intg
     wide_req.user.data_intg := io.tl_h.a.bits.user.data_intg
-    wide_req.mask    := (io.tl_h.a.bits.mask.asUInt << req_addr_lsb).asUInt
-    wide_req.data    := (io.tl_h.a.bits.data.asUInt << (req_addr_lsb << 3.U)).asUInt
+
+    // Steering: Only shift by bits that are NEW to this bridge.
+    // Bits below 'host_align_bits' are already handled by the host's native steering.
+    val steering_shift = (req_addr_lsb >> host_align_bits) << host_align_bits
+    wide_req.mask    := (io.tl_h.a.bits.mask.asUInt << steering_shift).asUInt
+    wide_req.data    := (io.tl_h.a.bits.data.asUInt << (steering_shift << 3.U)).asUInt
     a_gen.io.a_i := wide_req
 
     io.tl_d.a.valid := io.tl_h.a.valid && !a_check.io.fault
@@ -266,7 +276,10 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     narrow_resp.size   := io.tl_d.d.bits.size
     narrow_resp.source := io.tl_d.d.bits.source
     narrow_resp.sink   := io.tl_d.d.bits.sink
-    narrow_resp.data   := (io.tl_d.d.bits.data >> (resp_addr_lsb << 3.U)).asUInt
+
+    // Shifting back: Only shift back the bits NEW to this bridge.
+    val resp_steering_shift = (resp_addr_lsb >> host_align_bits) << host_align_bits
+    narrow_resp.data   := (io.tl_d.d.bits.data >> (resp_steering_shift << 3.U)).asUInt
     narrow_resp.error  := io.tl_d.d.bits.error || d_check.io.fault
     narrow_resp.user.rsp_intg := io.tl_d.d.bits.user.rsp_intg
     narrow_resp.user.data_intg := io.tl_d.d.bits.user.data_intg
