@@ -6,6 +6,7 @@ MEMORY {
     ITCM(rx): ORIGIN = 0x00000000, LENGTH = @@ITCM_LENGTH@@K
     DTCM(rw): ORIGIN = @@DTCM_ORIGIN@@, LENGTH = @@DTCM_LENGTH@@K
     EXTMEM(rw): ORIGIN = 0x20000000, LENGTH = 4096K
+    DDR(rw): ORIGIN = 0x80000000, LENGTH = 2048M
 }
 
 STACK_SIZE = DEFINED(__stack_size__) ? __stack_size__ : @@STACK_SIZE@@;
@@ -117,20 +118,6 @@ SECTIONS {
       _end = .;
     } > DTCM
 
-    .heap : ALIGN(16) {
-      __heap_start__ = .;
-      . = ORIGIN(DTCM) + LENGTH(DTCM) - STACK_SIZE;
-      __heap_end__ = .;
-      __heap_end = .;
-    } > DTCM
-
-    .stack : ALIGN(16) {
-      __stack_start__ = .;
-      __stack_start = .;
-      . += STACK_SIZE;
-      __stack_end__ = .;
-    } > DTCM
-
     /* EXTMEM data here */
     . = ORIGIN(EXTMEM);
     .extdata : ALIGN(16) {
@@ -146,4 +133,39 @@ SECTIONS {
       *(.extbss.*)
       __extbss_end__ = .;
     } > EXTMEM
+
+    /* DDR data here */
+    .ddr_data : ALIGN(16) {
+      __ddr_data_start__ = .;
+      *(.ddr_data)
+      *(.ddr_data.*)
+      *(.cnidoom.wad)
+      *(.cnidoom.weights)
+      __ddr_data_end__ = .;
+    } > DDR
+
+    .ddr_bss (NOLOAD) : ALIGN(16) {
+      __ddr_bss_start__ = .;
+      *(.ddr_bss)
+      *(.ddr_bss.*)
+      __ddr_bss_end__ = .;
+    } > DDR
+
+    .heap : ALIGN(16) {
+      __heap_start__ = .;
+      __heap_start = .;
+      @@HEAP_SIZE_SPEC@@
+      __heap_end__ = .;
+      __heap_end = .;
+    } > @@HEAP_LOCATION@@
+
+    .stack : ALIGN(16) {
+      @@STACK_START_SPEC@@
+      __stack_start__ = .;
+      __stack_start = .;
+      . += STACK_SIZE;
+      __stack_end__ = .;
+    } > DTCM
+
+    _end = .;
 }

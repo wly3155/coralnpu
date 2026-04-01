@@ -218,6 +218,8 @@ def coralnpu_v2_binary(
         word_size = 32,
         linker_script = None,
         stack_size_bytes = 128,
+        heap_size = "",
+        heap_location = "DTCM",
         **kwargs):
     """A helper macro for generating binary artifacts for the CoralNPU V2 core.
 
@@ -232,6 +234,8 @@ def coralnpu_v2_binary(
       itcm_size_kbytes: Size of ITCM in KBytes.
       dtcm_size_kbytes: Size of DTCM in KBytes.
       stack_size_bytes: Size of stack in bytes.
+      heap_size: Size of heap (e.g. "1K", "128M").
+      heap_location: Memory region for heap ("DTCM", "EXTMEM", "DDR").
       **kwargs: Additional arguments forward to cc_binary.
     Emits rules:
       filegroup              named: <name>.bin
@@ -251,10 +255,17 @@ def coralnpu_v2_binary(
         _DEFAULT_ITCM_SIZE_KBYTES = 8
         _DEFAULT_DTCM_SIZE_KBYTES = 32
         _DEFAULT_STACK_SIZE_BYTES = 128
+        _DEFAULT_HEAP_SIZE = ""
+        _DEFAULT_HEAP_LOCATION = "DTCM"
 
         linker_script_suffix = ""
-        if itcm_size_kbytes != _DEFAULT_ITCM_SIZE_KBYTES or dtcm_size_kbytes != _DEFAULT_DTCM_SIZE_KBYTES or stack_size_bytes != _DEFAULT_STACK_SIZE_BYTES:
-            linker_script_suffix = "_ITCM%dKB_DTCM%dKB_STACK%d" % (itcm_size_kbytes, dtcm_size_kbytes, stack_size_bytes)
+        if itcm_size_kbytes != _DEFAULT_ITCM_SIZE_KBYTES or \
+           dtcm_size_kbytes != _DEFAULT_DTCM_SIZE_KBYTES or \
+           stack_size_bytes != _DEFAULT_STACK_SIZE_BYTES or \
+           heap_size != _DEFAULT_HEAP_SIZE or \
+           heap_location != _DEFAULT_HEAP_LOCATION:
+            linker_script_suffix = "_ITCM%dKB_DTCM%dKB_STACK%d_HEAP%s%s" % (
+                itcm_size_kbytes, dtcm_size_kbytes, stack_size_bytes, heap_size, heap_location)
 
         linker_script_name = name + linker_script_suffix + "_linker_script"
         linker_script_output_file = name + linker_script_suffix + ".ld"
@@ -266,6 +277,8 @@ def coralnpu_v2_binary(
             itcm_size_kbytes = itcm_size_kbytes,
             dtcm_size_kbytes = dtcm_size_kbytes,
             stack_size_bytes = stack_size_bytes,
+            heap_size = heap_size,
+            heap_location = heap_location,
         )
         linker_script = ":" + linker_script_output_file
 

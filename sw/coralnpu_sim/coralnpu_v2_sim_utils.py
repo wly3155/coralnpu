@@ -26,10 +26,11 @@ class CoralNPUV2Simulator:
     if highmem_ld:
       self.dtcm_range = self._create_lsu_range(0x100000, 0x100000)
       self.extmem_range = self._create_lsu_range(0x20000000, 0x400000)
+      self.ddr_range = self._create_lsu_range(0x80000000, 0x8000000) # 128MB DDR
       self.options.itcm_start_address = 0x0
       self.options.itcm_length = 0x00100000
       self.options.initial_misa_value = 0x40201120
-      self.options.lsu_access_ranges = [self.dtcm_range, self.extmem_range]
+      self.options.lsu_access_ranges = [self.dtcm_range, self.extmem_range, self.ddr_range]
     if exit_on_ebreak:
       self.options.exit_on_ebreak = True
     self.sim = coralnpu_v2_sim_pybind.CoralNPUV2SimulatorPy(self.options)

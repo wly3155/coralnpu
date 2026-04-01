@@ -32,11 +32,27 @@ def _generate_linker_script_impl(ctx):
     stack_size_bytes_default = 128
     stack_size = ctx.attr.stack_size_bytes if ctx.attr.stack_size_bytes else stack_size_bytes_default
 
+    heap_location = ctx.attr.heap_location
+    heap_size = ctx.attr.heap_size
+
+    # Logic to determine heap and stack sizing.
+    # If heap is in DTCM and no size is specified, use the "remainder" logic.
+    if heap_location == "DTCM" and (not heap_size or heap_size == "MAX"):
+        heap_size_spec = ". = ORIGIN(DTCM) + LENGTH(DTCM) - STACK_SIZE;"
+        stack_start_spec = "" # Just follows heap
+    else:
+        heap_size_spec = ". += {};".format(heap_size if heap_size else "1K")
+        # Stack stays in DTCM, force it to the end to maximize space.
+        stack_start_spec = ". = ORIGIN(DTCM) + LENGTH(DTCM) - STACK_SIZE;"
+
     substitutions = {
         "@@ITCM_LENGTH@@": str(ctx.attr.itcm_size_kbytes),
         "@@DTCM_LENGTH@@": str(ctx.attr.dtcm_size_kbytes),
         "@@DTCM_ORIGIN@@": dtcm_origin,
         "@@STACK_SIZE@@": str(stack_size),
+        "@@HEAP_LOCATION@@": heap_location,
+        "@@HEAP_SIZE_SPEC@@": heap_size_spec,
+        "@@STACK_START_SPEC@@": stack_start_spec,
     }
 
     ctx.actions.expand_template(
@@ -53,5 +69,7 @@ generate_linker_script = rule(
         "itcm_size_kbytes": attr.int(mandatory = True),
         "dtcm_size_kbytes": attr.int(mandatory = True),
         "stack_size_bytes": attr.int(default = 128),
+        "heap_size": attr.string(default = ""),
+        "heap_location": attr.string(default = "DTCM"),
     },
 )
