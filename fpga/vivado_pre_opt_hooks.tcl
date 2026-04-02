@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-## Elevate warning for not finding file for readmemh to ERROR.
-set_msg_config -id {[Synth 8-4445]} -new_severity ERROR
+set script_dir [file dirname [info script]]
 
-set workroot [pwd]
+# Run Pin Assignment Check
+source "${script_dir}/check_pin_assignments.tcl"
 
-# Register the pre-optimization hooks (pin check, pblocks, etc.)
-set_property STEPS.OPT_DESIGN.TCL.PRE "${workroot}/vivado_pre_opt_hooks.tcl" [get_runs impl_1]
-
-# If we see the Xilinx DDR core, register the post-bitstream hook to stitch the calibration FW.
-if {[file exists "${workroot}/src/xilinx_ddr4_0_0.1_0"]} {
-    set_property STEPS.WRITE_BITSTREAM.TCL.POST "${workroot}/vivado_hook_write_bitstream_post.tcl" [get_runs impl_1]
-}
+# Run ISP Pblock configuration
+source "${script_dir}/pblock_u_isp.tcl"

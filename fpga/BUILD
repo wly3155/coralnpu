@@ -380,14 +380,19 @@ DDR_SRCS = [
     "//fpga/ip/ddr4_stub:rtl_files",
 ]
 
+VIVADO_HOOKS = [
+    "vivado_setup_hooks.tcl",
+    "vivado_hook_write_bitstream_post.tcl",
+    "check_pin_assignments.tcl",
+    "vivado_pre_opt_hooks.tcl",
+    "pblock_u_isp.tcl",
+]
+
 fusesoc_build(
     name = "build_chip_nexus_bitstream",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
-        "vivado_setup_hooks.tcl",
-        "vivado_hook_write_bitstream_post.tcl",
-        "check_pin_assignments.tcl",
-    ] + DDR_SRCS,
+    ] + VIVADO_HOOKS + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
@@ -410,10 +415,7 @@ fusesoc_build(
     name = "build_chip_nexus_synth_only",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
-        "vivado_setup_hooks.tcl",
-        "vivado_hook_write_bitstream_post.tcl",
-        "check_pin_assignments.tcl",
-    ] + DDR_SRCS,
+    ] + VIVADO_HOOKS + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
@@ -433,15 +435,11 @@ fusesoc_build(
     tags = ["manual"],
 )
 
-
 fusesoc_build(
     name = "build_chip_nexus_bitstream_highmem",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
-        "vivado_setup_hooks.tcl",
-        "vivado_hook_write_bitstream_post.tcl",
-        "check_pin_assignments.tcl",
-    ] + DDR_SRCS,
+    ] + VIVADO_HOOKS + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
@@ -464,10 +462,7 @@ fusesoc_build(
     name = "build_chip_nexus_synth_only_highmem",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
-        "vivado_setup_hooks.tcl",
-        "vivado_hook_write_bitstream_post.tcl",
-        "check_pin_assignments.tcl",
-    ] + DDR_SRCS,
+    ] + VIVADO_HOOKS + DDR_SRCS,
     cores = CORALNPU_SOC_CORES + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
