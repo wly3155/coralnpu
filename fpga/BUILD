@@ -125,6 +125,44 @@ cc_library(
     hdrs = ["sw/dma.h"],
 )
 
+cc_library(
+    name = "display_hal",
+    srcs = ["sw/display_hal.c"],
+    alwayslink = 1,
+    deps = [
+        ":gpio",
+        ":spi",
+        "//third_party/waveshare_display",
+    ],
+)
+
+cc_library(
+    name = "display_renderer",
+    srcs = ["sw/display_renderer.cc"],
+    hdrs = ["sw/display_renderer.h"],
+    deps = [
+        ":display_hal",
+        ":dma",
+        ":gpio",
+        ":spi",
+        "//third_party/waveshare_display",
+    ],
+)
+
+coralnpu_v2_binary(
+    name = "display_test",
+    srcs = ["sw/display_test.cc"],
+    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
+    dtcm_size_kbytes = 1024,
+    itcm_size_kbytes = 1024,
+    deps = [
+        ":display_hal",
+        ":gpio",
+        ":spi",
+        "//third_party/waveshare_display",
+    ],
+)
+
 coralnpu_v2_binary(
     name = "add_uint32_m1",
     srcs = ["sw/add_uint32_m1.cc"],
