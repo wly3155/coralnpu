@@ -139,53 +139,61 @@ def _coralnpu_v2_binary_impl(ctx):
         mnemonic = "ObjCopy",
     )
 
-    out_vmem = ctx.actions.declare_file("{}.vmem".format(ctx.label.name))
-    word_size = ctx.attr.word_size
+    out_vmem = None
+    if ctx.attr.enable_vmem:
+        out_vmem = ctx.actions.declare_file("{}.vmem".format(ctx.label.name))
+        word_size = ctx.attr.word_size
 
-    srec_cat_files = ctx.attr._srec_cat[DefaultInfo].files.to_list()
-    srec_cat_bin = None
-    for f in srec_cat_files:
-        if f.path.endswith("/bin/srec_cat"):
-            srec_cat_bin = f
-            break
-    if not srec_cat_bin:
-        fail("Could not find srec_cat binary in @srecord//:srecord outputs")
+        srec_cat_files = ctx.attr._srec_cat[DefaultInfo].files.to_list()
+        srec_cat_bin = None
+        for f in srec_cat_files:
+            if f.path.endswith("/bin/srec_cat"):
+                srec_cat_bin = f
+                break
+        if not srec_cat_bin:
+            fail("Could not find srec_cat binary in @srecord//:srecord outputs")
 
-    ctx.actions.run(
-        outputs = [out_vmem],
-        inputs = [out_bin],
-        executable = srec_cat_bin,
-        tools = srec_cat_files,
-        arguments = [
-            out_bin.path,
-            "-binary",
-            "-byte-swap",
-            str(word_size // 8),
-            "-fill",
-            "0xff",
-            "-within",
-            out_bin.path,
-            "-binary",
-            "-range-pad",
-            str(word_size // 8),
-            "-o",
-            out_vmem.path,
-            "-vmem",
-            str(word_size),
-        ],
-        mnemonic = "SrecCat",
-    )
+        ctx.actions.run(
+            outputs = [out_vmem],
+            inputs = [out_bin],
+            executable = srec_cat_bin,
+            tools = srec_cat_files,
+            arguments = [
+                out_bin.path,
+                "-binary",
+                "-byte-swap",
+                str(word_size // 8),
+                "-fill",
+                "0xff",
+                "-within",
+                out_bin.path,
+                "-binary",
+                "-range-pad",
+                str(word_size // 8),
+                "-o",
+                out_vmem.path,
+                "-vmem",
+                str(word_size),
+            ],
+            mnemonic = "SrecCat",
+        )
+
+    all_outputs = [linking_outputs.executable, out_bin]
+    output_groups = {
+        "all_files": depset(all_outputs),
+        "elf_file": depset([linking_outputs.executable]),
+        "bin_file": depset([out_bin]),
+    }
+    if out_vmem:
+        all_outputs.append(out_vmem)
+        output_groups["vmem_file"] = depset([out_vmem])
+        output_groups["all_files"] = depset(all_outputs)
 
     return [
         DefaultInfo(
-            files = depset([linking_outputs.executable, out_bin, out_vmem]),
+            files = depset(all_outputs),
         ),
-        OutputGroupInfo(
-            all_files = depset([linking_outputs.executable, out_bin, out_vmem]),
-            elf_file = depset([linking_outputs.executable]),
-            bin_file = depset([out_bin]),
-            vmem_file = depset([out_vmem]),
-        ),
+        OutputGroupInfo(**output_groups),
     ]
 
 _coralnpu_v2_binary = _coralnpu_v2_rule(
@@ -201,6 +209,7 @@ _coralnpu_v2_binary = _coralnpu_v2_rule(
         "linker_script_includes": attr.label_list(default = [], allow_files = True),
         "semihosting": attr.bool(),
         "word_size": attr.int(default = 32),
+        "enable_vmem": attr.bool(default = True),
         "_cc_toolchain": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")),
         "_srec_cat": attr.label(default = Label("@srecord//:srecord"), cfg = "exec"),
     },
@@ -220,6 +229,7 @@ def coralnpu_v2_binary(
         stack_size_bytes = 128,
         heap_size = "",
         heap_location = "DTCM",
+        enable_vmem = True,
         **kwargs):
     """A helper macro for generating binary artifacts for the CoralNPU V2 core.
 
@@ -236,6 +246,7 @@ def coralnpu_v2_binary(
       stack_size_bytes: Size of stack in bytes.
       heap_size: Size of heap (e.g. "1K", "128M").
       heap_location: Memory region for heap ("DTCM", "EXTMEM", "DDR").
+      enable_vmem: Whether to generate a VMEM file.
       **kwargs: Additional arguments forward to cc_binary.
     Emits rules:
       filegroup              named: <name>.bin
@@ -290,6 +301,7 @@ def coralnpu_v2_binary(
         tags = tags,
         deps = deps,
         word_size = word_size,
+        enable_vmem = enable_vmem,
         **kwargs
     )
 
