@@ -16,6 +16,7 @@ import cocotb
 import itertools
 import math
 import numpy as np
+import os
 import random
 
 
@@ -159,6 +160,12 @@ class CoreMiniAxiInterface:
                ext_mem_base_addr = 0x20000000,
                ext_mem_size=(4 * 1024 * 1024),
                **kwargs):
+    # Allow overriding clock_ns from plusargs or environment.
+    if "CLOCK_NS" in cocotb.plusargs:
+      clock_ns = float(cocotb.plusargs["CLOCK_NS"])
+    elif "COCOTB_CLOCK_NS" in os.environ:
+      clock_ns = float(os.environ["COCOTB_CLOCK_NS"])
+
     self.dut = dut
     self.dut.io_aclk.value = 0
     self.dut.io_irq.value = 0
