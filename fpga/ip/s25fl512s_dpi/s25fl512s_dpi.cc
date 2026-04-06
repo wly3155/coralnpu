@@ -32,6 +32,7 @@ enum FlashState {
   STATE_DATA_WRITE,
   STATE_READ_STATUS,
   STATE_READ_ID,
+  STATE_READ_SFDP,
 };
 
 enum FlashCmd {
@@ -44,6 +45,148 @@ enum FlashCmd {
   CMD_PAGE_PROGRAM = 0x02,
   CMD_SECTOR_ERASE = 0xD8,
   CMD_BULK_ERASE = 0xC7,
+  CMD_READ_SFDP = 0x5A,
+};
+
+// SFDP table for S25FL512S
+static const uint8_t kSfdpTable[] = {
+    // SFDP Header
+    0x53,
+    0x46,
+    0x44,
+    0x50,  // Signature: "SFDP"
+    0x06,  // Minor Rev B
+    0x01,  // Major Rev 1
+    0x01,  // Number of Parameter Headers (1 means 2 headers)
+    0xFF,  // Unused
+
+    // JEDEC Basic Flash Parameter Header
+    0x00,  // ID LSB (JEDEC)
+    0x06,  // Minor Rev
+    0x01,  // Major Rev
+    0x10,  // Length in Dwords (16 Dwords = 64 bytes)
+    0x30,
+    0x00,
+    0x00,  // Table Pointer (0x000030)
+    0xFF,  // ID MSB
+
+    // Spansion/Cypress Vendor Specific Parameter Header
+    0x01,  // ID LSB (Spansion)
+    0x01,  // Minor Rev
+    0x01,  // Major Rev
+    0x10,  // Length
+    0x80,
+    0x00,
+    0x00,  // Table Pointer (0x000080)
+    0x00,  // ID MSB
+
+    // Padding to 0x30
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+    0xFF,
+
+    // JEDEC Basic Flash Parameter Table (at 0x30)
+    // Dword-1: Block/Sector Erase sizes, etc.
+    0xE7,  // Erase Type 1: 4KB, Type 2: 32KB, Type 3: 256KB, Type 4: not
+           // supported
+    0x01,  // Write Granularity: 1-byte, Volatile Status Register Write Enable:
+           // supported
+    0xFF,  // Unused
+    0xF3,  // Block Erase Opcode 4-byte Addressing: not supported
+
+    // Dword-2: Density (512Mb = 0x1FFFFFFF bits)
+    0xFF,
+    0xFF,
+    0xFF,
+    0x1F,
+
+    // Dword-3 to Dword-7: Opcodes and dummy cycles for various read modes
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+
+    // Dword-8: Erase Type 1 (4KB sector, 20h)
+    0x0C,  // 2^12 = 4096
+    0x20,  // Opcode 20h
+    0xFF,
+    0xFF,
+
+    // Dword-9: Erase Type 2 (32KB sector, 52h)
+    0x0F,  // 2^15 = 32768
+    0x52,  // Opcode 52h
+    0xFF,
+    0xFF,
+
+    // Dword-10: Erase Type 3 (256KB sector, D8h)
+    0x12,  // 2^18 = 262144
+    0xD8,  // Opcode D8h
+    0xFF,
+    0xFF,
+
+    // Dword-11: Page size (512B = 2^9)
+    0x91,  // Page size = 2^9 = 512 bytes
+    0x00,
+    0x00,
+    0x00,
+    // Dword-12 to Dword-16: rest of table
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
 };
 
 struct S25fl512sState {
@@ -153,6 +296,12 @@ static void flash_process_cmd(S25fl512sState* ctx, uint8_t cmd) {
       ctx->shift_out = 0x01;  // Manufacturer ID (Spansion)
       ctx->bit_count_out = 0;
       break;
+    case CMD_READ_SFDP:
+      ctx->state = STATE_ADDR;
+      ctx->addr = 0;
+      ctx->addr_bytes = 0;
+      ctx->dummy_bytes = 1;  // SFDP requires 8 dummy cycles (1 byte)
+      break;
     case CMD_READ:
       ctx->state = STATE_ADDR;
       ctx->addr = 0;
@@ -205,6 +354,8 @@ static void flash_receive_byte(S25fl512sState* ctx, uint8_t byte) {
             ctx->shift_out = 0xFF;
           }
           ctx->bit_count_out = 0;
+        } else if (ctx->cmd == CMD_READ_SFDP) {
+          ctx->state = STATE_DUMMY;
         } else if (ctx->cmd == CMD_PAGE_PROGRAM) {
           ctx->state = STATE_DATA_WRITE;
         } else if (ctx->cmd == CMD_SECTOR_ERASE) {
@@ -216,14 +367,32 @@ static void flash_receive_byte(S25fl512sState* ctx, uint8_t byte) {
     case STATE_DUMMY:
       ctx->dummy_bytes--;
       if (ctx->dummy_bytes == 0) {
-        ctx->state = STATE_DATA_READ;
-        if (ctx->addr < FLASH_SIZE) {
-          ctx->shift_out = ctx->memory[ctx->addr];
+        if (ctx->cmd == CMD_READ_SFDP) {
+          ctx->state = STATE_READ_SFDP;
+          if (ctx->addr < sizeof(kSfdpTable)) {
+            ctx->shift_out = kSfdpTable[ctx->addr];
+          } else {
+            ctx->shift_out = 0xFF;
+          }
         } else {
-          ctx->shift_out = 0xFF;
+          ctx->state = STATE_DATA_READ;
+          if (ctx->addr < FLASH_SIZE) {
+            ctx->shift_out = ctx->memory[ctx->addr];
+          } else {
+            ctx->shift_out = 0xFF;
+          }
         }
         ctx->bit_count_out = 0;
       }
+      break;
+    case STATE_READ_SFDP:
+      ctx->addr++;
+      if (ctx->addr < sizeof(kSfdpTable)) {
+        ctx->shift_out = kSfdpTable[ctx->addr];
+      } else {
+        ctx->shift_out = 0xFF;
+      }
+      ctx->bit_count_out = 0;
       break;
     case STATE_DATA_WRITE:
       if (ctx->status_reg & 0x02) {  // WEL set
@@ -232,9 +401,9 @@ static void flash_receive_byte(S25fl512sState* ctx, uint8_t byte) {
           ctx->memory[ctx->addr] &= byte;
         }
         ctx->addr++;
-        // Wrap within 256-byte page
-        if ((ctx->addr & 0xFF) == 0) {
-          ctx->addr -= 256;
+        // Wrap within 512-byte page
+        if ((ctx->addr & 0x1FF) == 0) {
+          ctx->addr -= 512;
         }
       }
       break;
@@ -258,7 +427,7 @@ static void flash_receive_byte(S25fl512sState* ctx, uint8_t byte) {
       if (ctx->id_index == 1) {
         ctx->shift_out = 0x02;  // Device ID byte 1
       } else if (ctx->id_index == 2) {
-        ctx->shift_out = 0x20;  // Device ID byte 2
+        ctx->shift_out = 0x20;  // Device ID byte 2 (512Mb)
       } else {
         ctx->shift_out = 0x00;
       }
@@ -335,7 +504,7 @@ void s25fl512s_dpi_tick(S25fl512sState* ctx, unsigned char sck,
   if (!csb && !ctx->sck_prev && sck) {
     // First, drive MISO from current shift_out (before any overwrite)
     if (ctx->state == STATE_DATA_READ || ctx->state == STATE_READ_STATUS ||
-        ctx->state == STATE_READ_ID) {
+        ctx->state == STATE_READ_ID || ctx->state == STATE_READ_SFDP) {
       ctx->miso_bit = (ctx->shift_out >> 7) & 1;
       ctx->shift_out <<= 1;
       ctx->bit_count_out++;

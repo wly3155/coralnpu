@@ -115,7 +115,11 @@ SECTIONS {
       *(.bss.*)
       __bss_end__ = .;
       __bss_end = .;
-      _end = .;
+    } > DTCM
+
+    .noinit (NOLOAD) : ALIGN(16) {
+      KEEP(*(.noinit))
+      KEEP(*(.noinit.*))
     } > DTCM
 
     /* EXTMEM data here */

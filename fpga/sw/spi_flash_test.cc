@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "fpga/sw/spi_flash.h"
+
 #include <stdint.h>
 
 #include "fpga/sw/gpio.h"
 #include "fpga/sw/spi.h"
 #include "fpga/sw/uart.h"
-
-// SPI Flash Master registers at 0x40070000
-#define SPI_FLASH_BASE 0x40070000
-
-#define GPIO_FLASH_RST_BIT (1 << 4)
 
 static void print_hex8(uint8_t val) {
   char buf[5];
@@ -35,69 +32,32 @@ static void print_hex8(uint8_t val) {
   uart_puts(buf);
 }
 
-static uint8_t spi_xfer_local(uint8_t tx) {
-  return spi_xfer(SPI_FLASH_BASE, tx);
-}
-
-static void spi_cs_assert(void) {
-  // In manual mode, CSID[0]=1 asserts CS (drives low)
-  spi_set_csid(SPI_FLASH_BASE, 1);
-}
-
-static void spi_cs_deassert(void) {
-  // Wait until not busy before deasserting
-  while (spi_get_status(SPI_FLASH_BASE) & 0x1);
-  // In manual mode, CSID[0]=0 deasserts CS (drives high)
-  spi_set_csid(SPI_FLASH_BASE, 0);
-  // Small delay for CS deassert timing
-  for (volatile int i = 0; i < 10; i++);
-}
-
-static bool poll_status(uint8_t expected, uint8_t* result) {
-  int retry_count = 100;
-  uint8_t status;
-  spi_cs_assert();
-  spi_xfer_local(0x05);
-  do {
-    status = spi_xfer_local(0x00);
-    if (status == expected) {
-      break;
-    }
-    --retry_count;
-  } while (retry_count);
-  spi_cs_deassert();
-  if (result) {
-    *result = status;
+static void print_uint32(uint32_t val) {
+  char buf[11];
+  for (int i = 0; i < 8; i++) {
+    int digit = (val >> (28 - i * 4)) & 0xF;
+    buf[i] = digit < 10 ? '0' + digit : 'A' + digit - 10;
   }
-  return (status == expected);
+  buf[8] = 0;
+  uart_puts("0x");
+  uart_puts(buf);
 }
 
 int main() {
   uart_init();
 
-  // Initialize GPIO 4 as output and deassert flash reset (active low)
-  gpio_set_output_enable(gpio_read_output() | GPIO_FLASH_RST_BIT);
-  gpio_write(gpio_read_output() | GPIO_FLASH_RST_BIT);
-  for (volatile int i = 0; i < 100; i++);
-
-  spi_init(SPI_FLASH_BASE, 1, 1, 0);
-  spi_set_csmode(SPI_FLASH_BASE, 1);
-  spi_set_csid(SPI_FLASH_BASE, 0);
+  spi_flash_init();
 
   {
     // ===== Test 1: Hardware Reset =====
     uart_puts("T1: HW Reset\r\n");
 
     // Set WEL
-    spi_cs_assert();
-    spi_xfer_local(0x06);  // WREN
-    spi_cs_deassert();
+    spi_flash_write_enable();
 
     // Verify WEL is set (Status Bit 1)
-    spi_cs_assert();
-    spi_xfer_local(0x05);  // READ_STATUS
-    uint8_t status = spi_xfer_local(0x00);
-    spi_cs_deassert();
+    uint8_t status;
+    spi_flash_poll_status(0x02, 0x02, &status, 10000);
 
     if (!(status & 0x02)) {
       uart_puts("FAIL T1: WEL not set\r\n");
@@ -105,16 +65,10 @@ int main() {
     }
 
     // Pulse Reset
-    gpio_write(gpio_read_output() & ~GPIO_FLASH_RST_BIT);  // Assert
-    for (volatile int i = 0; i < 100; i++);
-    gpio_write(gpio_read_output() | GPIO_FLASH_RST_BIT);  // Deassert
-    for (volatile int i = 0; i < 100; i++);
+    spi_flash_hw_reset();
 
     // Verify WEL is cleared
-    spi_cs_assert();
-    spi_xfer_local(0x05);  // READ_STATUS
-    status = spi_xfer_local(0x00);
-    spi_cs_deassert();
+    spi_flash_poll_status(0x02, 0x00, &status, 10000);
 
     if (status & 0x02) {
       uart_puts("FAIL T1: WEL still set after reset\r\n");
@@ -127,12 +81,8 @@ int main() {
     // ===== Test 2: Read JEDEC ID =====
     uart_puts("T2: JEDEC ID\r\n");
 
-    spi_cs_assert();
-    spi_xfer_local(0x9F);  // READ_ID command
-    uint8_t mfr = spi_xfer_local(0x00);
-    uint8_t id1 = spi_xfer_local(0x00);
-    uint8_t id2 = spi_xfer_local(0x00);
-    spi_cs_deassert();
+    uint8_t mfr, id1, id2;
+    spi_flash_read_id(&mfr, &id1, &id2);
 
     uart_puts("  MFR=");
     print_hex8(mfr);
@@ -150,42 +100,56 @@ int main() {
   }
 
   {
+    // ===== Test 5: SFDP Discovery =====
+    uart_puts("T5: SFDP Discovery\r\n");
+
+    struct spi_flash_info info;
+    if (!spi_flash_discover(&info)) {
+      uart_puts("FAIL T5: discovery failed\r\n");
+      return 1;
+    }
+
+    uart_puts("  Capacity: ");
+    print_uint32(info.capacity_bytes);
+    uart_puts(" bytes\r\n");
+
+    uart_puts("  Sector Size: ");
+    print_uint32(info.sector_size_bytes);
+    uart_puts(" bytes\r\n");
+
+    if (info.capacity_bytes != 64 * 1024 * 1024) {
+      uart_puts("FAIL T5: wrong capacity\r\n");
+      return 1;
+    }
+
+    if (info.sector_size_bytes != 256 * 1024) {
+      uart_puts("FAIL T5: wrong sector size\r\n");
+      return 1;
+    }
+
+    uart_puts("T5: OK\r\n");
+  }
+
+  {
     // ===== Test 3: Sector Erase + Verify =====
     uart_puts("T3: Erase+Verify\r\n");
 
     // Write Enable
-    spi_cs_assert();
-    spi_xfer_local(0x06);  // WREN
-    spi_cs_deassert();
+    spi_flash_write_enable();
     uint8_t result;
-    if (!poll_status(0x2, &result)) {
+    if (!spi_flash_poll_status(0x02, 0x02, &result, 10000)) {
       uart_puts("FAIL T3: WREN failed: ");
       print_hex8(result);
       uart_puts("\r\n");
       return 1;
     }
 
-    // Sector Erase at address 0x000000
-    spi_cs_assert();
-    spi_xfer_local(0xD8);  // SECTOR_ERASE
-    spi_xfer_local(0x10);  // Addr[23:16]
-    spi_xfer_local(0x10);  // Addr[15:8]
-    spi_xfer_local(0x10);  // Addr[7:0]
-    spi_cs_deassert();
+    // Sector Erase at address 0x101010
+    spi_flash_sector_erase(0x101010);
 
-    // Poll until the write is done...
-    int poll_count = 0;
-    {
-      spi_cs_assert();
-      spi_xfer_local(0x05);
-      do {
-        result = spi_xfer_local(0x00);
-        poll_count++;
-      } while ((result & 0x3) && poll_count < 0x7FFFFFFF);
-      spi_cs_deassert();
-    }
-
-    if (result != 0) {
+    // Poll until the write is done (not busy bit 0)
+    // poll_limit=0 means poll forever.
+    if (!spi_flash_poll_status(0x01, 0x00, &result, 0)) {
       uart_puts("FAIL T3: Erase did not finish: ");
       print_hex8(result);
       uart_puts("\r\n");
@@ -193,28 +157,21 @@ int main() {
     }
 
     // Read back - should be 0xFF
-    spi_cs_assert();
-    spi_xfer_local(0x03);  // READ
-    spi_xfer_local(0x00);
-    spi_xfer_local(0x00);
-    spi_xfer_local(0x00);
-    uint8_t d0 = spi_xfer_local(0x00);
-    uint8_t d1 = spi_xfer_local(0x00);
-    uint8_t d2 = spi_xfer_local(0x00);
-    uint8_t d3 = spi_xfer_local(0x00);
-    spi_cs_deassert();
+    uint8_t data[4];
+    spi_flash_read(0x101010, data, 4);
 
     uart_puts("  Read: ");
-    print_hex8(d0);
+    print_hex8(data[0]);
     uart_puts(" ");
-    print_hex8(d1);
+    print_hex8(data[1]);
     uart_puts(" ");
-    print_hex8(d2);
+    print_hex8(data[2]);
     uart_puts(" ");
-    print_hex8(d3);
+    print_hex8(data[3]);
     uart_puts("\r\n");
 
-    if (d0 != 0xFF || d1 != 0xFF || d2 != 0xFF || d3 != 0xFF) {
+    if (data[0] != 0xFF || data[1] != 0xFF || data[2] != 0xFF ||
+        data[3] != 0xFF) {
       uart_puts("FAIL T3: erase failed\r\n");
       return 1;
     }
@@ -226,77 +183,54 @@ int main() {
     uart_puts("T4: Program+Read\r\n");
 
     {
-      // Read back at address 0x000000
-      spi_cs_assert();
-      spi_xfer_local(0x03);  // READ
-      spi_xfer_local(0x10);  // Addr[23:16]
-      spi_xfer_local(0x10);  // Addr[15:8]
-      spi_xfer_local(0x10);  // Addr[7:0]
-      uint8_t d0 = spi_xfer_local(0x00);
-      uint8_t d1 = spi_xfer_local(0x00);
-      uint8_t d2 = spi_xfer_local(0x00);
-      uint8_t d3 = spi_xfer_local(0x00);
-      spi_cs_deassert();
+      // Read back at address 0x101010
+      uint8_t data[4];
+      spi_flash_read(0x101010, data, 4);
 
-      if (d0 != 0xFF || d1 != 0xFF || d2 != 0xFF || d3 != 0xFF) {
+      if (data[0] != 0xFF || data[1] != 0xFF || data[2] != 0xFF ||
+          data[3] != 0xFF) {
         uart_puts("FAIL T4: Program target not erased?\r\n");
         return 1;
       }
     }
 
     // Write Enable
-    spi_cs_assert();
-    spi_xfer_local(0x06);  // WREN
-    spi_cs_deassert();
+    spi_flash_write_enable();
 
     uint8_t result;
-    if (!poll_status(0x2, &result)) {
+    if (!spi_flash_poll_status(0x02, 0x02, &result, 10000)) {
       uart_puts("FAIL T4: WREN failed: ");
       print_hex8(result);
       uart_puts("\r\n");
       return 1;
     }
 
-    // Page Program at address 0x000000
-    spi_cs_assert();
-    spi_xfer_local(0x02);  // PAGE_PROGRAM
-    spi_xfer_local(0x10);  // Addr[23:16]
-    spi_xfer_local(0x10);  // Addr[15:8]
-    spi_xfer_local(0x10);  // Addr[7:0]
-    spi_xfer_local(0xDE);
-    spi_xfer_local(0xAD);
-    spi_xfer_local(0xBE);
-    spi_xfer_local(0xEF);
-    spi_cs_deassert();
+    // Page Program at address 0x101010
+    uint8_t write_data[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+    spi_flash_page_program(0x101010, write_data, 4);
 
-    if (!poll_status(0x0, nullptr)) {
+    // Poll until not busy
+    if (!spi_flash_poll_status(0x01, 0x00, nullptr, 0)) {
       uart_puts("FAIL T4: Write did not finish?\r\n");
       return 1;
     }
 
-    // Read back at address 0x000000
-    spi_cs_assert();
-    spi_xfer_local(0x03);  // READ
-    spi_xfer_local(0x10);  // Addr[23:16]
-    spi_xfer_local(0x10);  // Addr[15:8]
-    spi_xfer_local(0x10);  // Addr[7:0]
-    uint8_t d0 = spi_xfer_local(0x00);
-    uint8_t d1 = spi_xfer_local(0x00);
-    uint8_t d2 = spi_xfer_local(0x00);
-    uint8_t d3 = spi_xfer_local(0x00);
-    spi_cs_deassert();
+    // Read back at address 0x101010
+    uint8_t read_data[4];
+    spi_flash_read(0x101010, read_data, 4);
 
     uart_puts("  Read: ");
-    print_hex8(d0);
+    print_hex8(read_data[0]);
     uart_puts(" ");
-    print_hex8(d1);
+    print_hex8(read_data[1]);
     uart_puts(" ");
-    print_hex8(d2);
+    print_hex8(read_data[2]);
     uart_puts(" ");
-    print_hex8(d3);
+    print_hex8(read_data[3]);
     uart_puts("\r\n");
 
-    if (d0 != 0xDE || d1 != 0xAD || d2 != 0xBE || d3 != 0xEF) {
+    if (read_data[0] != 0xDE || read_data[1] != 0xAD || read_data[2] != 0xBE ||
+        read_data[3] != 0xEF) {
       uart_puts("FAIL T4: data mismatch\r\n");
       return 1;
     }

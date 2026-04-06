@@ -17,6 +17,7 @@ load("@lowrisc_opentitan_gh//rules:fusesoc.bzl", "fusesoc_build")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
 load("//rules:coralnpu_v2_sim_test.bzl", "coralnpu_v2_sim_test")
 load("//rules:utils.bzl", "cc_embed_data")
+load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
 load("@internal_check//:status.bzl", internal_exists = "FOLDER_EXISTS")
 
 package(default_visibility = ["//visibility:public"])
@@ -175,6 +176,16 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "spi_flash",
+    srcs = ["sw/spi_flash.c"],
+    hdrs = ["sw/spi_flash.h"],
+    deps = [
+        ":gpio",
+        ":spi",
+    ],
+)
+
 coralnpu_v2_binary(
     name = "display_test",
     srcs = ["sw/display_test.cc"],
@@ -244,12 +255,80 @@ coralnpu_v2_sim_test(
     sim_timeout = 120,
 )
 
+coralnpu_v2_binary(
+    name = "flash_tool",
+    srcs = [
+        "sw/flash_tool.c",
+        "sw/flash_tool_status.h",
+    ],
+    dtcm_size_kbytes = 1024,
+    itcm_size_kbytes = 1024,
+    deps = [
+        ":spi",
+        ":spi_flash",
+        ":uart",
+    ],
+)
+
+py_binary(
+    name = "flash_tool_sim_test",
+    srcs = ["sw/flash_tool_sim_test.py"],
+    main = "sw/flash_tool_sim_test.py",
+
+    args = [
+        "$(location :flash_tool.elf)",
+        "--sim_timeout",
+        "600",
+    ],
+    data = [
+        ":flash_tool.elf",
+        ":copy_chip_verilator_highmem_binary",
+    ],
+    deps = [
+        ":flash_tool_lib",
+        "//utils/coralnpu_soc_loader:spi_driver",
+        requirement("pyelftools"),
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)
+
+py_library(
+    name = "flash_tool_lib",
+    srcs = ["sw/flash_tool_lib.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_test(
+    name = "flash_tool_test",
+    srcs = ["sw/flash_tool_test.py"],
+    deps = [
+        ":flash_tool_lib",
+    ],
+)
+
+py_binary(
+    name = "flash_tool_ftdi",
+    srcs = ["sw/flash_tool_ftdi.py"],
+    main = "sw/flash_tool_ftdi.py",
+    data = [
+        ":flash_tool.elf",
+    ],
+    deps = [
+        ":flash_tool_lib",
+        "//coralnpu_test_utils:ftdi_spi_master_lib",
+        "//coralnpu_test_utils:run_binary",
+        "@bazel_tools//tools/python/runfiles",
+        requirement("pyelftools"),
+    ],
+)
+
 coralnpu_v2_sim_test(
     name = "spi_flash_sim_test",
     srcs = ["sw/spi_flash_test.cc"],
     deps = [
         ":gpio",
         ":spi",
+        ":spi_flash",
         ":uart",
     ],
     sim_timeout = 240,

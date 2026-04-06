@@ -100,6 +100,7 @@ py_library(
 py_library(
     name = "ftdi_spi_master_lib",
     srcs = ["ftdi_spi_master.py"],
+    visibility = ["//visibility:public"],
     deps = [
         "@bazel_tools//tools/python/runfiles",
         requirement("pyelftools"),
@@ -158,6 +159,7 @@ py_binary(
 py_binary(
     name = "run_binary",
     srcs = ["run_binary.py"],
+    visibility = ["//visibility:public"],
     deps = [
         ":ftdi_spi_master_lib",
         requirement("pyelftools"),
