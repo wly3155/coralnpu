@@ -189,7 +189,7 @@ void isp_config_324x324() {
 }
 
 int main() {
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
 
   uart_puts("ISP Config 324x324\n");
   isp_config_324x324();

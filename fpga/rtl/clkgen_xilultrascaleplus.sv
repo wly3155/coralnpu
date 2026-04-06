@@ -22,7 +22,6 @@ module clkgen_xilultrascaleplus
      input rst_ni,
      input srst_ni,
      output clk_main_o,
-     output clk_48MHz_o,
      output clk_isp_o,
      output clk_spim_o,
      output rst_no,
@@ -34,8 +33,6 @@ module clkgen_xilultrascaleplus
   logic clk_10_unbuf;
   logic clk_fb_buf;
   logic clk_fb_unbuf;
-  logic clk_48_buf;
-  logic clk_48_unbuf;
   logic clk_spim_buf;
   logic clk_spim_unbuf;
   logic clk_isp_buf;
@@ -59,9 +56,9 @@ module clkgen_xilultrascaleplus
           .CLKOUT0_DIVIDE_F(CLKOUT0_DIVIDE_F_CALC),
           .CLKOUT0_PHASE(0.000),
           .CLKOUT0_DUTY_CYCLE(0.500),
-          .CLKOUT1_DIVIDE(25),
-          .CLKOUT1_PHASE(0.000),
-          .CLKOUT1_DUTY_CYCLE(0.500),
+          .CLKOUT1_DIVIDE(),
+          .CLKOUT1_PHASE(),
+          .CLKOUT1_DUTY_CYCLE(),
           .CLKOUT2_DIVIDE(12),
           .CLKOUT2_PHASE(0.000),
           .CLKOUT2_DUTY_CYCLE(0.500),
@@ -77,7 +74,7 @@ module clkgen_xilultrascaleplus
           .CLKFBOUTB(),
           .CLKOUT0(clk_10_unbuf),
           .CLKOUT0B(),
-          .CLKOUT1(clk_48_unbuf),
+          .CLKOUT1(),
           .CLKOUT1B(),
           .CLKOUT2(clk_spim_unbuf),
           .CLKOUT2B(),
@@ -128,19 +125,14 @@ module clkgen_xilultrascaleplus
     BUFGCE clk_10_bufgce(.I(clk_10_unbuf),
                          .O(clk_10_buf));
 
-    BUFGCE clk_48_bufgce(.I(clk_48_unbuf),
-                         .O(clk_48_buf));
-
   end else begin : gen_no_clk_bufs
     // BUFGs added by downstream modules, no need to add here
     assign clk_10_buf = clk_10_unbuf;
-    assign clk_48_buf = clk_48_unbuf;
   end
 
   // outputs
   // clock
   assign clk_main_o = clk_10_buf;
-  assign clk_48MHz_o = clk_48_buf;
   assign clk_isp_o = clk_isp_buf;
   assign clk_spim_o = clk_spim_buf;
 

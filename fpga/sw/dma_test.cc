@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include "fpga/sw/clk.h"
 #include "fpga/sw/uart.h"
 
 // SRAM
@@ -36,7 +37,7 @@ static volatile uint32_t* const dst32b =
     (volatile uint32_t*)(SRAM_BASE + 0x1100);
 
 int main() {
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
 
   // ===== Test 1: Simple mem-to-mem (64 bytes = 16 words) =====
   const uint32_t nwords = 16;
@@ -125,8 +126,9 @@ int main() {
 
   // Enable UART0 TX (same NCO formula as uart_init)
   {
+    const uint32_t main_freq_mhz = clk_get_main_freq_mhz();
     const uint64_t nco =
-        ((uint64_t)115200 << 20) / ((uint64_t)CLOCK_FREQUENCY_MHZ * 1000000);
+        ((uint64_t)115200 << 20) / ((uint64_t)main_freq_mhz * 1000000);
     REG32(UART0_CTRL) = (uint32_t)((nco << 16) | 3);
   }
 

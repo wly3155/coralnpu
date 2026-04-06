@@ -106,6 +106,7 @@ class CrossbarConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
     DeviceConfig("rom",  Seq(AddressRange(0x10000000, 0x8000))),      // 32kB
     DeviceConfig("sram", Seq(AddressRange(0x20000000, 0x400000))),    // 4MB
     DeviceConfig("uart0", Seq(AddressRange(0x40000000, 0x1000))),
+    DeviceConfig("clk_table", Seq(AddressRange(0x40001000, 0x1000))),
     DeviceConfig("uart1", Seq(AddressRange(0x40010000, 0x1000))),
     DeviceConfig("spi_master", Seq(AddressRange(0x40020000, 0x1000))),
     DeviceConfig("gpio", Seq(AddressRange(0x40030000, 0x1000))),
@@ -122,14 +123,14 @@ class CrossbarConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
   // A map defining which hosts are allowed to connect to which devices.
   def connections(enableTestHarness: Boolean): Map[String, Seq[String]] = {
     val baseConnections = Map(
-      "coralnpu_core" -> Seq("sram", "uart1", "coralnpu_device", "rom", "uart0", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma", "spi_master_flash", "clint", "plic", "ispyocto_ctrl"),
+      "coralnpu_core" -> Seq("sram", "uart1", "coralnpu_device", "rom", "uart0", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma", "spi_master_flash", "clint", "plic", "ispyocto_ctrl", "clk_table"),
       "spi2tlul" -> Seq("coralnpu_device", "sram", "ddr_ctrl", "ddr_mem"),
-      "dma" -> Seq("sram", "coralnpu_device", "rom", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "uart0", "uart1", "spi_master_flash", "clint", "plic", "ispyocto_ctrl"),
+      "dma" -> Seq("sram", "coralnpu_device", "rom", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "uart0", "uart1", "spi_master_flash", "clint", "plic", "ispyocto_ctrl", "clk_table"),
       "ispyocto_m1" -> Seq("sram", "ddr_mem", "coralnpu_device"),
       "ispyocto_m2" -> Seq("sram", "ddr_mem", "coralnpu_device")
     )
     if (enableTestHarness) {
-      baseConnections + ("test_host_32" -> Seq("rom", "sram", "uart0", "coralnpu_device", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma", "spi_master_flash", "clint", "plic", "ispyocto_ctrl"))
+      baseConnections + ("test_host_32" -> Seq("rom", "sram", "uart0", "coralnpu_device", "ddr_ctrl", "ddr_mem", "spi_master", "gpio", "i2c_master", "dma", "spi_master_flash", "clint", "plic", "ispyocto_ctrl", "clk_table"))
     } else {
       baseConnections
     }

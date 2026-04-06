@@ -35,15 +35,6 @@ static void print_hex8(uint8_t val) {
   uart_puts(buf);
 }
 
-static void spi_init(void) {
-  // Div=20, CPOL=0, CPHA=0, Enable=1
-  spi_set_control(SPI_FLASH_BASE, 0x1403);
-  // CSMODE=1 (manual CS control) for multi-byte transactions
-  spi_set_csmode(SPI_FLASH_BASE, 1);
-  // CSID[0]=0 → CS deasserted (high) in manual mode
-  spi_set_csid(SPI_FLASH_BASE, 0);
-}
-
 static uint8_t spi_xfer_local(uint8_t tx) {
   return spi_xfer(SPI_FLASH_BASE, tx);
 }
@@ -82,14 +73,16 @@ static bool poll_status(uint8_t expected, uint8_t* result) {
 }
 
 int main() {
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
 
   // Initialize GPIO 4 as output and deassert flash reset (active low)
   gpio_set_output_enable(gpio_read_output() | GPIO_FLASH_RST_BIT);
   gpio_write(gpio_read_output() | GPIO_FLASH_RST_BIT);
   for (volatile int i = 0; i < 100; i++);
 
-  spi_init();
+  spi_init(SPI_FLASH_BASE, 1, 1, 0);
+  spi_set_csmode(SPI_FLASH_BASE, 1);
+  spi_set_csid(SPI_FLASH_BASE, 0);
 
   {
     // ===== Test 1: Hardware Reset =====

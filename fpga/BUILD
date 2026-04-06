@@ -22,7 +22,8 @@ load("@internal_check//:status.bzl", internal_exists = "FOLDER_EXISTS")
 package(default_visibility = ["//visibility:public"])
 
 _CLOCK_FREQUENCY_MHZ = "50"
-_NEXUS_CLOCK_FREQUENCY_MHZ = "50"
+_ISP_CLOCK_FREQUENCY_MHZ = "10"
+_SPIM_CLOCK_FREQUENCY_MHZ = "100"
 
 
 
@@ -96,9 +97,16 @@ cc_embed_data(
 )
 
 cc_library(
+    name = "clk",
+    srcs = ["sw/clk.c"],
+    hdrs = ["sw/clk.h"],
+)
+
+cc_library(
     name = "uart",
     srcs = ["sw/uart.c"],
     hdrs = ["sw/uart.h"],
+    deps = [":clk"],
 )
 
 cc_library(
@@ -111,18 +119,29 @@ cc_library(
     name = "spi",
     srcs = ["sw/spi.c"],
     hdrs = ["sw/spi.h"],
+    deps = [":clk"],
 )
 
 cc_library(
     name = "i2c",
     srcs = ["sw/i2c.c"],
     hdrs = ["sw/i2c.h"],
+    deps = [":clk"],
 )
 
 cc_library(
     name = "dma",
     srcs = ["sw/dma.c"],
     hdrs = ["sw/dma.h"],
+)
+
+coralnpu_v2_binary(
+    name = "clk_test",
+    srcs = ["sw/clk_test.c"],
+    deps = [
+        ":clk",
+        ":uart",
+    ],
 )
 
 cc_library(
@@ -152,7 +171,6 @@ cc_library(
 coralnpu_v2_binary(
     name = "display_test",
     srcs = ["sw/display_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     dtcm_size_kbytes = 1024,
     itcm_size_kbytes = 1024,
     deps = [
@@ -166,14 +184,12 @@ coralnpu_v2_binary(
 coralnpu_v2_binary(
     name = "add_uint32_m1",
     srcs = ["sw/add_uint32_m1.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [":uart"],
 )
 
 coralnpu_v2_binary(
     name = "spi_test",
     srcs = ["sw/spi_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [
         ":spi",
         ":uart",
@@ -183,7 +199,6 @@ coralnpu_v2_binary(
 coralnpu_v2_binary(
     name = "gpio_test",
     srcs = ["sw/gpio_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [
         ":gpio",
         ":uart",
@@ -193,14 +208,21 @@ coralnpu_v2_binary(
 coralnpu_v2_sim_test(
     name = "trivial_pass_sim_test",
     srcs = ["sw/trivial_pass_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [":uart"],
+)
+
+coralnpu_v2_sim_test(
+    name = "clk_sim_test",
+    srcs = ["sw/clk_test.c"],
+    deps = [
+        ":clk",
+        ":uart",
+    ],
 )
 
 coralnpu_v2_sim_test(
     name = "dma_sim_test",
     srcs = ["sw/dma_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [
         ":dma",
         ":uart",
@@ -211,7 +233,6 @@ coralnpu_v2_sim_test(
 coralnpu_v2_sim_test(
     name = "spi_flash_sim_test",
     srcs = ["sw/spi_flash_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [
         ":gpio",
         ":spi",
@@ -223,7 +244,6 @@ coralnpu_v2_sim_test(
 coralnpu_v2_binary(
     name = "i2c_camera_test",
     srcs = ["sw/i2c_camera_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [
         ":i2c",
         ":uart",
@@ -233,7 +253,6 @@ coralnpu_v2_binary(
 coralnpu_v2_binary(
     name = "i2c_camera_test_highmem",
     srcs = ["sw/i2c_camera_test.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     dtcm_size_kbytes = 1024,
     itcm_size_kbytes = 1024,
     deps = [
@@ -245,7 +264,6 @@ coralnpu_v2_binary(
 coralnpu_v2_binary(
     name = "timer",
     srcs = ["sw/timer.cc"],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [":uart"],
 )
 
@@ -255,7 +273,6 @@ coralnpu_v2_binary(
         "sw/isp_cam_test.c",
         "sw/yocto_isp_register_address.h",
     ],
-    copts = ["-DCLOCK_FREQUENCY_MHZ=" + _CLOCK_FREQUENCY_MHZ],
     deps = [":uart"],
 )
 
@@ -322,6 +339,8 @@ fusesoc_build(
     ],
     flags = [
         "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
+        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
+        "--SpimClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ, # Verilator uses clk_i for spim
     ],
     make_options = ":make_options",
     output_groups = {
@@ -355,6 +374,8 @@ fusesoc_build(
     ],
     flags = [
         "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
+        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
+        "--SpimClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ, # Verilator uses clk_i for spim
     ],
     make_options = ":make_options",
     output_groups = {
@@ -401,7 +422,9 @@ fusesoc_build(
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
     flags = [
-        "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
+        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
+        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
+        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
     ],
     output_groups = {
         "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
@@ -424,7 +447,9 @@ fusesoc_build(
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
     flags = [
-        "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
+        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
+        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
+        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
         "--pnr=none",
     ],
     output_groups = {
@@ -448,7 +473,9 @@ fusesoc_build(
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
     flags = [
-        "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
+        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
+        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
+        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
     ],
     output_groups = {
         "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
@@ -471,7 +498,9 @@ fusesoc_build(
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
     flags = [
-        "--ClockFrequencyMhz=" + _NEXUS_CLOCK_FREQUENCY_MHZ,
+        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
+        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
+        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
         "--pnr=none",
     ],
     output_groups = {

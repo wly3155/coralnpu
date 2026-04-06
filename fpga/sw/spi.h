@@ -43,6 +43,7 @@ extern "C" {
 uint32_t spi_get_master_base_addr(void);
 uint32_t spi_get_flash_base_addr(void);
 
+void spi_init(uint32_t base_addr, uint32_t target_mhz, uint32_t cpol, uint32_t cpha);
 void spi_set_control(uint32_t base_addr, uint32_t ctrl);
 void spi_set_csid(uint32_t base_addr, uint32_t csid);
 void spi_set_csmode(uint32_t base_addr, uint32_t csmode);

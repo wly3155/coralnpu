@@ -14,7 +14,9 @@
 
 module chip_nexus
     #(parameter MemInitFile = "",
-      parameter int ClockFrequencyMhz = 50)
+      parameter int ClockFrequencyMhz = 50,
+      parameter int IspClockFrequencyMhz = 10,
+      parameter int SpimClockFrequencyMhz = 100)
     (input clk_p_i,
      input clk_n_i,
      input rst_ni,
@@ -81,7 +83,6 @@ module chip_nexus
 
   logic clk;
   logic rst_n;
-  logic clk_48MHz;
   logic clk_isp;
   logic clk_spim;
   logic locked;
@@ -334,7 +335,6 @@ module chip_nexus
                .rst_ni(rst_ni),
                .srst_ni(rst_ni),
                .clk_main_o(clk),
-               .clk_48MHz_o(clk_48MHz),
                .clk_isp_o(clk_isp),
                .clk_spim_o(clk_spim),
                .rst_no(rst_n),
@@ -366,9 +366,13 @@ module chip_nexus
     .tdo_oe_o(/*tdo_oe_o*/)
   );
 
-  coralnpu_soc i_coralnpu_soc (
+  coralnpu_soc #(.MemInitFile(MemInitFile),
+                 .ClockFrequencyMhz(ClockFrequencyMhz),
+                 .IspClockFrequencyMhz(IspClockFrequencyMhz),
+                 .SpimClockFrequencyMhz(SpimClockFrequencyMhz))
+  i_coralnpu_soc(
     .clk_i(clk),
-    .clk_isp_i(clk_isp), // Added to support slower clock for isp, but it's very slow (250kHz)
+    .clk_isp_i(clk_isp),
     .rst_ni(rst_n),
     .spi_clk_i(spi_clk_i),
     .spi_csb_i(spi_csb_i),

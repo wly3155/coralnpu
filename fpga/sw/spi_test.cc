@@ -19,13 +19,10 @@
 #define SPI_MASTER_BASE 0x40020000
 
 int main() {
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
 
   // 1. Enable SPI Master
-  // Div = 20, CPOL=0, CPHA=0, Enable=1
-  // Control register: Div(15:8), CPHA(2), CPOL(1), Enable(0)
-  // 0x1401 -> Div=20, Enable=1
-  spi_set_control(SPI_MASTER_BASE, 0x1401);
+  spi_init(SPI_MASTER_BASE, 1, 0, 0);
 
   // 2. Select CSID 0 and Auto Mode
   spi_set_csid(SPI_MASTER_BASE, 0);

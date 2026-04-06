@@ -12,28 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef FPGA_SW_I2C_H_
-#define FPGA_SW_I2C_H_
+#include "fpga/sw/clk.h"
 
-#include <stdint.h>
+#include "fpga/sw/uart.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int main() {
+  uart_init();
 
-// I2C Flags
-#define I2C_START (1 << 8)
-#define I2C_STOP (1 << 9)
-#define I2C_READ (1 << 10)
+  uint32_t main_freq = clk_get_main_freq_mhz();
+  uint32_t isp_freq = clk_get_isp_freq_mhz();
+  uint32_t spim_freq = clk_get_spim_freq_mhz();
 
-void i2c_init(uint32_t target_khz);
-void i2c_wait_idle(void);
-void i2c_write_fdata(uint32_t data);
-uint32_t i2c_read_fdata(void);
-uint32_t i2c_get_status(void);
+  if (main_freq == 0 || isp_freq == 0 || spim_freq == 0) {
+    return 1;
+  }
 
-#ifdef __cplusplus
+  uart_puts("PASS\r\n");
+  return 0;
 }
-#endif
-
-#endif  // FPGA_SW_I2C_H_

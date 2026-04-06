@@ -21,7 +21,6 @@ create_clock -period 200.00 -name ISP_DVP_PCLK -waveform {0 100.0} [get_ports IS
 
 # Generated Clocks
 create_generated_clock -name clk_main [get_pin i_clkgen/i_clkgen/pll/CLKOUT0]
-create_generated_clock -name clk_48MHz [get_pin i_clkgen/i_clkgen/pll/CLKOUT1]
 create_generated_clock -name clk_aon [get_pin i_clkgen/i_clkgen/pll/CLKOUT4]
 
 # Reset

@@ -16,7 +16,7 @@ extern "C" {
 
 uint32_t uart_get_base_addr(void);
 
-void uart_init(uint32_t clock_frequency_mhz);
+void uart_init(void);
 void uart_putc(char c);
 void uart_puts(const char* s);
 void uart_puthex8(uint8_t v);

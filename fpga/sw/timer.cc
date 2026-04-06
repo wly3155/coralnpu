@@ -99,7 +99,7 @@ __attribute__((naked)) void isr_wrapper(void) {
 }  // extern "C"
 
 int main() {
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
   // 1. Set mtvec to our handler
   asm volatile("csrw mtvec, %0" ::"r"((uint32_t)(&isr_wrapper)));
 

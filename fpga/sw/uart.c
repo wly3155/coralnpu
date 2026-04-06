@@ -6,6 +6,8 @@
 
 #include <stdint.h>
 
+#include "fpga/sw/clk.h"
+
 #define UART1_BASE 0x40010000
 #define UART_CTRL_OFFSET 0x10
 #define UART_STATUS_OFFSET 0x14
@@ -15,7 +17,8 @@
 
 uint32_t uart_get_base_addr(void) { return UART1_BASE; }
 
-void uart_init(uint32_t clock_frequency_mhz) {
+void uart_init(void) {
+  const uint32_t clock_frequency_mhz = clk_get_main_freq_mhz();
   const uint64_t uart_ctrl_nco =
       ((uint64_t)115200 << 20) / (clock_frequency_mhz * 1000000);
   REG32(UART1_BASE + UART_CTRL_OFFSET) = (uint32_t)((uart_ctrl_nco << 16) | 3);

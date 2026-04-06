@@ -19,10 +19,6 @@
 #include "fpga/sw/i2c.h"
 #include "fpga/sw/uart.h"
 
-#ifndef CLOCK_FREQUENCY_MHZ
-#define CLOCK_FREQUENCY_MHZ 80
-#endif
-
 uint8_t hm01b0_read_reg(uint16_t reg) {
   // START, ADDR 0x24, W
   i2c_write_fdata(I2C_START | (0x24 << 1) | 0);
@@ -116,9 +112,9 @@ const init_reg_t init_regs[] = {
 };
 
 int main() {
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
 
-  i2c_init(199);  // 100kHz @ 80MHz (4 phases per bit)
+  i2c_init(100);  // 100kHz standard mode
 
   uart_puts("I2C Camera Test Starting...\r\n");
 

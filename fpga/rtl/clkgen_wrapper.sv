@@ -10,7 +10,6 @@ module clkgen_wrapper #(
     input  rst_ni,
     input  srst_ni,
     output clk_main_o,
-    output clk_48MHz_o,
     output clk_isp_o,
     output clk_spim_o,
     output rst_no,
@@ -25,10 +24,9 @@ module clkgen_wrapper #(
       .rst_ni(rst_ni),
       .srst_ni(srst_ni),
       .clk_main_o(clk_main_o),
-      .clk_48MHz_o(clk_48MHz_o),
       .clk_isp_o(clk_isp_o),
       .clk_spim_o(clk_spim_o),
       .rst_no(rst_no),
       .locked_o(locked_o)
-  );
+);
 endmodule

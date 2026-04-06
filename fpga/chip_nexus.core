@@ -46,6 +46,16 @@ parameters:
     description: "Target clock frequency in MHz."
     default: 50
     paramtype: vlogparam
+  IspClockFrequencyMhz:
+    datatype: int
+    description: "ISP clock frequency in MHz."
+    default: 10
+    paramtype: vlogparam
+  SpimClockFrequencyMhz:
+    datatype: int
+    description: "SPIM clock frequency in MHz."
+    default: 100
+    paramtype: vlogparam
   MemInitFile:
     datatype: str
     description: Path to ROM
@@ -89,6 +99,8 @@ targets:
     default_tool: vivado
     parameters:
       - ClockFrequencyMhz
+      - IspClockFrequencyMhz
+      - SpimClockFrequencyMhz
       - MemInitFile
       - USE_GENERIC=true
       - FPGA_XILINX=true

@@ -17,7 +17,7 @@
 #include "fpga/sw/uart.h"
 
 int main() {
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
 
   // 1. Configure all pins as output
   gpio_set_output_enable(0xFF);

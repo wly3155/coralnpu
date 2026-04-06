@@ -14,7 +14,9 @@
 
 module coralnpu_soc
     #(parameter MemInitFile = "",
-      parameter int ClockFrequencyMhz = 50)
+      parameter int ClockFrequencyMhz = 50,
+      parameter int IspClockFrequencyMhz = 10,
+      parameter int SpimClockFrequencyMhz = 100)
     (input clk_i,
      input clk_isp_i,
      input rst_ni,
@@ -180,6 +182,20 @@ module coralnpu_soc
 
   coralnpu_tlul_pkg_32::tl_h2d_t tl_i2c_h2d;
   coralnpu_tlul_pkg_32::tl_d2h_t tl_i2c_d2h;
+
+  coralnpu_tlul_pkg_32::tl_h2d_t tl_clk_table_h2d;
+  coralnpu_tlul_pkg_32::tl_d2h_t tl_clk_table_d2h;
+
+  clk_table #(.MainFreqMhz(ClockFrequencyMhz),
+              .IspFreqMhz(IspClockFrequencyMhz),
+              .SpimFreqMhz(SpimClockFrequencyMhz))
+  i_clk_table(
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .tl_i(tl_clk_table_h2d),
+    .tl_o(tl_clk_table_d2h),
+    .intg_error_o()
+  );
 
   i2c_master_top i_i2c_master (
     .clk_i(clk_i),
@@ -629,6 +645,32 @@ module coralnpu_soc
     .io_external_devices_i2c_master_d_bits_error(tl_i2c_d2h.d_error),
     .io_external_devices_i2c_master_d_bits_user_rsp_intg(tl_i2c_d2h.d_user.rsp_intg),
     .io_external_devices_i2c_master_d_bits_user_data_intg(tl_i2c_d2h.d_user.data_intg),
+
+    // External Device Port: clk_table
+    .io_external_devices_clk_table_a_valid(tl_clk_table_h2d.a_valid),
+    .io_external_devices_clk_table_a_bits_opcode(tl_clk_table_h2d.a_opcode),
+    .io_external_devices_clk_table_a_bits_param(tl_clk_table_h2d.a_param),
+    .io_external_devices_clk_table_a_bits_size(tl_clk_table_h2d.a_size),
+    .io_external_devices_clk_table_a_bits_source(tl_clk_table_h2d.a_source),
+    .io_external_devices_clk_table_a_bits_address(tl_clk_table_h2d.a_address),
+    .io_external_devices_clk_table_a_bits_mask(tl_clk_table_h2d.a_mask),
+    .io_external_devices_clk_table_a_bits_data(tl_clk_table_h2d.a_data),
+    .io_external_devices_clk_table_a_bits_user_rsvd(tl_clk_table_h2d.a_user.rsvd),
+    .io_external_devices_clk_table_a_bits_user_instr_type(tl_clk_table_h2d.a_user.instr_type),
+    .io_external_devices_clk_table_a_bits_user_cmd_intg(tl_clk_table_h2d.a_user.cmd_intg),
+    .io_external_devices_clk_table_a_bits_user_data_intg(tl_clk_table_h2d.a_user.data_intg),
+    .io_external_devices_clk_table_d_ready(tl_clk_table_h2d.d_ready),
+    .io_external_devices_clk_table_a_ready(tl_clk_table_d2h.a_ready),
+    .io_external_devices_clk_table_d_valid(tl_clk_table_d2h.d_valid),
+    .io_external_devices_clk_table_d_bits_opcode(tl_clk_table_d2h.d_opcode),
+    .io_external_devices_clk_table_d_bits_param(tl_clk_table_d2h.d_param),
+    .io_external_devices_clk_table_d_bits_size(tl_clk_table_d2h.d_size),
+    .io_external_devices_clk_table_d_bits_source(tl_clk_table_d2h.d_source),
+    .io_external_devices_clk_table_d_bits_sink(tl_clk_table_d2h.d_sink),
+    .io_external_devices_clk_table_d_bits_data(tl_clk_table_d2h.d_data),
+    .io_external_devices_clk_table_d_bits_error(tl_clk_table_d2h.d_error),
+    .io_external_devices_clk_table_d_bits_user_rsp_intg(tl_clk_table_d2h.d_user.rsp_intg),
+    .io_external_devices_clk_table_d_bits_user_data_intg(tl_clk_table_d2h.d_user.data_intg),
 
     // Peripheral Ports
     .io_external_ports_halted(io_halted),      // halted

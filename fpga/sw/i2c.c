@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include "fpga/sw/clk.h"
+
 #define I2C_BASE 0x40040000
 
 #define I2C_CTRL_OFFSET 0x008
@@ -25,7 +27,9 @@
 
 #define REG32(addr) (*((volatile uint32_t*)(uintptr_t)(addr)))
 
-void i2c_init(uint32_t clk_div) {
+void i2c_init(uint32_t target_khz) {
+  uint32_t main_freq_mhz = clk_get_main_freq_mhz();
+  uint32_t clk_div = (main_freq_mhz * 1000) / (target_khz * 4) - 1;
   REG32(I2C_BASE + I2C_CLK_DIV_OFFSET) = clk_div;
   REG32(I2C_BASE + I2C_CTRL_OFFSET) = 0x1;  // Enable
 }

@@ -32,7 +32,7 @@ void add_u32_m1(const uint32_t* in_buf_1, const uint32_t* in_buf_2,
 int main(int argc, char** argv) {
   add_u32_m1(in_buf_1, in_buf_2, out_buf);
 
-  uart_init(CLOCK_FREQUENCY_MHZ);
+  uart_init();
 
   uart_puts("Hello from CoralNPU!\n");
 
