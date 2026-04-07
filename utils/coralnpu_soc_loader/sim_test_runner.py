@@ -45,10 +45,21 @@ class SimTestRunner:
     PASS_PATTERN = re.compile(r"PASS|TEST.?PASSED", re.IGNORECASE)
     FAIL_PATTERN = re.compile(r"FAIL|TEST.?FAILED|ERROR|ABORT", re.IGNORECASE)
 
-    def __init__(self, elf_file, sim_timeout, trace_file=None):
+    def __init__(
+        self,
+        elf_file,
+        sim_timeout,
+        trace_file=None,
+        highmem=False,
+        itcm_size_kbytes=8,
+        dtcm_size_kbytes=32,
+    ):
         self.elf_file = elf_file
         self.sim_timeout = sim_timeout
         self.trace_file = trace_file
+        self.highmem = highmem
+        self.itcm_size_kbytes = itcm_size_kbytes
+        self.dtcm_size_kbytes = dtcm_size_kbytes
         self.test_result = None  # None=unknown, True=pass, False=fail
         self.sim_proc = None
         self.loader_proc = None
@@ -123,12 +134,14 @@ class SimTestRunner:
     def run(self):
         r = runfiles.Create()
 
-        sim_bin_path = r.Rlocation("coralnpu_hw/fpga/Vchip_verilator")
+        sim_bin_name = "Vchip_verilator_highmem" if self.highmem else "Vchip_verilator"
+        sim_bin_path = r.Rlocation("coralnpu_hw/fpga/" + sim_bin_name)
         if not sim_bin_path or not os.path.exists(sim_bin_path):
-            long_path = "coralnpu_hw/fpga/build_chip_verilator/com.google.coralnpu_fpga_chip_verilator_0.1/sim-verilator/Vchip_verilator"
+            build_target = "build_chip_verilator_highmem" if self.highmem else "build_chip_verilator"
+            long_path = f"coralnpu_hw/fpga/{build_target}/com.google.coralnpu_fpga_chip_verilator_0.1/sim-verilator/Vchip_verilator"
             sim_bin_path = r.Rlocation(long_path)
             if not sim_bin_path or not os.path.exists(sim_bin_path):
-                logging.error("Could not find simulator binary in runfiles.")
+                logging.error(f"Could not find simulator binary ({sim_bin_name}) in runfiles.")
                 return 1
 
         loader_path = r.Rlocation("coralnpu_hw/utils/coralnpu_soc_loader/loader")
@@ -243,8 +256,16 @@ class SimTestRunner:
 
             # Load ELF
             logging.warning(f"SIM_TEST: Loading ELF: {self.elf_file}")
+            loader_cmd = [
+                loader_path,
+                self.elf_file,
+                "--itcm_size_kbytes",
+                str(self.itcm_size_kbytes),
+                "--dtcm_size_kbytes",
+                str(self.dtcm_size_kbytes),
+            ]
             self.loader_proc = subprocess.Popen(
-                [loader_path, self.elf_file],
+                loader_cmd,
                 env=sim_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -336,9 +357,25 @@ def main():
     parser.add_argument(
         "--trace", nargs="?", const="sim_trace.fst", help="Save waveform trace to file."
     )
+    parser.add_argument(
+        "--highmem", action="store_true", help="Use highmem simulator configuration."
+    )
+    parser.add_argument(
+        "--itcm_size_kbytes", type=int, default=8, help="ITCM size in KBytes."
+    )
+    parser.add_argument(
+        "--dtcm_size_kbytes", type=int, default=32, help="DTCM size in KBytes."
+    )
     args = parser.parse_args()
 
-    runner = SimTestRunner(args.elf_file, args.sim_timeout, args.trace)
+    runner = SimTestRunner(
+        args.elf_file,
+        args.sim_timeout,
+        args.trace,
+        args.highmem,
+        args.itcm_size_kbytes,
+        args.dtcm_size_kbytes,
+    )
     sys.exit(runner.run())
 
 

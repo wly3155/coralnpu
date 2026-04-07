@@ -53,10 +53,27 @@ py_binary(
 py_binary(
     name = "sim_test_runner",
     srcs = ["sim_test_runner.py"],
+    main = "sim_test_runner.py",
     data = [
         ":loader",
         "//fpga/ip/ispyocto:grey_bars_320x240.raw",
         "//fpga:copy_chip_verilator_binary",
+        "//coralnpu_test_utils:run_sram_test",
+    ],
+    tags = ["manual"],
+    deps = [
+        "@bazel_tools//tools/python/runfiles",
+    ],
+)
+
+py_binary(
+    name = "sim_test_runner_highmem",
+    srcs = ["sim_test_runner.py"],
+    main = "sim_test_runner.py",
+    data = [
+        ":loader",
+        "//fpga/ip/ispyocto:grey_bars_320x240.raw",
+        "//fpga:copy_chip_verilator_highmem_binary",
         "//coralnpu_test_utils:run_sram_test",
     ],
     tags = ["manual"],

@@ -28,7 +28,7 @@ _SPIM_CLOCK_FREQUENCY_MHZ = "100"
 
 
 filegroup(
-    name = "rtl_files",
+    name = "rtl_files_common",
     srcs = glob(["**/*.sv"]) + glob(["**/*.core"]) + [
         "//fpga/ip/ispyocto:rtl_files",
         "//fpga/ip/spi_dpi_master:rtl_files",
@@ -37,10 +37,17 @@ filegroup(
         "//fpga/ip/s25fl512s_dpi:rtl_files",
         "//fpga/ip/i2c_master:rtl_files",
         "//fpga/ip/coralnpu_tlul:rtl_files",
-        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
-        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
         "//fpga/ip/sram:rtl_files",
         "//fpga/rtl:rtl_files",
+    ],
+)
+
+filegroup(
+    name = "rtl_files",
+    srcs = [
+        ":rtl_files_common",
+        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
+        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
     ],
 )
 
@@ -221,6 +228,13 @@ coralnpu_v2_sim_test(
 )
 
 coralnpu_v2_sim_test(
+    name = "trivial_pass_highmem_sim_test",
+    srcs = ["sw/trivial_pass_test.cc"],
+    deps = [":uart"],
+    highmem = True,
+)
+
+coralnpu_v2_sim_test(
     name = "dma_sim_test",
     srcs = ["sw/dma_test.cc"],
     deps = [
@@ -282,15 +296,23 @@ filegroup(
     output_group = "bin_file",
 )
 
-CORALNPU_SOC_CORES = [
+CORALNPU_SOC_CORES_COMMON = [
     ":coralnpu_soc.core",
     ":coralnpu_soc_pkg.core",
     ":racl_pkg.core",
     "@lowrisc_opentitan_gh//hw:check_tool_requirements.core",
 ]
 
+CORALNPU_SOC_CORES_DEFAULT = CORALNPU_SOC_CORES_COMMON + [
+    "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
+]
+
+CORALNPU_SOC_CORES_HIGHMEM = CORALNPU_SOC_CORES_COMMON + [
+    "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
+]
+
 CORALNPU_SOC_SRCS = [
-    ":rtl_files",
+    ":rtl_files_common",
     "@lowrisc_opentitan_gh//hw/dv/sv:dv_macros",
     "@lowrisc_opentitan_gh//hw/dv:verilator_files",
     "@lowrisc_opentitan_gh//hw:check_tool_requirements.py",
@@ -321,11 +343,11 @@ fusesoc_build(
         "//fpga/ip/gpio_dpi:dpi_files",
         "//fpga/ip/s25fl512s_dpi:dpi_files",
         "@lowrisc_opentitan_gh//hw:dpi_files",
+        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
     ],
-    cores = CORALNPU_SOC_CORES + [
+    cores = CORALNPU_SOC_CORES_DEFAULT + [
         ":chip_verilator.core",
         "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
         "//fpga/ip/display_dpi:display_dpi.core",
         "//fpga/ip/gpio_dpi:gpio_dpi.core",
@@ -356,14 +378,16 @@ fusesoc_build(
     srcs = CORALNPU_SOC_SRCS + [
         "//fpga/ip/spi_dpi_master:dpi_files",
         "//fpga/ip/display_dpi:dpi_files",
+        "//fpga/ip/gpio_dpi:gpio_dpi.core",
         "//fpga/ip/gpio_dpi:dpi_files",
+        "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
         "//fpga/ip/s25fl512s_dpi:dpi_files",
         "@lowrisc_opentitan_gh//hw:dpi_files",
+        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
     ],
-    cores = CORALNPU_SOC_CORES + [
+    cores = CORALNPU_SOC_CORES_HIGHMEM + [
         ":chip_verilator.core",
         "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
         "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
         "//fpga/ip/gpio_dpi:gpio_dpi.core",
         "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
@@ -413,11 +437,11 @@ fusesoc_build(
     name = "build_chip_nexus_bitstream",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
+        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
     ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES + [
+    cores = CORALNPU_SOC_CORES_COMMON + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
         "//fpga/ip/ispyocto:ispyocto_core",
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
@@ -438,11 +462,11 @@ fusesoc_build(
     name = "build_chip_nexus_synth_only",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
+        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
     ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES + [
+    cores = CORALNPU_SOC_CORES_COMMON + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
         "//fpga/ip/ispyocto:ispyocto_core",
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
@@ -464,11 +488,11 @@ fusesoc_build(
     name = "build_chip_nexus_bitstream_highmem",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
+        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
     ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES + [
+    cores = CORALNPU_SOC_CORES_HIGHMEM + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
         "//fpga/ip/ispyocto:ispyocto_core",
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
@@ -489,11 +513,11 @@ fusesoc_build(
     name = "build_chip_nexus_synth_only_highmem",
     srcs = CORALNPU_SOC_SRCS + [
         "pins_nexus.xdc",
+        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
     ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES + [
+    cores = CORALNPU_SOC_CORES_HIGHMEM + [
         ":chip_nexus.core",
         "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
         "//fpga/ip/ispyocto:ispyocto_core",
         "//fpga/ip/ispyocto:tlul2ahblite_files",
     ] + DDR_CORES,
@@ -521,6 +545,19 @@ genrule(
     name = "copy_chip_verilator_binary",
     srcs = [":chip_verilator_binary"],
     outs = ["Vchip_verilator"],
+    cmd = "cp $< $@",
+)
+
+filegroup(
+    name = "chip_verilator_highmem_binary",
+    srcs = [":build_chip_verilator_highmem"],
+    output_group = "binary",
+)
+
+genrule(
+    name = "copy_chip_verilator_highmem_binary",
+    srcs = [":chip_verilator_highmem_binary"],
+    outs = ["Vchip_verilator_highmem"],
     cmd = "cp $< $@",
 )
 

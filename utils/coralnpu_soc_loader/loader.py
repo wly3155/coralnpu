@@ -58,6 +58,12 @@ def write_word_via_spi(driver: SPIDriver, address: int, data: int):
 def main():
     parser = argparse.ArgumentParser(description="Load an ELF binary to the CoralNPU SoC.")
     parser.add_argument("binary", help="Path to the ELF binary to load.")
+    parser.add_argument(
+        "--itcm_size_kbytes", type=int, default=8, help="ITCM size in KBytes."
+    )
+    parser.add_argument(
+        "--dtcm_size_kbytes", type=int, default=32, help="DTCM size in KBytes."
+    )
     args = parser.parse_args()
 
     driver = None
@@ -103,8 +109,17 @@ def main():
         logging.warning("LOADER: Binary loaded successfully.")
 
         # --- Execute Program ---
-        coralnpu_pc_csr_addr = 0x30004
-        coralnpu_reset_csr_addr = 0x30000
+        # In the default configuration, CSRs are at 0x30000.
+        # In other configurations, CSRs sit after DTCM.
+        csr_base_addr = 0x30000
+        if args.itcm_size_kbytes > 8 or args.dtcm_size_kbytes > 32:
+             # Assume highmem layout
+             csr_base_addr = (args.itcm_size_kbytes + args.dtcm_size_kbytes) * 1024
+
+        coralnpu_pc_csr_addr = csr_base_addr + 4
+        coralnpu_reset_csr_addr = csr_base_addr
+
+        logging.warning(f"LOADER: Using CSR base address 0x{csr_base_addr:08x}")
 
         logging.warning(f"LOADER: Programming start PC to 0x{entry_point:08x}")
         write_word_via_spi(driver, coralnpu_pc_csr_addr, entry_point)

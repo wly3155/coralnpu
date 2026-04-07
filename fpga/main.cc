@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
   simctrl.SetInitialResetDelay(20);
   simctrl.SetResetDuration(10);
 
-  std::cout << "Simulation of CoralNPU SoC" << std::endl
+  std::cout << "Simulation of CoralNPU SoC (" << (highmem ? "Highmem" : "Default") << ")" << std::endl
             << "======================" << std::endl
             << std::endl;
 
