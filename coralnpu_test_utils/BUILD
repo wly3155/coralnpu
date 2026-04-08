@@ -101,10 +101,12 @@ py_library(
     name = "ftdi_spi_master_lib",
     srcs = ["ftdi_spi_master.py"],
     deps = [
-        requirement("libusb_package"),
-        requirement("pyftdi"),
+        "@bazel_tools//tools/python/runfiles",
         requirement("pyelftools"),
         ":spi_constants",
+    ],
+    data = [
+        "//sw/utils/nexus_loader:nexus_loader",
     ],
 )
 

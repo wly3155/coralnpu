@@ -37,6 +37,15 @@ def coralnpu_repos():
     )
 
     http_archive(
+        name = "com_google_googletest",
+        sha256 = "7b42b4d6ed48810c5362c265a17faebe90dc2373c885e5216439d37927f02926",
+        strip_prefix = "googletest-1.15.2",
+        urls = [
+            "https://github.com/google/googletest/releases/download/v1.15.2/googletest-1.15.2.tar.gz",
+        ],
+    )
+
+    http_archive(
         name = "rules_java",
         urls = [
             "https://github.com/bazelbuild/rules_java/releases/download/7.12.5/rules_java-7.12.5.tar.gz",

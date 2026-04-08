@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-# /// script
-# dependencies = [
-#   "libusb_package",
-#   "pyelftools",
-#   "pyftdi",
-# ]
-# ///
-
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +17,7 @@ import argparse
 import os
 import sys
 import time
+import logging
 
 # To support 'import coralnpu_hw.coralnpu_test_utils' without Bazel:
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -36,12 +29,15 @@ try:
     import coralnpu_hw
 except ImportError:
     import types
+
     _coralnpu_hw = types.ModuleType("coralnpu_hw")
     _coralnpu_hw.__path__ = [_project_root]
     sys.modules["coralnpu_hw"] = _coralnpu_hw
 
 from elftools.elf.elffile import ELFFile
 from coralnpu_hw.coralnpu_test_utils.ftdi_spi_master import FtdiSpiMaster
+
+logger = logging.getLogger(__name__)
 
 
 class BinaryRunner:
@@ -78,7 +74,7 @@ class BinaryRunner:
 
     def _parse_elf(self):
         """Parses the ELF file to find the entry point."""
-        print(f"Parsing ELF file: {self.elf_path}")
+        logger.info(f"Parsing ELF file: {self.elf_path}")
         with open(self.elf_path, "rb") as f:
             elf = ELFFile(f)
             self.entry_point = elf.header["e_entry"]
@@ -90,114 +86,42 @@ class BinaryRunner:
                 if syms:
                     self.status_msg_addr = syms[0].entry["st_value"]
                     self.status_msg_size = syms[0].entry["st_size"]
-                    print(
+                    logger.info(
                         f"  Found 'inference_status_message' at 0x{self.status_msg_addr:x} (size {self.status_msg_size})"
                     )
 
         if self.entry_point is None:
             raise ValueError("Could not find entry point in ELF file.")
-        print(f"  Found entry point at 0x{self.entry_point:x}")
-
-    def _verify_load(self):
-        """Verifies the ELF load by reading back memory and comparing."""
-        print(f"Verifying ELF load: {self.elf_path}")
-        with open(self.elf_path, "rb") as f:
-            elf = ELFFile(f)
-            for segment in elf.iter_segments(type="PT_LOAD"):
-                paddr = segment.header.p_vaddr
-                expected_data = segment.data()
-                if not expected_data:
-                    continue
-                print(
-                    f"  Verifying segment at 0x{paddr:x} ({len(expected_data)} bytes)..."
-                )
-                actual_data = self.spi_master.read_data(paddr, len(expected_data))
-                if actual_data != expected_data:
-                    # Find the first mismatch for better error reporting
-                    for i in range(len(expected_data)):
-                        if actual_data[i] != expected_data[i]:
-                            raise ValueError(
-                                f"Verification FAILED at address 0x{paddr + i:x}: "
-                                f"expected 0x{expected_data[i]:02x}, "
-                                f"got 0x{actual_data[i]:02x}"
-                            )
-        print("Verification SUCCESSFUL.")
+        logger.info(f"  Found entry point at 0x{self.entry_point:x}")
 
     def run_binary(self):
         """Executes the binary load and run flow."""
-        # TODO(atv): Re-enable this when toggling POR through FTDI doesn't break DDR.
+        # Note: self.spi_master.device_reset() (ADBUS7 toggle) currently breaks DDR
+        # initialization on this bitstream. We rely on bitstream reload for a clean state.
         # self.spi_master.device_reset()
-        self.spi_master.idle_clocking(20)
-
-        # 1. Load ELF (without starting the core)
-        print(f"Loading ELF file: {self.elf_path}")
-        self.spi_master.load_elf(self.elf_path, start_core=False)
-
-        # 1.5 Optional Verification
-        if self.verify:
-            self._verify_load()
-
-        # 2. Set the entry point and start the core
-        print(f"Setting entry point to 0x{self.entry_point:x} and starting core...")
-        self.spi_master.set_entry_point(self.entry_point)
-        self.spi_master.start_core()
 
         if self.exit_after_start:
-            print("Exiting after start as requested.")
+            logger.info(f"Loading ELF file: {self.elf_path}")
+            self.spi_master.load_elf(self.elf_path, start_core=True, verify=self.verify)
+            logger.info("Exiting after start as requested.")
             return
 
-        # 3. Wait for the core to halt with status polling
-        print("Waiting for core to halt...")
+        # 1. Load, Start and Poll for halt in a single call to avoid subprocess overhead.
+        logger.info(f"Loading {self.elf_path}, starting core and polling for halt...")
         timeout = 60.0
-        start_time = time.time()
-        halt_addr = self.spi_master.csr_base_addr + 8
-        last_status_msg = ""
-        core_halted = False
-
-        while time.time() - start_time < timeout:
-            # Check halt status
-            if self.spi_master.read_word(halt_addr) == 1:
-                core_halted = True
-                break
-
-            # Poll status message if available
-            if self.status_msg_addr:
-                try:
-                    # Read bytes and decode
-                    status_bytes = self.spi_master.read_data(
-                        self.status_msg_addr, self.status_msg_size, verbose=False
-                    )
-                    # Find null terminator or end of buffer
-                    status_str = status_bytes.split(b"\0", 1)[0].decode(
-                        "utf-8", errors="replace"
-                    )
-                    if status_str != last_status_msg:
-                        print(f"Status: {status_str}")
-                        last_status_msg = status_str
-                        # Zero out the first byte of the status message to signal we've read it
-                        self.spi_master.write_word(self.status_msg_addr, 0)
-                except Exception as e:
-                    print(f"Error reading status message: {e}")
-
-            time.sleep(0.1)  # Poll interval
-
-        if not core_halted:
-            raise RuntimeError("Binary execution FAILED: Core did not halt within timeout.")
-        else:
-            print("Binary execution COMPLETED: Core halted successfully.")
-            # Print final status
-            if self.status_msg_addr:
-                try:
-                    status_bytes = self.spi_master.read_data(
-                        self.status_msg_addr, self.status_msg_size, verbose=False
-                    )
-                    status_str = status_bytes.split(b"\0", 1)[0].decode(
-                        "utf-8", errors="replace"
-                    )
-                    if status_str != last_status_msg:
-                        print(f"Final Status: {status_str}")
-                except Exception:
-                    pass
+        try:
+            self.spi_master.load_elf(
+                self.elf_path,
+                start_core=True,
+                verify=self.verify,
+                poll_halt=timeout,
+                status_addr=self.status_msg_addr,
+                status_size=self.status_msg_size,
+            )
+            logger.info("Binary execution COMPLETED: Core halted successfully.")
+        except Exception as e:
+            logger.error(f"Binary execution FAILED: {e}")
+            sys.exit(1)
 
 
 def main():
@@ -230,7 +154,17 @@ def main():
         action="store_true",
         help="Exit immediately after starting the core.",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging.",
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
 
     csr_base_addr = args.csr_base_addr
     if args.highmem:
@@ -247,11 +181,12 @@ def main():
         )
         runner.run_binary()
     except (ValueError, RuntimeError, FileNotFoundError) as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
