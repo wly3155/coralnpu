@@ -777,4 +777,5 @@ exports_files([
     "core_mini_axi_sim.py",
     "coverage_exclude.cfg",
     "xprop.cfg",
+    "rvv_ml_ops_cocotb_test.py",
 ])
