@@ -17,7 +17,7 @@ load("@lowrisc_opentitan_gh//rules:fusesoc.bzl", "fusesoc_build")
 package(default_visibility = ["//visibility:public"])
 
 genrule(
-    name = "grey_bars_320x240.raw",
+    name = "grey_bars_320x240_raw_gen",
     srcs = ["dv/camera_model/gen_test_pattern.py"],
     outs = ["grey_bars_320x240.raw"],
     cmd = "python3 $(location dv/camera_model/gen_test_pattern.py) && mv test_pattern_320x240.raw $@",
