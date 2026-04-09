@@ -33,7 +33,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
         git \
         gnupg \
         libelf-dev \
+        libftdi1-dev \
         libmpfr-dev \
+        libusb-1.0-0-dev \
         lsb-release \
         openjdk-17-jdk-headless \
         openjdk-17-jre-headless \
