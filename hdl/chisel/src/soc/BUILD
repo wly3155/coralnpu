@@ -28,10 +28,12 @@ chisel_library(
         "CrossbarConfig.scala",
         "SoCRecords.scala",
         "SoCChiselConfig.scala",
+        "TlulSram.scala",
     ],
     deps = [
         "//hdl/chisel/src/bus",
         "//hdl/chisel/src/coralnpu:coralnpu_params",
+        "//hdl/chisel/src/coralnpu:srams",
     ],
 )
 
@@ -73,6 +75,9 @@ verilator_cocotb_model(
     hdl_toplevel = "CoralNPUXbarTestHarness",
     trace = True,
     verilog_source = ":coralnpu_xbar_testharness_cc_library_emit_verilog",
+    deps = [
+        "//hdl/verilog:sram_backdoor",
+    ],
 )
 
 chisel_library(
@@ -102,6 +107,9 @@ verilator_cocotb_model(
     hdl_toplevel = "CoralNPUChiselSubsystem",
     trace = True,
     verilog_source = "//hdl/chisel/src/soc:CoralNPUChiselSubsystem.sv",
+    deps = [
+        "//hdl/verilog:sram_backdoor",
+    ],
 )
 
 chisel_cc_library(
@@ -118,6 +126,9 @@ verilator_cocotb_model(
     hdl_toplevel = "CoralNPUChiselSubsystemTestHarness",
     trace = True,
     verilog_source = ":coralnpu_chisel_subsystem_testharness_cc_library_emit_verilog",
+    deps = [
+        "//hdl/verilog:sram_backdoor",
+    ],
 )
 
 # Highmem defined to be 1024kB itcm and 1024kB dtcm at this time.
@@ -169,4 +180,7 @@ verilator_cocotb_model(
     hdl_toplevel = "CoralNPUChiselSubsystemHighmemTestHarness",
     trace = True,
     verilog_source = ":coralnpu_chisel_subsystem_highmem_testharness_cc_library_emit_verilog",
+    deps = [
+        "//hdl/verilog:sram_backdoor",
+    ],
 )

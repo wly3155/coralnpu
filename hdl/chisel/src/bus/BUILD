@@ -48,12 +48,26 @@ chisel_library(
         "TlulIntegrityTestbench.scala",
         "TlulSocket1N.scala",
         "TlulSocketM1.scala",
+        "TlulToSram.scala",
         "TlulWidthBridge.scala",
     ],
     deps = [
         "//hdl/chisel/src/common",
         "//hdl/chisel/src/coralnpu:coralnpu_params",
         "@chipsalliance_rocket_chip//:asyncqueue",
+    ],
+)
+
+chisel_test(
+    name = "tlul_to_sram_test",
+    srcs = [
+        "TLULTestUtils.scala",
+        "TlulToSramTest.scala",
+    ],
+    deps = [
+        ":bus",
+        "//hdl/chisel/src/common:testing",
+        "//hdl/chisel/src/coralnpu:coralnpu_params",
     ],
 )
 
@@ -217,7 +231,10 @@ verilator_cocotb_model(
 
 chisel_test(
     name = "spi_master_test",
-    srcs = ["SpiMasterTest.scala"],
+    srcs = [
+        "SpiMasterTest.scala",
+        "TLULTestUtils.scala",
+    ],
     deps = [
         ":bus",
         "//hdl/chisel/src/common:testing",
@@ -227,7 +244,10 @@ chisel_test(
 
 chisel_test(
     name = "gpio_test",
-    srcs = ["GPIOTest.scala"],
+    srcs = [
+        "GPIOTest.scala",
+        "TLULTestUtils.scala",
+    ],
     deps = [
         ":bus",
         "//hdl/chisel/src/common:testing",

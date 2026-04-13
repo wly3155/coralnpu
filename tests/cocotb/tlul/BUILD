@@ -57,6 +57,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_axi2tlul_cocotb_test
@@ -91,6 +92,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_tlul_fifo_async_128_cocotb_test
@@ -118,6 +120,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_tlul_fifo_sync_cocotb_test
@@ -145,6 +148,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_tlul_socket_1n_128_cocotb_test
@@ -173,6 +177,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_tlul_socket_m1_2_128_cocotb_test
@@ -200,6 +205,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_tlul_integrity_cocotb_test
@@ -231,6 +237,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_secded_encoder_cocotb_test
@@ -258,6 +265,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_secded_encoder_32_cocotb_test
@@ -284,6 +292,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_secded_encoder_57_cocotb_test
@@ -310,6 +319,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # --- Rules for CoralNPUXbar cocotb test ---
@@ -358,6 +368,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_coralnpu_chisel_subsystem_cocotb
@@ -420,6 +431,7 @@ cocotb_test_suite(
     verilator_model = "//hdl/chisel/src/soc:coralnpu_chisel_subsystem_testharness_model",
     vcs_verilog_sources = ["//hdl/chisel/src/soc:coralnpu_chisel_subsystem_testharness_cc_library_emit_verilog"],
     vcs_data = [
+        "//hdl/verilog:dpi_files",
         "//tests/cocotb/rvv/arithmetics:rvv_add_int32_m1.elf",
         "//tests/cocotb:timer_interrupt_test.elf",
         "//tests/cocotb:ddr_test.elf",
@@ -460,6 +472,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_dma_integration_cocotb
@@ -491,6 +504,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 # BEGIN_TESTCASES_FOR_gpio_integration_cocotb
@@ -520,6 +534,7 @@ cocotb_test_suite(
     vcs_build_args = VCS_BUILD_ARGS,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_defines = VCS_DEFINES,
+    vcs_data = ["//hdl/verilog:dpi_files"],
 )
 
 cocotb_test_suite(

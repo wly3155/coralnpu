@@ -82,6 +82,7 @@ cocotb_test_suite(
         ":rvv_memset_test.elf",
     ] + [
         "//tests/cocotb:coverage_exclude.cfg",
+        "//hdl/verilog:dpi_files",
     ],
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,

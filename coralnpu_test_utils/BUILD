@@ -56,6 +56,12 @@ py_library(
 )
 
 py_library(
+    name = "backdoor",
+    srcs = ["backdoor.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_library(
     name = "core_mini_axi_sim_interface",
     srcs = [
         "core_mini_axi_interface.py",
@@ -64,6 +70,7 @@ py_library(
         requirement("cocotb"),
         requirement("numpy"),
         requirement("pyelftools"),
+        ":backdoor",
     ],
     visibility = [ "//visibility:public" ],
 )

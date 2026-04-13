@@ -14,8 +14,10 @@
 
 package coralnpu
 
-import chisel3.util.HasBlackBoxResource
+import chisel3.util._
 
-class Sram_12ffcp_128x128 extends SRAM128(7) with HasBlackBoxResource {
-  addResource("hdl/verilog/Sram_12ffcp_128x128.v")
+class SramBlock(numEntries: Int, globalBaseAddr: Int = 0) extends SRAM128(numEntries, globalBaseAddr) with HasBlackBoxResource {
+  override val desiredName = "Sram"
+  addResource("Sram.v")
 }
+

@@ -179,6 +179,12 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
           plic_p.axi2IdBits = 10
           Module(new bus.Plic(plic_p, p.numInterrupts, p.priorityWidth))
 
+        case p: TlulSramParameters =>
+          val sram_p = new Parameters
+          sram_p.lsuDataBits = 128
+          sram_p.axi2IdBits = 8
+          Module(new TlulSram(sram_p, p.sramSizeBytes, p.globalBaseAddr))
+
         case p: IspParameters => null // Handled externally
       }
     }

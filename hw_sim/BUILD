@@ -38,6 +38,7 @@ cc_library(
         ":hw_primitives",
         "//hdl/chisel/src/coralnpu:core_mini_axi_cc_library_cc",
         "//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_cc",
+        "//hdl/verilog:sram_backdoor",
     ],
 )
 

@@ -104,7 +104,7 @@ class CrossbarConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
   val devices = Seq(
     DeviceConfig("coralnpu_device", coralnpu_ranges, width = 128),
     DeviceConfig("rom",  Seq(AddressRange(0x10000000, 0x8000))),      // 32kB
-    DeviceConfig("sram", Seq(AddressRange(0x20000000, 0x400000))),    // 4MB
+    DeviceConfig("sram", Seq(AddressRange(0x20000000, 0x400000)), width = 128),    // 4MB
     DeviceConfig("uart0", Seq(AddressRange(0x40000000, 0x1000))),
     DeviceConfig("clk_table", Seq(AddressRange(0x40001000, 0x1000))),
     DeviceConfig("uart1", Seq(AddressRange(0x40010000, 0x1000))),

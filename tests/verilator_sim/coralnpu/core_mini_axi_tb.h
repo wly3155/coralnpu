@@ -23,8 +23,10 @@
 #include <queue>
 #include <vector>
 
+#include "svdpi.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
+#include "hdl/verilog/sram_backdoor.h"
 #include "tests/systemc/Xbar.h"
 #include "tests/systemc/instruction_trace.h"
 #include "tests/verilator_sim/sysc_tb.h"
@@ -168,7 +170,7 @@ struct CoreMiniAxi_tb : Sysc_tb {
   };
 
   CoreMiniAxi_tb(sc_module_name n, int loops, bool random, bool debug_axi,
-                 bool instr_trace,
+                 bool instr_trace, bool backdoor_load,
                  std::optional<std::function<void()>> wfi_cb,
                  std::optional<std::function<void()>> halted_cb);
   ~CoreMiniAxi_tb();
@@ -196,6 +198,8 @@ struct CoreMiniAxi_tb : Sysc_tb {
 
   absl::Status LoadElfSync(const std::string& file_name);
   absl::Status LoadElfAsync(const std::string& file_name);
+  void BackdoorLoad(uint64_t addr, const uint8_t* data, size_t len);
+
   // ClockGate and Reset should be done in the correct order:
   // ClockGate(false); Reset(false);
   // OR
@@ -275,6 +279,7 @@ struct CoreMiniAxi_tb : Sysc_tb {
   uint32_t tohost_read_addr_;
 
   bool instr_trace_ = false;
+  bool backdoor_load_ = false;
   InstructionTrace tracer_;
 };
 #endif  // TESTS_VERILATOR_SIM_CORALNPU_CORE_MINI_AXI_TB_H_

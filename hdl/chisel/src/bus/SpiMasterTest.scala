@@ -24,50 +24,8 @@ import coralnpu.Parameters
   * Covers register access, data path (loopback), baud rate timing, manual chip-select control, and
   * asynchronous clock domain crossing.
   */
-class SpiMasterSpec extends AnyFreeSpec with ChiselSim {
+class SpiMasterSpec extends AnyFreeSpec with ChiselSim with TLULTestUtils {
   val p = new Parameters
-
-  /** Helper to perform a robust TileLink Put transaction through a specific clock domain.
-    */
-  def tlWrite(tl: OpenTitanTileLink.Host2Device, clock: Clock, addr: UInt, data: UInt): Unit = {
-    tl.a.valid.poke(true.B)
-    tl.a.bits.opcode.poke(TLULOpcodesA.PutFullData.asUInt)
-    tl.a.bits.address.poke(addr)
-    tl.a.bits.data.poke(data)
-    tl.a.bits.mask.poke(0xf.U)
-    while (tl.a.ready.peek().litValue == 0) clock.step()
-    clock.step()
-    tl.a.valid.poke(false.B)
-    while (tl.d.valid.peek().litValue == 0) clock.step()
-    tl.d.ready.poke(true.B)
-    clock.step()
-    tl.d.ready.poke(false.B)
-  }
-
-  /** Helper to perform a robust TileLink Get transaction through a specific clock domain. Returns
-    * (data, error).
-    */
-  def tlRead(tl: OpenTitanTileLink.Host2Device, clock: Clock, addr: UInt): (BigInt, Boolean) = {
-    tl.a.valid.poke(true.B)
-    tl.a.bits.opcode.poke(TLULOpcodesA.Get.asUInt)
-    tl.a.bits.address.poke(addr)
-    while (tl.a.ready.peek().litValue == 0) clock.step()
-    clock.step()
-    tl.a.valid.poke(false.B)
-    while (tl.d.valid.peek().litValue == 0) clock.step()
-    val data  = tl.d.bits.data.peek().litValue
-    val error = tl.d.bits.error.peek().litValue != 0
-    tl.d.ready.poke(true.B)
-    clock.step()
-    tl.d.ready.poke(false.B)
-    (data, error)
-  }
-
-  /** Wrapper for tlRead to maintain compatibility with existing tests that only expect data.
-    */
-  def tlReadData(tl: OpenTitanTileLink.Host2Device, clock: Clock, addr: UInt): BigInt = {
-    tlRead(tl, clock, addr)._1
-  }
 
   "SpiMaster Register Access" in {
     simulate(new SpiMasterCtrl(p)) { dut =>

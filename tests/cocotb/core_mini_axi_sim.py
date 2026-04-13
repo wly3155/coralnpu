@@ -22,6 +22,7 @@ import random
 from coralnpu_test_utils.core_mini_axi_interface import AxiBurst, AxiResp,CoreMiniAxiInterface
 from coralnpu_test_utils.sim_test_fixture import Fixture
 from bazel_tools.tools.python.runfiles import runfiles
+from cocotb.triggers import ClockCycles
 
 
 @cocotb.test()
@@ -458,3 +459,51 @@ async def core_mini_axi_frm_test(dut):
       assert faulted == 0
     else:
       assert(mcause == 0x2)
+
+@cocotb.test()
+async def core_mini_axi_backdoor_load_test(dut):
+  """Compares front-door AXI load vs backdoor load for the same ELF."""
+  core_mini_axi = CoreMiniAxiInterface(dut)
+  await core_mini_axi.init()
+  await core_mini_axi.reset()
+  cocotb.start_soon(core_mini_axi.clock.start())
+  r = runfiles.Create()
+
+  elf_path = r.Rlocation("coralnpu_hw/tests/cocotb/math.elf")
+
+  # 1. Load via AXI (front-door) and capture memory state
+  await core_mini_axi.reset()
+  await ClockCycles(dut.io_aclk, 10)
+  # Zero out memory first
+  await core_mini_axi.write(0x0, np.zeros(0x2000, dtype=np.uint8))
+  await core_mini_axi.write(0x10000, np.zeros(0x8000, dtype=np.uint8))
+
+  with open(elf_path, "rb") as f:
+    await core_mini_axi.load_elf(f)
+    # We'll read back ITCM (0x0-0x2000) and DTCM (0x10000-0x18000)
+    itcm_front = await core_mini_axi.read(0x0, 0x2000)
+    dtcm_front = await core_mini_axi.read(0x10000, 0x8000)
+
+  # 2. Reset and load via backdoor
+  await core_mini_axi.reset()
+  # Wait a few cycles to ensure SRAMs are initialized and registered
+  await ClockCycles(dut.io_aclk, 10)
+
+  # Zero out memory first to be sure
+  await core_mini_axi.write(0x0, np.zeros(0x2000, dtype=np.uint8))
+  await core_mini_axi.write(0x10000, np.zeros(0x8000, dtype=np.uint8))
+
+  with open(elf_path, "rb") as f:
+    entry_point = await core_mini_axi.load_elf_backdoor(f)
+    itcm_back = await core_mini_axi.read(0x0, 0x2000)
+    dtcm_back = await core_mini_axi.read(0x10000, 0x8000)
+
+  # 3. Compare
+  assert (itcm_front == itcm_back).all(), "ITCM mismatch between AXI and Backdoor load"
+  assert (dtcm_front == dtcm_back).all(), "DTCM mismatch between AXI and Backdoor load"
+
+  # 4. Execute to ensure it actually works
+  await core_mini_axi.execute_from(entry_point)
+  await core_mini_axi.wait_for_halted()
+  assert core_mini_axi.dut.io_fault.value == 0
+  dut._log.info("Backdoor load comparison test passed!")

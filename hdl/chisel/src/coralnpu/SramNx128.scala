@@ -17,60 +17,59 @@ package coralnpu
 import chisel3._
 import chisel3.util._
 
-class Sram_Nx128(tcmEntries: Int) extends Module {
+class Sram_Nx128(tcmEntries: Int, globalBaseAddr: Int = 0) extends Module {
   override val desiredName = "SRAM_" + tcmEntries + "x128"
-  val addrBits = log2Ceil(tcmEntries)
-  val io = IO(new Bundle {
-    val addr = Input(UInt(addrBits.W))
+  val addrBits             = log2Ceil(tcmEntries)
+  val io                   = IO(new Bundle {
+    val addr   = Input(UInt(addrBits.W))
     val enable = Input(Bool())
-    val write = Input(Bool())
-    val wdata = Input(UInt(128.W))
-    val wmask = Input(UInt(16.W))
-    val rdata = Output(UInt(128.W))
+    val write  = Input(Bool())
+    val wdata  = Input(UInt(128.W))
+    val wmask  = Input(UInt(16.W))
+    val rdata  = Output(UInt(128.W))
+    val rvalid = Output(Bool())
   })
 
   // Setup SRAM modules
-  val mod512 = (tcmEntries % 512) == 0
-  val mod2048 = (tcmEntries % 2048) == 0
-  assert((tcmEntries % 128) == 0)
+  // Use the largest possible SRAM block (2048, then 512, then 128)
+  val blockSize =
+    if (tcmEntries % 2048 == 0) 2048
+    else if (tcmEntries % 512 == 0) 512
+    else 128
 
-  val sramAddrBits = (mod2048, mod512) match {
-     case (true, _) => 11
-     case (_, true) => 9
-     case (false, false) => 7
-  }
-
+  val nSramModules   = tcmEntries / blockSize
+  val sramAddrBits   = log2Ceil(blockSize)
   val sramSelectBits = addrBits - sramAddrBits
   assert(sramSelectBits >= 0)
 
-  val nSramModules = (mod2048, mod512) match {
-     case (true, _) => tcmEntries / 2048
-     case (_, true) => tcmEntries / 512
-     case (false, false) => tcmEntries / 128
+  val sramModules = (0 until nSramModules).map(x => {
+    val subModuleAddr = globalBaseAddr + x * blockSize * 16
+    Module(new SramBlock(blockSize, subModuleAddr))
+  })
+
+  // Hook in inputs and Mux read output
+  if (nSramModules == 1) {
+    sramModules(0).io.clock  := clock
+    sramModules(0).io.addr   := io.addr
+    sramModules(0).io.enable := io.enable
+    sramModules(0).io.write  := io.write
+    sramModules(0).io.wdata  := io.wdata
+    sramModules(0).io.wmask  := io.wmask
+    io.rdata                 := sramModules(0).io.rdata
+  } else {
+    val selectedSram = io.addr(addrBits - 1, sramAddrBits)
+    for (i <- 0 until nSramModules) {
+      sramModules(i).io.clock  := clock
+      sramModules(i).io.addr   := io.addr(sramAddrBits - 1, 0)
+      sramModules(i).io.enable := (selectedSram === i.U) && io.enable
+      sramModules(i).io.write  := io.write
+      sramModules(i).io.wdata  := io.wdata
+      sramModules(i).io.wmask  := io.wmask
+    }
+    val selectedSramRead = RegNext(selectedSram, 0.U(sramSelectBits.W))
+    io.rdata := MuxLookup(selectedSramRead, 0.U(128.W))(
+      (0 until nSramModules).map(i => i.U -> sramModules(i).io.rdata)
+    )
   }
-
-  val sramModules = (0 until nSramModules).map(x =>
-        (mod2048, mod512) match {
-           case (true, _) => Module(new Sram_2048x128)
-           case (_, true) => Module(new Sram_512x128)
-           case (false, false) => Module(new Sram_12ffcp_128x128)
-        }
-      )
-  val selectedSram = if (sramSelectBits == 0) { 0.U(sramSelectBits.W) } else { io.addr(addrBits - 1, sramAddrBits) }
-  assert(selectedSram.getWidth == sramSelectBits)
-
-  // Hook in inputs
-  for (i <- 0 until nSramModules) {
-    sramModules(i).io.clock := clock
-    sramModules(i).io.addr := io.addr(sramAddrBits - 1, 0)
-    sramModules(i).io.enable := (selectedSram === i.U) && io.enable
-    sramModules(i).io.write := io.write
-    sramModules(i).io.wdata := io.wdata
-    sramModules(i).io.wmask := io.wmask
-  }
-
-  // Mux read output
-  val selectedSramRead = RegNext(selectedSram, 0.U(sramSelectBits.W))
-  io.rdata := MuxLookup(selectedSramRead, 0.U(sramAddrBits.W))(
-      (0 until nSramModules).map(i => i.U -> sramModules(i).io.rdata))
+  io.rvalid := RegNext(io.enable)
 }

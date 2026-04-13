@@ -38,18 +38,25 @@ ABSL_FLAG(bool, trace, false, "Dump VCD trace");
 ABSL_FLAG(std::string, binary, "", "Binary to execute");
 ABSL_FLAG(bool, debug_axi, false, "Enable AXI traffic debugging");
 ABSL_FLAG(bool, instr_trace, false, "Log instructions to console");
+ABSL_FLAG(bool, backdoor_load, false, "Enable high-speed backdoor code loading");
 
 static bool run(const char* name, const std::string binary, const int cycles,
-                const bool trace, const bool debug_axi, const bool instr_trace) {
+                const bool trace, const bool debug_axi, const bool instr_trace,
+                const bool backdoor_load) {
   absl::Mutex halted_mtx;
   absl::CondVar halted_cv;
   CoreMiniAxi_tb tb(CoreMiniAxi_tb::kCoreMiniAxiModelName, cycles, /* random= */ false, debug_axi,
-                    instr_trace,
+                    instr_trace, backdoor_load,
                     /*wfi_cb=*/std::nullopt,
                     /*halted_cb=*/[&halted_mtx, &halted_cv]() {
                       absl::MutexLock lock_(&halted_mtx);
                       halted_cv.SignalAll();
                     });
+  // Ensure we call sc_start @0 time, before we startup anything else.
+  // This allows Verilog `initial` blocks to run before we try to interact with the
+  // DUT model.
+  sc_start(SC_ZERO_TIME);
+
   if (trace) {
     tb.trace(tb.core());
   }
@@ -78,8 +85,11 @@ extern "C" int sc_main(int argc, char** argv) {
   absl::InitializeLog();
   absl::SetProgramUsageMessage("CoreMiniAxi simulator");
   auto args = absl::ParseCommandLine(argc, argv);
-  argc = args.size();
-  argv = &args[0];
+
+  // Pass clean arguments to Verilator.
+  int v_argc = args.size();
+  char** v_argv = &args[0];
+  Verilated::commandArgs(v_argc, v_argv);
 
   if (absl::GetFlag(FLAGS_binary) == "") {
     LOG(ERROR) << "--binary is required!";
@@ -88,5 +98,6 @@ extern "C" int sc_main(int argc, char** argv) {
 
   return run(Sysc_tb::get_name(argv[0]), absl::GetFlag(FLAGS_binary),
       absl::GetFlag(FLAGS_cycles), absl::GetFlag(FLAGS_trace),
-      absl::GetFlag(FLAGS_debug_axi), absl::GetFlag(FLAGS_instr_trace)) ? 0 : 1;
+      absl::GetFlag(FLAGS_debug_axi), absl::GetFlag(FLAGS_instr_trace),
+      absl::GetFlag(FLAGS_backdoor_load)) ? 0 : 1;
 }

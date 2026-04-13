@@ -39,7 +39,6 @@ filegroup(
         "//fpga/ip/ispyocto:rtl_files",
         "//fpga/ip/s25fl512s_dpi:rtl_files",
         "//fpga/ip/spi_dpi_master:rtl_files",
-        "//fpga/ip/sram:rtl_files",
         "//fpga/rtl:rtl_files",
     ],
 )
@@ -432,11 +431,13 @@ VERILATOR_COMMON_SRCS = CORALNPU_SOC_SRCS_COMMON + [
     "//fpga/ip/display_dpi:dpi_files",
     "//fpga/ip/gpio_dpi:dpi_files",
     "//fpga/ip/s25fl512s_dpi:dpi_files",
+    "//hdl/verilog:dpi_files",
     "@lowrisc_opentitan_gh//hw:dpi_files",
 ]
 
 VERILATOR_COMMON_CORES = [
     ":chip_verilator.core",
+    "//hdl/verilog:sram_backdoor.core",
     "//fpga/ip/i2c_master:i2c_master.core",
     "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
     "//fpga/ip/display_dpi:display_dpi.core",

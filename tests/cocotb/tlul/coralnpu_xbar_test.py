@@ -52,7 +52,7 @@ async def setup_dut(dut):
     device_widths = {
         "coralnpu_device": 128,
         "rom": 32,
-        "sram": 32,
+        "sram": 128,
         "uart0": 32,
         "uart1": 32,
     }
@@ -107,29 +107,16 @@ async def test_coralnpu_core_to_sram(dut):
                                      width=host_if.width)
     await with_timeout(host_if.host_put(write_txn), timeout_ns, "ns")
 
-    # Expect four 32-bit transactions on the device side, order not guaranteed
-    received_reqs = []
-    for _ in range(4):
-        req = await with_timeout(device_if.device_get_request(), timeout_ns,
-                                 "ns")
-        received_reqs.append(req)
-        await with_timeout(
-            device_if.device_respond(opcode=0,
-                                     param=0,
-                                     size=req["size"],
-                                     source=req["source"]), timeout_ns, "ns")
+    # Expect a single 128-bit transaction on the device side
+    req = await with_timeout(device_if.device_get_request(), timeout_ns, "ns")
+    assert req["address"] == SRAM_BASE
+    assert req["data"] == test_data
 
-    # Sort received requests by address for comparison
-    received_reqs.sort(key=lambda r: r["address"].integer)
-
-    # Verify all beats were received correctly
-    for i in range(4):
-        assert received_reqs[i]["address"] == SRAM_BASE + (i * 4)
-        expected_data = (test_data >> (i * 32)) & 0xFFFFFFFF
-        assert received_reqs[i]["data"] == expected_data
-
-    # Use the last beat (highest address) for the response source
-    last_req = received_reqs[-1]
+    await with_timeout(
+        device_if.device_respond(opcode=0,
+                                 param=0,
+                                 size=req["size"],
+                                 source=req["source"]), timeout_ns, "ns")
 
     # Receive the response on the host side
     resp = await with_timeout(host_if.host_get_response(), timeout_ns, "ns")
@@ -524,11 +511,6 @@ async def test_16bit_writes_to_sram(dut):
     dut._log.info("--- Starting 128-bit host 16-bit write test ---")
 
     for i in range(8):
-        # We test sequential half-word writes.
-        # i=0: addr=...100, mask=0x0003 (Byte 0,1)
-        # i=1: addr=...102, mask=0x000C (Byte 2,3)
-        # i=2: addr=...104, mask=0x0030 (Byte 4,5)
-        # ...
         addr = SRAM_BASE + 0x100 + i * 2
         val = 0xB0B0 + i
 
@@ -552,7 +534,6 @@ async def test_16bit_writes_to_sram(dut):
         await with_timeout(host_128_if.host_put(read_txn), timeout_ns, "ns")
         resp = await with_timeout(host_128_if.host_get_response(), timeout_ns, "ns")
 
-        # We expect the 16-bit data to be at the byte_offset of the 128-bit word.
         read_val = (int(resp["data"]) >> (byte_offset * 8)) & 0xFFFF
         if read_val != val:
             mismatches += 1
@@ -569,11 +550,7 @@ async def test_16bit_writes_to_sram(dut):
 
 @cocotb.test(timeout_time=30, timeout_unit="us")
 async def test_interleaved_hosts_to_sram(dut):
-    """Reproduction: Verify that interleaved host transactions to a width bridge fail.
-
-    This test triggers the source ID collision and aggregation bug in TlulWidthBridge
-    by sending two 128-bit writes from different hosts (Core and SPI) and
-    interleaving their acknowledgments on the D channel.
+    """Verify that interleaved host transactions to SRAM work correctly.
     """
     interfaces, clock = await setup_dut(dut)
     timeout_ns = TIMEOUT_CYCLES * clock.period
@@ -585,49 +562,19 @@ async def test_interleaved_hosts_to_sram(dut):
 
     async def interleaved_responder():
         """Mock SRAM responder that interleaves Acks for different host transactions."""
-        # Wait for all 8 beats (4 for Host 0, 4 for Host 1)
-        host0_reqs = []
-        host1_reqs = []
-
-        while len(host0_reqs) < 4 or len(host1_reqs) < 4:
-            dut._log.info(
-                f"Waiting for request... (H0: {len(host0_reqs)}, H1: {len(host1_reqs)})"
-            )
+        # Wait for 2 requests (1 for Host 0, 1 for Host 1)
+        reqs = []
+        for _ in range(2):
             req = await device_if.device_get_request()
-            dut._log.info(
-                f"Received request: addr={hex(req['address'].integer)}, source={hex(req['source'].integer)}"
-            )
-            # Host 0 (Core) is assigned internal source IDs 0-3
-            # Host 1 (SPI) is assigned internal source IDs 4-7
-            if req["source"].integer < 4:
-                host0_reqs.append(req)
-            else:
-                host1_reqs.append(req)
+            reqs.append(req)
 
-        dut._log.info("All requests received. Sending interleaved responses...")
-        # Now interleave the responses on the D channel
-        # Order: H0-B0, H1-B0, H0-B1, H1-B1, ...
-        for i in range(4):
-            # Ack Host 0 beat i
-            dut._log.info(
-                f"Responding to Host 0 beat {i}, source={hex(host0_reqs[i]['source'].integer)}"
-            )
+        dut._log.info("All requests received. Sending responses...")
+        for req in reqs:
             await device_if.device_respond(
                 opcode=0,
                 param=0,
-                size=host0_reqs[i]["size"],
-                source=host0_reqs[i]["source"],
-                width=device_if.width,
-            )
-            # Ack Host 1 beat i
-            dut._log.info(
-                f"Responding to Host 1 beat {i}, source={hex(host1_reqs[i]['source'].integer)}"
-            )
-            await device_if.device_respond(
-                opcode=0,
-                param=0,
-                size=host1_reqs[i]["size"],
-                source=host1_reqs[i]["source"],
+                size=req["size"],
+                source=req["source"],
                 width=device_if.width,
             )
 
@@ -647,7 +594,7 @@ async def test_interleaved_hosts_to_sram(dut):
         mask=0xFFFF,
         width=host1_if.width,
         source=0,
-    )  # Both use source ID 0
+    )
 
     # Put both requests into the pipeline
     await host0_if.host_put(write0)
@@ -655,42 +602,18 @@ async def test_interleaved_hosts_to_sram(dut):
 
     # Wait for responses
     dut._log.info("Waiting for host responses...")
+    resp0 = await with_timeout(host0_if.host_get_response(), timeout_ns, "ns")
+    resp1 = await with_timeout(host1_if.host_get_response(), timeout_ns, "ns")
 
-    async def get_resp0():
-        res = await host0_if.host_get_response()
-        dut._log.info(f"Host 0 got response: {res}")
-        return res
-
-    async def get_resp1():
-        res = await host1_if.host_get_response()
-        dut._log.info(f"Host 1 got response: {res}")
-        return res
-
-    resp0_task = cocotb.start_soon(get_resp0())
-    resp1_task = cocotb.start_soon(get_resp1())
-
-    try:
-        resp0 = await with_timeout(resp0_task, timeout_ns, "ns")
-        resp1 = await with_timeout(resp1_task, timeout_ns, "ns")
-        dut._log.info(f"Host 0 Response: {resp0}")
-        dut._log.info(f"Host 1 Response: {resp1}")
-        assert resp0["error"] == 0
-        assert resp1["error"] == 0
-    except Exception as e:
-        dut._log.error(f"Test failed with exception: {e}")
-        raise e
+    assert resp0["error"] == 0
+    assert resp1["error"] == 0
 
     responder_task.cancel()
 
 
 @cocotb.test(timeout_time=30, timeout_unit="us")
 async def test_width_bridge_same_source_pipelined(dut):
-    """Reproduction: Verify that back-to-back transactions with the same source ID work correctly.
-
-    This test triggers the clear/write ordering bug in TlulWidthBridge by sending
-    two 128-bit writes from the same host with the same source ID, and ensuring
-    the first beat of the second transaction arrives from the device in the same
-    cycle that the host accepts the response for the first transaction.
+    """Verify that back-to-back transactions with the same source ID work correctly.
     """
     interfaces, clock = await setup_dut(dut)
     timeout_ns = TIMEOUT_CYCLES * clock.period
@@ -713,16 +636,14 @@ async def test_width_bridge_same_source_pipelined(dut):
 
     async def pipelined_responder():
         """Mock SRAM responder that provides beats back-to-back."""
-        # Wait for all 8 beats (4 for write0, 4 for write1)
+        # Wait for 2 requests
         reqs = []
-        for _ in range(8):
+        for _ in range(2):
             req = await device_if.device_get_request()
             reqs.append(req)
 
-        # Send all 8 responses back-to-back.
-        # The 5th response (first beat of write1) will be sent in the same cycle
-        # as the bridge completes the 4th response (last beat of write0).
-        for i in range(8):
+        # Send both responses back-to-back.
+        for i in range(2):
             await device_if.device_respond(
                 opcode=0,
                 param=0,
@@ -743,9 +664,6 @@ async def test_width_bridge_same_source_pipelined(dut):
     assert resp0["source"] == test_source
 
     # Wait for second response
-    # If the bug is present, the bridge might have cleared the state for test_source
-    # in the same cycle it received the first beat of write1, causing write1
-    # to never complete or have errors.
     resp1 = await with_timeout(host_if.host_get_response(), timeout_ns, "ns")
     assert resp1["error"] == 0
     assert resp1["source"] == test_source

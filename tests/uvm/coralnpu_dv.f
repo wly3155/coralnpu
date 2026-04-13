@@ -28,8 +28,12 @@
 +incdir+./env
 +incdir+./tests
 +incdir+./tb
++incdir+../../
 
 // --- Source Files ---
+
+// Backdoor DPI
+../../hdl/verilog/sram_backdoor.cc
 
 // Interfaces
 ./common/coralnpu_axi_master/coralnpu_axi_master_if.sv

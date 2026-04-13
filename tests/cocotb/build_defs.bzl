@@ -35,6 +35,8 @@ VERILATOR_BUILD_ARGS = [
     "-DTB_SUPPORT",
     "-DZVE32F_ON",
     "-DVLEN_128",
+    "-Ihdl/verilog",
+    "-LDFLAGS \"-rdynamic\"",
 ]
 
 VCS_BUILD_ARGS = [
@@ -51,6 +53,11 @@ VCS_BUILD_ARGS = [
     "+notimingcheck",
     "+nospecify",
     "-hsopt=ignoreasiccap",  # Added to speed up simulation.
+    "-LDFLAGS",
+    "-rdynamic",
+    "-CFLAGS",
+    "-I../hdl/verilog",
+    "../hdl/verilog/sram_backdoor.cc",
     # TODO(davidgao): enable this when ready
     # "-xprop=../tests/cocotb/xprop.cfg",
 ]

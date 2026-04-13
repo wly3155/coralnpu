@@ -78,6 +78,9 @@ case class IspParameters(
 /** Parameters for the PLIC module. */
 case class PlicParameters(numInterrupts: Int, priorityWidth: Int) extends ModuleParameters
 
+/** Parameters for the TlulSram module. */
+case class TlulSramParameters(sramSizeBytes: Int, globalBaseAddr: Int) extends ModuleParameters
+
 
 /**
  * Defines the parameters for a Chisel module to be instantiated within the subsystem.
@@ -239,6 +242,13 @@ class SoCChiselConfig(itcmSize: MemorySize, dtcmSize: MemorySize) {
       externalPorts = Seq(
         ExternalPort("ext_intrs", Logic(31), In, "io.srcs")
       )
+    ),
+    ChiselModuleConfig(
+      name = "sram",
+      moduleClass = "soc.TlulSram",
+      params = TlulSramParameters(sramSizeBytes = 4 * 1024 * 1024, globalBaseAddr = 0x20000000),
+      deviceConnections = Map("io.tl" -> "sram"),
+      externalPorts = Seq.empty
     )
   )
 }

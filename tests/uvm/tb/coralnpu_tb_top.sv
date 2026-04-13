@@ -228,9 +228,10 @@ module coralnpu_tb_top;
   //--------------------------------------------------------------------------
   // ELF Memory Loading and `tohost` Monitor
   //--------------------------------------------------------------------------
+  import "DPI-C" function void sram_load_elf(input string filename);
+
   initial begin
-    string itcm_mem_file;
-    string dtcm_mem_file;
+    string test_elf;
     string tohost_addr_str;
     logic [31:0] tohost_addr;
     uvm_event tohost_written_event;
@@ -241,19 +242,17 @@ module coralnpu_tb_top;
                                    tohost_written_event);
 
     // Load memories at time 0
-    if ($value$plusargs("ITCM_MEM_FILE=%s", itcm_mem_file)) begin
-      `uvm_info("TB_TOP", $sformatf("Loading ITCM from %s", itcm_mem_file), UVM_LOW)
-      $readmemh(itcm_mem_file, coralnpu_tb_top.u_dut.itcm.sram.sramModules_0.mem);
-    end
-    if ($value$plusargs("DTCM_MEM_FILE=%s", dtcm_mem_file)) begin
-      `uvm_info("TB_TOP", $sformatf("Loading DTCM from %s", dtcm_mem_file), UVM_LOW)
-      $readmemh(dtcm_mem_file, coralnpu_tb_top.u_dut.dtcm.sram.sramModules_0.mem);
+    if ($value$plusargs("TEST_ELF=%s", test_elf)) begin
+      `uvm_info("TB_TOP", $sformatf("Backdoor loading ELF from %s", test_elf), UVM_LOW)
+      sram_load_elf(test_elf);
     end
 
     // Get the tohost address from the plusargs
     if ($value$plusargs("TOHOST_ADDR=%s", tohost_addr_str)) begin
-      if ($sscanf(tohost_addr_str, "'h%h", tohost_addr) != 1) begin
-        `uvm_fatal("TB_TOP", "Invalid +TOHOST_ADDR format.")
+      if ($sscanf(tohost_addr_str, "'h%h", tohost_addr) != 1 &&
+          $sscanf(tohost_addr_str, "0x%h", tohost_addr) != 1 &&
+          $sscanf(tohost_addr_str, "%h", tohost_addr) != 1) begin
+        `uvm_fatal("TB_TOP", $sformatf("Invalid +TOHOST_ADDR format: %s", tohost_addr_str))
       end
     end
 

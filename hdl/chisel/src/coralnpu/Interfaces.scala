@@ -83,7 +83,12 @@ abstract class FetchUnit(p: Parameters) extends Module {
   })
 }
 
-abstract class SRAM128(addrWidth: Int) extends BlackBox {
+
+abstract class SRAM128(numEntries: Int, globalBaseAddr: Int = 0) extends BlackBox(Map(
+  "NUM_ENTRIES" -> chisel3.experimental.IntParam(numEntries),
+  "GLOBAL_BASE_ADDR" -> chisel3.experimental.IntParam(globalBaseAddr)
+)) {
+  val addrWidth = log2Ceil(numEntries)
   val io = IO(new Bundle {
     val clock    = Input(Clock())
     val enable   = Input(Bool())
@@ -92,6 +97,7 @@ abstract class SRAM128(addrWidth: Int) extends BlackBox {
     val wdata    = Input(UInt(128.W))
     val wmask    = Input(UInt(16.W))
     val rdata    = Output(UInt(128.W))
+    val rvalid   = Output(Bool())
   })
 }
 

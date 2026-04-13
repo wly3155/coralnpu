@@ -142,60 +142,6 @@ async def poll_dma_done(host_if, timeout_cycles=5000):
     raise TimeoutError("DMA did not complete within timeout")
 
 
-class SramResponder:
-    """A mock responder for the external SRAM."""
-
-    def __init__(self, dut, device_if_name="io_external_devices_sram"):
-        self.dut = dut
-        self.sram_if = TileLinkULInterface(
-            dut,
-            device_if_name=device_if_name,
-            clock_name="io_clk_i",
-            reset_name="io_rst_ni",
-            width=32,
-        )
-        self.mem = {}
-
-    async def init(self):
-        await self.sram_if.init()
-
-    async def run(self):
-        self.dut._log.info("SRAM Responder started")
-        while True:
-            req = await self.sram_if.device_get_request()
-            addr = int(req["address"])
-            opcode = int(req["opcode"])
-            size = int(req["size"])
-            source = int(req["source"])
-
-            if opcode in [0, 1]:  # PutFullData, PutPartialData
-                data = int(req["data"])
-                mask = int(req["mask"])
-                # We assume 32-bit bus for external SRAM port
-                for i in range(4):
-                    if (mask >> i) & 1:
-                        self.mem[addr + i] = (data >> (i * 8)) & 0xFF
-                await self.sram_if.device_respond(
-                    opcode=0, param=0, size=size, source=source
-                )
-            elif opcode == 4:  # Get
-                # TileLink Get size is 2^size bytes.
-                # For 32-bit bus, we return data aligned to 4 bytes.
-                resp_data = 0
-                # Align address to 4 bytes for reading from mem dict
-                base_addr = addr & ~0x3
-                for i in range(4):
-                    resp_data |= self.mem.get(base_addr + i, 0) << (i * 8)
-
-                await self.sram_if.device_respond(
-                    opcode=1,
-                    param=0,
-                    size=size,
-                    source=source,
-                    data=resp_data,
-                )
-
-
 # --- Tests ---
 
 
@@ -211,12 +157,6 @@ async def test_dma_csr_access(dut):
     )
     await host_if.init()
     await setup_dut(dut, host_if)
-
-    # Even for CSR access, we might need a responder if the crossbar
-    # expects all ports to be initialized or if there's any background activity.
-    sram = SramResponder(dut)
-    await sram.init()
-    cocotb.start_soon(sram.run())
 
     # Write and read back DESC_ADDR
     await tl_write(host_if, DMA_DESC_ADDR, 0xDEAD0000)
@@ -245,10 +185,6 @@ async def test_dma_mem_to_mem(dut):
     )
     await host_if.init()
     await setup_dut(dut, host_if)
-
-    sram = SramResponder(dut)
-    await sram.init()
-    cocotb.start_soon(sram.run())
 
     src_addr = SRAM_BASE + 0x0000
     dst_addr = SRAM_BASE + 0x1000
@@ -296,10 +232,6 @@ async def test_dma_descriptor_chain(dut):
     )
     await host_if.init()
     await setup_dut(dut, host_if)
-
-    sram = SramResponder(dut)
-    await sram.init()
-    cocotb.start_soon(sram.run())
 
     src0 = SRAM_BASE + 0x0000
     dst0 = SRAM_BASE + 0x1000

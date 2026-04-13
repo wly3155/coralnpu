@@ -199,6 +199,19 @@ def get_entry_point(elf_path: str) -> int:
         return 0
 
 
+def get_tohost_addr(elf_path: str) -> Optional[int]:
+    try:
+        with open(elf_path, 'rb') as f:
+            elf = ELFFile(f)
+            symtab = elf.get_section_by_name('.symtab')
+            if symtab:
+                syms = symtab.get_symbol_by_name('tohost')
+                if syms and len(syms) > 0:
+                    return syms[0]['st_value']
+    except Exception as e:
+        logging.error(f"Error reading tohost addr: {e}")
+    return None
+
 def build_simulator(mpact_root: str,
                     mpact_riscv_root: Optional[str] = None) -> bool:
     logging.info("Building UVM Simulator (simv)...")
@@ -269,7 +282,8 @@ def generate_spike_log(spike_bin: str,
 def run_uvm(elf_path: str,
             spike_log_path: Optional[str] = None,
             target: Optional[str] = None,
-            mpact_root: str = "/tmp/copybara-mpact") -> Tuple[str, str, str]:
+            mpact_root: str = "/tmp/copybara-mpact",
+            tohost_addr: Optional[int] = None) -> Tuple[str, str, str]:
 
     logging.info(f"Running UVM for {elf_path}...")
     if not os.path.exists(elf_path):
@@ -291,6 +305,10 @@ def run_uvm(elf_path: str,
         timeout_ns = TIMEOUT_MAP[target]
         cmd.append(f"TEST_TIMEOUT_NS={timeout_ns}")
         logging.info(f"  Using custom timeout: {timeout_ns} ns")
+
+
+    if tohost_addr is not None:
+        cmd.append(f"EXTRA_PLUSARGS=+TOHOST_ADDR={tohost_addr:08x}")
 
     if spike_log_path:
         cmd.append(f"SPIKE_LOG={os.path.abspath(spike_log_path)}")
@@ -623,10 +641,12 @@ def run_full_regression(tests_to_run: List[Tuple[str, str]], spike_bin: str,
                                     f"  WARNING: Spike log generation failed/timed out for {target}. Log saved to logs/{dest_name}"
                                 )
 
+                tohost_addr = get_tohost_addr(elf_to_run)
                 status, reason, log = run_uvm(elf_to_run,
                                               spike_log_path,
                                               target=target,
-                                              mpact_root=mpact_root)
+                                              mpact_root=mpact_root,
+                                              tohost_addr=tohost_addr)
             except Exception as e:
                 status = "FAIL"
                 reason = f"Copy/Setup failed: {e}"

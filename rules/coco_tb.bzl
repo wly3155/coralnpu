@@ -16,7 +16,10 @@
 
 load("@coralnpu_host_cpus//:defs.bzl", "MAKE_JOBS")
 load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
+load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_hdl//cocotb:cocotb.bzl", "cocotb_test")
+load("@rules_hdl//verilog:providers.bzl", "VerilogInfo")
 load("@rules_python//python:defs.bzl", "py_library")
 
 # Number of CPUs reserved per Verilate action in Bazel's local scheduler.
@@ -32,13 +35,100 @@ def _verilator_resource_estimator(os, input_size):
     return {"cpu": min(_verilator_make_parallelism, 4), "memory": 4096}
 
 def _verilator_cocotb_model_impl(ctx):
-    """Implementation of the verilator_cocotb_model rule."""
-    cc_toolchain = ctx.toolchains["@bazel_tools//tools/cpp:toolchain_type"].cc
-    ar_executable = cc_toolchain.ar_executable
-    compiler_executable = cc_toolchain.compiler_executable
-    ld_executable = cc_toolchain.ld_executable
     hdl_toplevel = ctx.attr.hdl_toplevel
     outdir_name = hdl_toplevel + "_build"
+
+    cc_toolchain = find_cc_toolchain(ctx)
+    compiler_executable = cc_toolchain.compiler_executable
+    ar_executable = cc_toolchain.ar_executable
+    ld_executable = cc_toolchain.ld_executable
+
+    # Collect DPI/C++ dependencies
+    dpi_srcs_dict = {}
+    dpi_includes = []
+    dpi_files_dict = {}
+    verilog_srcs = []
+
+    def add_dpi_src(f):
+        if type(f) == "File" and f.extension in ["cc", "cpp", "cxx", "c", "a", "o"]:
+            dpi_srcs_dict[f.path] = "$PWD/" + f.path
+            dpi_files_dict[f.path] = f
+
+    def add_dpi_file(f):
+        if type(f) == "File":
+            dpi_files_dict[f.path] = f
+
+    # We need to collect CC sources transitively
+    for dep in ctx.attr.deps:
+        if CcInfo in dep:
+            cc_info = dep[CcInfo]
+
+            # Transitive includes
+            for inc in cc_info.compilation_context.includes.to_list():
+                dpi_includes.append("-I" + inc)
+            for inc in cc_info.compilation_context.quote_includes.to_list():
+                dpi_includes.append("-I" + inc)
+            for inc in cc_info.compilation_context.system_includes.to_list():
+                dpi_includes.append("-I" + inc)
+
+            # Transitive headers
+            for f in cc_info.compilation_context.headers.to_list():
+                add_dpi_file(f)
+
+            # Transitive sources
+            # Bazel rules often put sources in DefaultInfo
+            for f in dep[DefaultInfo].files.to_list():
+                add_dpi_src(f)
+                if f.extension in ["h", "hh", "hpp"]:
+                    add_dpi_file(f)
+
+            # Check transitive linker inputs for sources that might be hidden
+            # This is necessary for targets that don't have sources in DefaultInfo
+            for li in cc_info.linking_context.linker_inputs.to_list():
+                for lib in li.libraries:
+                    if lib.static_library:
+                        add_dpi_file(lib.static_library)
+                    if lib.pic_static_library:
+                        add_dpi_file(lib.pic_static_library)
+                    if lib.objects:
+                        for obj in lib.objects:
+                            add_dpi_file(obj)
+
+        if VerilogInfo in dep:
+            verilog_srcs.append(dep[VerilogInfo].dag)
+
+    # Collect all input files for the action and their paths
+    all_inputs_dict = {}
+    verilog_paths = []
+
+    def add_input(f):
+        if type(f) == "File":
+            all_inputs_dict[f.path] = f
+            return True
+        return False
+
+    for f in dpi_files_dict.values():
+        add_input(f)
+
+    # Process verilog sources collected from deps and direct attributes
+    for f in verilog_srcs:
+        if type(f) == "File":
+            if add_input(f):
+                verilog_paths.append(f.path)
+        elif hasattr(f, "to_list"):  # It's a depset from VerilogInfo.dag
+            for node in f.to_list():
+                for s in node.srcs:
+                    if add_input(s):
+                        verilog_paths.append(s.path)
+
+    if ctx.attr.verilog_source:
+        f = ctx.file.verilog_source
+        add_input(f)
+        verilog_paths.append(f.path)
+
+    for f in ctx.files.verilog_sources:
+        add_input(f)
+        verilog_paths.append(f.path)
 
     vlt_file = ctx.actions.declare_file(hdl_toplevel + ".vlt")
     ctx.actions.expand_template(
@@ -46,6 +136,7 @@ def _verilator_cocotb_model_impl(ctx):
         template = ctx.file.vlt_tpl,
         substitutions = {"{HDL_TOPLEVEL}": hdl_toplevel},
     )
+    add_input(vlt_file)
 
     output_file = ctx.actions.declare_file(outdir_name + "/" + hdl_toplevel)
     make_log = ctx.actions.declare_file(outdir_name + "/make.log")
@@ -53,6 +144,10 @@ def _verilator_cocotb_model_impl(ctx):
 
     verilator_root = "$PWD/{}.runfiles/coralnpu_hw/external/verilator".format(ctx.executable._verilator_bin.path)
     cocotb_lib_path = "$PWD/{}".format(ctx.files._cocotb_verilator_lib[0].dirname)
+
+    # Prepend $PWD to paths for verilator to find them in the sandbox
+    verilog_sources_str = " ".join(["$PWD/" + p if not p.startswith("/") else p for p in verilog_paths])
+
     verilator_cmd = " ".join("""
         VERILATOR_ROOT={verilator_root} {verilator} \
             -cc \
@@ -65,9 +160,11 @@ def _verilator_cocotb_model_impl(ctx):
             -LDFLAGS "-Wl,-rpath {cocotb_lib_path} -L{cocotb_lib_path} -lcocotbvpi_verilator" \
             {trace} \
             {cflags} \
+            -I. -Ihdl/verilog {dpi_includes} \
             $PWD/{verilator_cpp} \
-            {vlt_file} \
-            {verilog_source}
+            $PWD/{vlt_file} \
+            {dpi_srcs} \
+            {verilog_sources}
     """.strip().split("\n")).format(
         verilator = ctx.executable._verilator_bin.path,
         verilator_root = verilator_root,
@@ -75,9 +172,11 @@ def _verilator_cocotb_model_impl(ctx):
         hdl_toplevel = hdl_toplevel,
         cocotb_lib_path = cocotb_lib_path,
         cflags = " ".join(ctx.attr.cflags),
+        dpi_includes = " ".join({inc: None for inc in dpi_includes}.keys()),  # Unique includes
         verilator_cpp = ctx.files._cocotb_verilator_cpp[0].path,
         vlt_file = vlt_file.path,
-        verilog_source = ctx.file.verilog_source.path,
+        dpi_srcs = " ".join(dpi_srcs_dict.values()),
+        verilog_sources = verilog_sources_str,
         trace = "--trace" if ctx.attr.trace else "",
     )
 
@@ -98,12 +197,11 @@ def _verilator_cocotb_model_impl(ctx):
         outputs = [output_file, make_log],
         tools = ctx.files._verilator_bin,
         inputs = depset(
+            [f for f in all_inputs_dict.values()],
             transitive = [
                 depset(ctx.files._verilator),
                 depset(ctx.files._cocotb_verilator_lib),
                 depset(ctx.files._cocotb_verilator_cpp),
-                depset([ctx.file.verilog_source]),
-                depset([vlt_file]),
             ],
         ),
         command = script,
@@ -135,12 +233,15 @@ verilator_cocotb_model = rule(
         verilog_source: The verilog source file to build the model from.
         hdl_toplevel: The name of the toplevel module.
         cflags: A list of flags to pass to the compiler.
+        deps: Additional C++/DPI dependencies (CcInfo).
     """,
     implementation = _verilator_cocotb_model_impl,
     attrs = {
-        "verilog_source": attr.label(allow_single_file = True, mandatory = True),
+        "verilog_source": attr.label(allow_single_file = True, mandatory = False),
+        "verilog_sources": attr.label_list(allow_files = [".v", ".sv"]),
         "hdl_toplevel": attr.string(mandatory = True),
         "cflags": attr.string_list(default = []),
+        "deps": attr.label_list(providers = [[CcInfo], [VerilogInfo]]),
         "trace": attr.bool(default = False),
         "vlt_tpl": attr.label(
             default = "@coralnpu_hw//rules:default.vlt.tpl",
@@ -435,23 +536,45 @@ def cocotb_test_suite(name, testcases, simulators = ["verilator"], **kwargs):
     testcases_vname = kwargs.pop("testcases_vname", "")
     for sim in simulators:
         sim_kwargs = {}
-        sim_tests_kwargs = dict(tests_kwargs)
+        sim_tests_kwargs = {}
 
-        # Partition kwargs into sim_kwargs
-        for key, value in kwargs.items():
-            if key.startswith(sim):
-                sim_kwargs[key.replace(sim + "_", "")] = value
-
-        # Partition tests_kwargs into sim_tests_kwargs
+        # 1. Start with clean (non-sim-specific) arguments
         for key, value in tests_kwargs.items():
-            if key.startswith(sim):
+            is_sim_specific = False
+            for s in simulators:
+                if key.startswith(s + "_"):
+                    is_sim_specific = True
+                    break
+            if not is_sim_specific:
+                sim_tests_kwargs[key] = value
+
+        for key, value in kwargs.items():
+            is_sim_specific = False
+            for s in simulators:
+                if key.startswith(s + "_"):
+                    is_sim_specific = True
+                    break
+            if not is_sim_specific:
+                sim_kwargs[key] = value
+
+        # 2. Add sim-specific arguments (matching the longest prefix)
+        for key, value in tests_kwargs.items():
+            best_match = None
+            for s in simulators:
+                if key.startswith(s + "_"):
+                    if best_match == None or len(s) > len(best_match):
+                        best_match = s
+            if best_match == sim:
                 sim_tests_kwargs[key.replace(sim + "_", "")] = value
 
-        # Remove sim-specific kwargs from tests_kwargs
-        for key, value in tests_kwargs.items():
-            if key.startswith(sim):
-                if key in sim_tests_kwargs:
-                    sim_tests_kwargs.pop(key)
+        for key, value in kwargs.items():
+            best_match = None
+            for s in simulators:
+                if key.startswith(s + "_"):
+                    if best_match == None or len(s) > len(best_match):
+                        best_match = s
+            if best_match == sim:
+                sim_kwargs[key.replace(sim + "_", "")] = value
 
         if sim == "verilator":
             model = sim_kwargs.pop("model", None)

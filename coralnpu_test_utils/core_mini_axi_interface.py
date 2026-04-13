@@ -19,7 +19,7 @@ import numpy as np
 import os
 import random
 
-
+from coralnpu_test_utils.backdoor import backdoor_load
 from cocotb.clock import Clock
 from cocotb.handle import LogicObject, LogicArrayObject, Immediate
 from cocotb.queue import Queue
@@ -835,6 +835,19 @@ class CoreMiniAxiInterface:
         self.memory[memory_start:memory_end] = data
         continue
       await self.write(header["p_paddr"], data)
+    return entry_point
+
+  async def load_elf_backdoor(self, f):
+    """Loads an ELF file into DUT memory via backdoor, and returns the entry point address."""
+    elf_file = ELFFile(f)
+    entry_point = elf_file.header["e_entry"]
+    for segment in elf_file.iter_segments(type="PT_LOAD"):
+      header = segment.header
+      data = np.frombuffer(segment.data(), dtype=np.uint8)
+      if len(data) == 0:
+        continue
+      self.dut._log.info(f"Backdoor loading {len(data)} bytes to 0x{header['p_paddr']:08x}")
+      backdoor_load(header["p_paddr"], data)
     return entry_point
 
   def _axi_memory_contains(self, x):

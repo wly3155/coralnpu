@@ -31,7 +31,7 @@ BUS_WIDTH_BYTES = 16
 async def setup_dut(dut, boot_addr=0):
     """Common setup logic for all tests."""
     # Default all TL-UL input signals to a safe state
-    for dev in ["rom", "sram", "uart0", "uart1", "i2c_master"]:
+    for dev in ["rom", "uart0", "uart1", "i2c_master"]:
         getattr(dut, f"io_external_devices_{dev}_d_valid").value = 0
 
     getattr(dut, f"io_external_ports_dm_req_valid").value = 0 # DM req valid
@@ -70,29 +70,48 @@ async def load_elf(dut, elf_file, host_if):
             data = segment.data()
             dut._log.info(f"Loading segment at 0x{paddr:08x}, size {len(data)} bytes")
 
-            # Write segment data word by word (32 bits)
-            for i in range(0, len(data), 4):
-                word_addr = paddr + i
-                # Handle potentially short final word
-                word_data = data[i:i+4]
-                while len(word_data) < 4:
-                    word_data += b'\x00'
+            # Write segment data in bus-width chunks (128 bits)
+            for i in range(0, len(data), BUS_WIDTH_BYTES):
+                line_addr = paddr + i
+                # Handle potentially short final line
+                line_data = data[i:i+BUS_WIDTH_BYTES]
+                current_len = len(line_data)
+                while len(line_data) < BUS_WIDTH_BYTES:
+                    line_data += b'\x00'
 
                 # Convert bytes to integer for the transaction
-                int_data = int.from_bytes(word_data, byteorder='little')
+                int_data = int.from_bytes(line_data, byteorder='little')
+
+                # Calculate mask based on actual data length
+                mask = (1 << current_len) - 1
 
                 # Create and send the write transaction
                 write_txn = create_a_channel_req(
-                    address=word_addr,
+                    address=line_addr,
                     data=int_data,
-                    mask=0xF,  # Full 32-bit mask
-                    width=host_if.width
+                    mask=mask,
+                    width=BUS_WIDTH_BITS # 128
                 )
-                await host_if.host_put(write_txn)
-
-                # Wait for the acknowledgment
-                resp = await host_if.host_get_response()
-                assert resp["error"] == 0, f"Received error response while writing to 0x{word_addr:08x}"
+                if host_if.width == 32:
+                   for j in range(0, current_len, 4):
+                       word_addr = line_addr + j
+                       word_data = line_data[j:j+4]
+                       int_word = int.from_bytes(word_data, byteorder='little')
+                       mask = (1 << len(word_data)) - 1
+                       write_txn_32 = create_a_channel_req(
+                           address=word_addr,
+                           data=int_word,
+                           mask=mask,
+                           width=32
+                       )
+                       await host_if.host_put(write_txn_32)
+                       resp = await host_if.host_get_response()
+                       assert resp["error"] == 0, f"Error writing to 0x{word_addr:08x}"
+                else:
+                    await host_if.host_put(write_txn)
+                    # Wait for the acknowledgment
+                    resp = await host_if.host_get_response()
+                    assert resp["error"] == 0, f"Received error response while writing to 0x{line_addr:08x}"
 
     return entry_point
 
@@ -515,16 +534,6 @@ async def test_tlul_width_bridge_bug_reproduction(dut):
     await host_if.init()
 
     # 2. Instantiate Device Interfaces
-    # SRAM responder (port 1)
-    sram_if = TileLinkULInterface(
-        dut,
-        device_if_name="io_external_devices_sram",
-        clock_name="io_clk_i",
-        reset_name="io_rst_ni",
-        width=32,
-    )
-    await sram_if.init()
-
     # UART1 responder (port 3) for logging
     uart1_if = TileLinkULInterface(
         dut,
@@ -536,33 +545,6 @@ async def test_tlul_width_bridge_bug_reproduction(dut):
     await uart1_if.init()
 
     # 3. Implement Responders
-    mem = {}
-
-    async def sram_responder():
-        while True:
-            req = await sram_if.device_get_request()
-            addr = int(req["address"])
-            if int(req["opcode"]) in [0, 1]:  # Put
-                data = int(req["data"])
-                mask = int(req["mask"])
-                for i in range(4):
-                    if (mask >> i) & 1:
-                        mem[addr + i] = (data >> (i * 8)) & 0xFF
-                await sram_if.device_respond(
-                    opcode=0, param=0, size=req["size"], source=req["source"]
-                )
-            elif int(req["opcode"]) == 4:  # Get
-                resp_data = 0
-                for i in range(4):
-                    resp_data |= mem.get(addr + i, 0) << (i * 8)
-                await sram_if.device_respond(
-                    opcode=1,
-                    param=0,
-                    size=req["size"],
-                    source=req["source"],
-                    data=resp_data,
-                )
-
     async def uart1_responder():
         while True:
             req = await uart1_if.device_get_request()
@@ -583,7 +565,6 @@ async def test_tlul_width_bridge_bug_reproduction(dut):
                     opcode=1, param=0, size=req["size"], source=req["source"], data=0
                 )
 
-    cocotb.start_soon(sram_responder())
     cocotb.start_soon(uart1_responder())
 
     # 4. Load ELF
@@ -921,42 +902,6 @@ async def test_ibus_fetch_from_sram(dut):
         width=32)
     await host_if.init()
 
-    # SRAM device responder
-    sram_if = TileLinkULInterface(
-        dut,
-        device_if_name="io_external_devices_sram",
-        clock_name="io_clk_i",
-        reset_name="io_rst_ni",
-        width=32)
-    await sram_if.init()
-
-    # Simple byte-addressable memory model
-    mem = {}
-
-    async def sram_responder():
-        while True:
-            req = await sram_if.device_get_request()
-            addr = int(req["address"])
-            if int(req["opcode"]) in [0, 1]:  # PutFullData / PutPartialData
-                data = int(req["data"])
-                mask = int(req["mask"])
-                for i in range(4):
-                    if (mask >> i) & 1:
-                        mem[addr + i] = (data >> (i * 8)) & 0xFF
-                await sram_if.device_respond(
-                    opcode=0, param=0, size=req["size"], source=req["source"]
-                )
-            elif int(req["opcode"]) == 4:  # Get
-                resp_data = 0
-                for i in range(4):
-                    resp_data |= mem.get(addr + i, 0) << (i * 8)
-                await sram_if.device_respond(
-                    opcode=1, param=0, size=req["size"],
-                    source=req["source"], data=resp_data
-                )
-
-    cocotb.start_soon(sram_responder())
-
     # --- Load a small RISC-V program into SRAM ---
     SRAM_BASE = 0x20000000
     DTCM_BASE = 0x00010000
@@ -1077,41 +1022,6 @@ async def test_boot_addr_sram(dut):
         width=32)
     await host_if.init()
 
-    # SRAM device responder
-    sram_if = TileLinkULInterface(
-        dut,
-        device_if_name="io_external_devices_sram",
-        clock_name="io_clk_i",
-        reset_name="io_rst_ni",
-        width=32)
-    await sram_if.init()
-
-    mem = {}
-
-    async def sram_responder():
-        while True:
-            req = await sram_if.device_get_request()
-            addr = int(req["address"])
-            if int(req["opcode"]) in [0, 1]:
-                data = int(req["data"])
-                mask = int(req["mask"])
-                for i in range(4):
-                    if (mask >> i) & 1:
-                        mem[addr + i] = (data >> (i * 8)) & 0xFF
-                await sram_if.device_respond(
-                    opcode=0, param=0, size=req["size"], source=req["source"]
-                )
-            elif int(req["opcode"]) == 4:
-                resp_data = 0
-                for i in range(4):
-                    resp_data |= mem.get(addr + i, 0) << (i * 8)
-                await sram_if.device_respond(
-                    opcode=1, param=0, size=req["size"],
-                    source=req["source"], data=resp_data
-                )
-
-    cocotb.start_soon(sram_responder())
-
     # Load program into SRAM via test host (same program as test_ibus_fetch_from_sram)
     program = [
         0x123450B7,  # LUI x1, 0x12345
@@ -1205,41 +1115,6 @@ async def test_boot_addr_override(dut):
         reset_name="io_async_ports_hosts_test_reset",
         width=32)
     await host_if.init()
-
-    # SRAM device responder
-    sram_if = TileLinkULInterface(
-        dut,
-        device_if_name="io_external_devices_sram",
-        clock_name="io_clk_i",
-        reset_name="io_rst_ni",
-        width=32)
-    await sram_if.init()
-
-    mem = {}
-
-    async def sram_responder():
-        while True:
-            req = await sram_if.device_get_request()
-            addr = int(req["address"])
-            if int(req["opcode"]) in [0, 1]:
-                data = int(req["data"])
-                mask = int(req["mask"])
-                for i in range(4):
-                    if (mask >> i) & 1:
-                        mem[addr + i] = (data >> (i * 8)) & 0xFF
-                await sram_if.device_respond(
-                    opcode=0, param=0, size=req["size"], source=req["source"]
-                )
-            elif int(req["opcode"]) == 4:
-                resp_data = 0
-                for i in range(4):
-                    resp_data |= mem.get(addr + i, 0) << (i * 8)
-                await sram_if.device_respond(
-                    opcode=1, param=0, size=req["size"],
-                    source=req["source"], data=resp_data
-                )
-
-    cocotb.start_soon(sram_responder())
 
     # Load program into SRAM via test host
     program = [

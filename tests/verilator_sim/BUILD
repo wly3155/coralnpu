@@ -96,6 +96,7 @@ CORE_MINI_AXI_TB_CC_LIBRARY_COMMON_DEPS = [
     ":elf",
     ":sim_libs",
     ":util",
+    "//hdl/verilog:sram_backdoor",
     "//tests/systemc:Xbar",
     "//tests/systemc:instruction_trace",
     "@accellera_systemc//:systemc",
@@ -271,6 +272,20 @@ cc_test(
     ],
     deps = [
         ":core_mini_axi_tb",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log:initialize",
+    ],
+)
+
+cc_test(
+    name = "backdoor_load_test",
+    srcs = [
+        "coralnpu/backdoor_load_test.cc",
+    ],
+    deps = [
+        ":core_mini_axi_tb",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log:initialize",
     ],
 )
 

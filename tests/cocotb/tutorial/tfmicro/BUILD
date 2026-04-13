@@ -24,6 +24,11 @@ load(
     "VERILATOR_BUILD_ARGS",
 )
 
+VCS_COMMON_DATA = [
+    "//tests/cocotb:coverage_exclude.cfg",
+    "//hdl/verilog:dpi_files",
+]
+
 coralnpu_v2_binary(
     name = "run_mobilenet_v1_025_partial_binary",
     srcs = [
@@ -104,9 +109,7 @@ cocotb_test_suite(
         "data": ["run_mobilenet_v1_025_partial_binary.elf"],
     },
     vcs_build_args = VCS_BUILD_ARGS,
-    vcs_data = glob(["**/*.elf"]) + [
-        "//tests/cocotb:coverage_exclude.cfg",
-    ],
+    vcs_data = glob(["**/*.elf"]) + VCS_COMMON_DATA,
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
@@ -155,9 +158,7 @@ cocotb_test_suite(
         "data": ["depthwise_conv_test.elf"],
     },
     vcs_build_args = VCS_BUILD_ARGS,
-    vcs_data = glob(["**/*.elf"]) + [
-        "//tests/cocotb:coverage_exclude.cfg",
-    ],
+    vcs_data = glob(["**/*.elf"]) + VCS_COMMON_DATA,
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
@@ -229,9 +230,7 @@ cocotb_test_suite(
         "data": ["conv2d_test.elf"],
     },
     vcs_build_args = VCS_BUILD_ARGS,
-    vcs_data = glob(["**/*.elf"]) + [
-        "//tests/cocotb:coverage_exclude.cfg",
-    ],
+    vcs_data = glob(["**/*.elf"]) + VCS_COMMON_DATA,
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
@@ -274,9 +273,7 @@ cocotb_test_suite(
         "data": ["pooling_test.elf"],
     },
     vcs_build_args = VCS_BUILD_ARGS,
-    vcs_data = glob(["**/*.elf"]) + [
-        "//tests/cocotb:coverage_exclude.cfg",
-    ],
+    vcs_data = glob(["**/*.elf"]) + VCS_COMMON_DATA,
     vcs_defines = VCS_DEFINES,
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],

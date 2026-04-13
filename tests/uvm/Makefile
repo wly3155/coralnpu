@@ -40,8 +40,6 @@ UTILS_DIR = ./utils
 SIM_DIR = ./sim_work
 LOG_DIR = $(SIM_DIR)/logs
 WAVE_DIR = $(SIM_DIR)/waves
-MEM_FILE_DIR = $(SIM_DIR)/mem_files
-RUN_OPTS_FILE = $(MEM_FILE_DIR)/elf_run_opts.f
 
 # MPACT-Sim Integration Paths
 MPACT_BAZEL_BIN_DIR = $(CORALNPU_MPACT)/bazel-bin/sim/cosim
@@ -90,7 +88,7 @@ VCS_COMPILE_OPTS += \
 
 VCS_RUN_OPTS = \
 	$(PLUSARGS) \
-	-f $(RUN_OPTS_FILE)
+	$(EXTRA_PLUSARGS)
 
 # Add define to COMPILE options for waveform dumping
 ifeq ($(DUMP_WAVES),1)
@@ -127,7 +125,7 @@ checkout_mpact:
 
 # Create necessary directories
 dirs:
-	@mkdir -p $(SIM_DIR) $(LOG_DIR) $(WAVE_DIR) $(BIN_DIR) $(MEM_FILE_DIR)
+	@mkdir -p $(SIM_DIR) $(LOG_DIR) $(WAVE_DIR) $(BIN_DIR)
 
 # Build the MPACT-Sim library using Bazel with CC=clang
 build_mpact_lib:
@@ -135,11 +133,6 @@ build_mpact_lib:
 	cd $(CORALNPU_MPACT) && CC=clang bazel build $(BAZEL_OVERRIDE_FLAG) //sim/cosim:$(MPACT_COSIM_LIB_NAME)
 
 # Generate memory and run option files from the ELF file
-gen_mem_files: dirs
-	@echo "--- Generating Memory and Run Option Files from ELF ---"
-	@rm -f $(MEM_FILE_DIR)/*
-	python3 $(UTILS_DIR)/elf_to_mem.py --elf_file $(TEST_ELF) --out_dir $(MEM_FILE_DIR)
-
 # Generate the DUT RTL from Chisel source
 rtl:
 	@echo "--- Generating DUT RTL from Chisel ---"
@@ -154,7 +147,7 @@ $(SIM_EXEC): $(FILE_LIST) dirs build_mpact_lib rtl
 compile: $(SIM_EXEC)
 
 # Run the simulation
-run: gen_mem_files
+run:
 	@echo "--- Running Simulation ---"
 	@echo "Test:      $(UVM_TESTNAME)"
 	@echo "ELF File:  $(TEST_ELF)"
@@ -192,7 +185,6 @@ help:
 	@echo "  make rtl              : Generates the DUT Verilog from Chisel source"
 	@echo "  make build_mpact_lib  : Only builds the MPACT-Sim C++ library"
 	@echo "  make checkout_mpact   : Checks out CORALNPU_MPACT at MPACT_COMMIT (default: $(MPACT_COMMIT))"
-	@echo "  make gen_mem_files    : Only generates ITCM/DTCM and run opt files"
 	@echo "  make clean            : Removes generated simulation and MPACT-Sim files"
 	@echo "  make dirs             : Creates simulation directories"
 	@echo "  make help             : Shows this help message"

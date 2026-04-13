@@ -42,6 +42,7 @@ const char* CoreMiniAxi_tb::kCoreMiniAxiModelName = STRINGIFY(VERILATOR_MODEL);
 
 CoreMiniAxi_tb::CoreMiniAxi_tb(sc_module_name n, int loops, bool random,
                                bool debug_axi, bool instr_trace,
+                               bool backdoor_load,
                                std::optional<std::function<void()>> wfi_cb,
                                std::optional<std::function<void()>> halted_cb)
     : Sysc_tb(n, loops, random),
@@ -56,7 +57,8 @@ CoreMiniAxi_tb::CoreMiniAxi_tb(sc_module_name n, int loops, bool random,
       xbar_("xbar"),
       wfi_cb_(wfi_cb),
       halted_cb_(halted_cb),
-      instr_trace_(instr_trace) {
+      instr_trace_(instr_trace),
+      backdoor_load_(backdoor_load) {
   if (CoreMiniAxi_tb::singleton_ != nullptr) {
     CHECK(false);
   }
@@ -330,14 +332,25 @@ absl::Status CoreMiniAxi_tb::LoadElfAsync(const std::string& file_name) {
     // for the entry point CSR.
     elf_transfers.reserve(3 * elf_header->e_phnum + 1);
     ::LoadElf(data8,
-              [&elf_transfers](void* dest, const void* src, size_t count) {
-                elf_transfers.push_back(utils::Write(
-                    reinterpret_cast<uint64_t>(dest),
-                    reinterpret_cast<uint8_t*>(const_cast<void*>(src)), count));
-                elf_transfers.push_back(
-                    utils::Read(reinterpret_cast<uint64_t>(dest), count));
-                elf_transfers.push_back(utils::Expect(
-                    reinterpret_cast<uint8_t*>(const_cast<void*>(src)), count));
+              [this, &elf_transfers](void* dest, const void* src, size_t count) {
+                uint64_t addr = reinterpret_cast<uint64_t>(dest);
+                uint32_t itcm_size = KP_itcmSizeKBytes * 1024;
+                uint32_t dtcm_size = KP_dtcmSizeKBytes * 1024;
+                uint32_t dtcm_base = (KP_itcmSizeKBytes == 8 && KP_dtcmSizeKBytes == 32) ? 0x10000 : 0x100000;
+                bool in_tcm = (addr < itcm_size) || (addr >= dtcm_base && addr < dtcm_base + dtcm_size);
+
+                bool use_backdoor = this->backdoor_load_;
+                if (use_backdoor && in_tcm) {
+                  this->BackdoorLoad(addr, reinterpret_cast<const uint8_t*>(src), count);
+                } else {
+                  elf_transfers.push_back(utils::Write(
+                      reinterpret_cast<uint64_t>(dest),
+                      reinterpret_cast<uint8_t*>(const_cast<void*>(src)), count));
+                  elf_transfers.push_back(
+                      utils::Read(reinterpret_cast<uint64_t>(dest), count));
+                  elf_transfers.push_back(utils::Expect(
+                      reinterpret_cast<uint8_t*>(const_cast<void*>(src)), count));
+                }
                 return dest;
               });
     elf_transfers.push_back(utils::Write(
@@ -917,3 +930,7 @@ void CoreMiniAxi_tb::axi_transaction_done_cb_(TLMTrafficGenerator* gen,
 }
 
 CoreMiniAxi_tb* CoreMiniAxi_tb::singleton_ = nullptr;
+
+void CoreMiniAxi_tb::BackdoorLoad(uint64_t addr, const uint8_t* data, size_t len) {
+  CHECK(coralnpu::SramBackdoorLoad(addr, data, len));
+}

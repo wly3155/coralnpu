@@ -332,18 +332,16 @@ chisel_library(
 chisel_library(
     name = "srams",
     srcs = [
+        "Sram.scala",
         "SramNx128.scala",
-        "Sram_12ffcp_128x128.scala",
-        "Sram_2048x128.scala",
-        "Sram_512x128.scala",
-    ],
-    resources = [
-        "//hdl/verilog:Sram_12ffcp_128x128.v",
-        "//hdl/verilog:Sram_2048x128.v",
-        "//hdl/verilog:Sram_512x128.v",
     ],
     deps = [
         ":coralnpu_base",
+        "//hdl/chisel/src/bus",
+    ],
+    resource_strip_prefix = "hdl/verilog",
+    resources = [
+        "//hdl/verilog:Sram.v",
     ],
 )
 

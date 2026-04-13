@@ -171,8 +171,8 @@ module coralnpu_soc
   coralnpu_tlul_pkg_32::tl_h2d_t tl_rom_o_32;
   coralnpu_tlul_pkg_32::tl_d2h_t tl_rom_i_32;
 
-  tl_h2d_t tl_sram_o;
-  tl_d2h_t tl_sram_i;
+  coralnpu_tlul_pkg_128::tl_h2d_t tl_sram_o;
+  coralnpu_tlul_pkg_128::tl_d2h_t tl_sram_i;
 
   tl_h2d_t tl_uart0_o;
   tl_d2h_t tl_uart0_i;
@@ -301,53 +301,6 @@ module coralnpu_soc
             .rvalid_o(rom_rvalid),
             .rdata_o(rom_rdata),
             .cfg_i('0));
-
-  logic sram_req;
-  logic sram_we;
-  logic [19 : 0] sram_addr;
-  logic [31 : 0] sram_wdata;
-  logic [31 : 0] sram_wmask_bits;
-  logic [31 : 0] sram_rdata;
-  logic sram_rvalid;
-
-  tlul_adapter_sram #(.SramAw(20),
-                      .SramDw(32),
-                      .CmdIntgCheck(1'b1),
-                      .EnableRspIntgGen(1'b1),
-                      .EnableDataIntgGen(1'b1))
-      i_sram_adapter(.clk_i(clk_i),
-                     .rst_ni(rst_ni),
-                     .tl_i(tl_sram_o),
-                     .tl_o(tl_sram_i),
-                     .req_o(sram_req),
-                     .we_o(sram_we),
-                     .addr_o(sram_addr),
-                     .wdata_o(sram_wdata),
-                     .wmask_o(sram_wmask_bits),
-                     .rdata_i(sram_rdata),
-                     .gnt_i(1'b1),
-                     .rvalid_i(sram_rvalid),
-                     .en_ifetch_i(prim_mubi_pkg::MuBi4True),
-                     .req_type_o(),
-                     .intg_error_o(),
-                     .user_rsvd_o(),
-                     .rerror_i(2'b0),
-                     .compound_txn_in_progress_o(),
-                     .readback_en_i(4'b0),
-                     .readback_error_o(),
-                     .wr_collision_i(1'b0),
-                     .write_pending_i(1'b0));
-
-  Sram #(.Width(32),
-         .Depth(1048576))
-      i_sram(.clk_i(clk_i),
-             .req_i(sram_req),
-             .we_i(sram_we),
-             .addr_i(sram_addr),
-             .wdata_i(sram_wdata),
-             .wmask_i({sram_wmask_bits[24], sram_wmask_bits[16], sram_wmask_bits[8], sram_wmask_bits[0]}),
-             .rdata_o(sram_rdata),
-             .rvalid_o(sram_rvalid));
 
   // --- ISP Wires ---
   // Control (TLUL)
@@ -516,7 +469,7 @@ module coralnpu_soc
     .io_clk_i(clk_i),
     .io_rst_ni(rst_ni),
 
-    // External Device Port 0: rom
+    // External Device Port: rom
     .io_external_devices_rom_a_valid(tl_rom_o_32.a_valid),
     .io_external_devices_rom_a_bits_opcode(tl_rom_o_32.a_opcode),
     .io_external_devices_rom_a_bits_param(tl_rom_o_32.a_param),
@@ -542,33 +495,7 @@ module coralnpu_soc
     .io_external_devices_rom_d_bits_user_rsp_intg(tl_rom_i_32.d_user.rsp_intg),
     .io_external_devices_rom_d_bits_user_data_intg(tl_rom_i_32.d_user.data_intg),
 
-    // External Device Port 1: sram
-    .io_external_devices_sram_a_valid(tl_sram_o.a_valid),
-    .io_external_devices_sram_a_bits_opcode(tl_sram_o.a_opcode),
-    .io_external_devices_sram_a_bits_param(tl_sram_o.a_param),
-    .io_external_devices_sram_a_bits_size(tl_sram_o.a_size),
-    .io_external_devices_sram_a_bits_source(tl_sram_o.a_source),
-    .io_external_devices_sram_a_bits_address(tl_sram_o.a_address),
-    .io_external_devices_sram_a_bits_mask(tl_sram_o.a_mask),
-    .io_external_devices_sram_a_bits_data(tl_sram_o.a_data),
-    .io_external_devices_sram_a_bits_user_rsvd(tl_sram_o.a_user.rsvd),
-    .io_external_devices_sram_a_bits_user_instr_type(tl_sram_o.a_user.instr_type),
-    .io_external_devices_sram_a_bits_user_cmd_intg(tl_sram_o.a_user.cmd_intg),
-    .io_external_devices_sram_a_bits_user_data_intg(tl_sram_o.a_user.data_intg),
-    .io_external_devices_sram_d_ready(tl_sram_o.d_ready),
-    .io_external_devices_sram_a_ready(tl_sram_i.a_ready),
-    .io_external_devices_sram_d_valid(tl_sram_i.d_valid),
-    .io_external_devices_sram_d_bits_opcode(tl_sram_i.d_opcode),
-    .io_external_devices_sram_d_bits_param(tl_sram_i.d_param),
-    .io_external_devices_sram_d_bits_size(tl_sram_i.d_size),
-    .io_external_devices_sram_d_bits_source(tl_sram_i.d_source),
-    .io_external_devices_sram_d_bits_sink(tl_sram_i.d_sink),
-    .io_external_devices_sram_d_bits_data(tl_sram_i.d_data),
-    .io_external_devices_sram_d_bits_error(tl_sram_i.d_error),
-    .io_external_devices_sram_d_bits_user_rsp_intg(tl_sram_i.d_user.rsp_intg),
-    .io_external_devices_sram_d_bits_user_data_intg(tl_sram_i.d_user.data_intg),
-
-    // External Device Port 2: uart0
+    // External Device Port: uart0
     .io_external_devices_uart0_a_valid(tl_uart0_o.a_valid),
     .io_external_devices_uart0_a_bits_opcode(tl_uart0_o.a_opcode),
     .io_external_devices_uart0_a_bits_param(tl_uart0_o.a_param),
@@ -594,7 +521,7 @@ module coralnpu_soc
     .io_external_devices_uart0_d_bits_user_rsp_intg(tl_uart0_i.d_user.rsp_intg),
     .io_external_devices_uart0_d_bits_user_data_intg(tl_uart0_i.d_user.data_intg),
 
-    // External Device Port 3: uart1
+    // External Device Port: uart1
     .io_external_devices_uart1_a_valid(tl_uart1_o.a_valid),
     .io_external_devices_uart1_a_bits_opcode(tl_uart1_o.a_opcode),
     .io_external_devices_uart1_a_bits_param(tl_uart1_o.a_param),
@@ -620,7 +547,7 @@ module coralnpu_soc
     .io_external_devices_uart1_d_bits_user_rsp_intg(tl_uart1_i.d_user.rsp_intg),
     .io_external_devices_uart1_d_bits_user_data_intg(tl_uart1_i.d_user.data_intg),
 
-    // External Device Port 4: i2c_master
+    // External Device Port: i2c_master
     .io_external_devices_i2c_master_a_valid(tl_i2c_h2d.a_valid),
     .io_external_devices_i2c_master_a_bits_opcode(tl_i2c_h2d.a_opcode),
     .io_external_devices_i2c_master_a_bits_param(tl_i2c_h2d.a_param),

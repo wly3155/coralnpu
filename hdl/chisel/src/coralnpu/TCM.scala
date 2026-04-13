@@ -18,7 +18,7 @@ import chisel3._
 import chisel3.util._
 import common._
 
-class TCM128(tcmSizeBytes: Int, tcmSubEntryWidth: Int) extends Module {
+class TCM128(tcmSizeBytes: Int, tcmSubEntryWidth: Int, globalBaseAddr: Int = 0) extends Module {
   val tcmWidth = 128
   val tcmEntries = tcmSizeBytes / (tcmWidth / 8)
   val tcmSubEntries = tcmWidth / tcmSubEntryWidth
@@ -33,7 +33,7 @@ class TCM128(tcmSizeBytes: Int, tcmSubEntryWidth: Int) extends Module {
   })
 
 
-  val sram = Module(new Sram_Nx128(tcmEntries))
+  val sram = Module(new Sram_Nx128(tcmEntries, globalBaseAddr))
   sram.io.addr := io.addr
   sram.io.enable := io.enable
   sram.io.write := Cat(io.write)

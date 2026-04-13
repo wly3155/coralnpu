@@ -18,40 +18,9 @@ import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
 import org.scalatest.freespec.AnyFreeSpec
 import coralnpu.Parameters
-
-class GPIOSpec extends AnyFreeSpec with ChiselSim {
+class GPIOSpec extends AnyFreeSpec with ChiselSim with TLULTestUtils {
   val p  = new Parameters
   val gp = GPIOParameters(width = 8)
-
-  def tlWrite(tl: OpenTitanTileLink.Host2Device, clock: Clock, addr: UInt, data: UInt): Unit = {
-    tl.a.valid.poke(true.B)
-    tl.a.bits.opcode.poke(TLULOpcodesA.PutFullData.asUInt)
-    tl.a.bits.address.poke(addr)
-    tl.a.bits.data.poke(data)
-    tl.a.bits.mask.poke(0xf.U)
-    while (tl.a.ready.peek().litValue == 0) clock.step()
-    clock.step()
-    tl.a.valid.poke(false.B)
-    while (tl.d.valid.peek().litValue == 0) clock.step()
-    tl.d.ready.poke(true.B)
-    clock.step()
-    tl.d.ready.poke(false.B)
-  }
-
-  def tlRead(tl: OpenTitanTileLink.Host2Device, clock: Clock, addr: UInt): BigInt = {
-    tl.a.valid.poke(true.B)
-    tl.a.bits.opcode.poke(TLULOpcodesA.Get.asUInt)
-    tl.a.bits.address.poke(addr)
-    while (tl.a.ready.peek().litValue == 0) clock.step()
-    clock.step()
-    tl.a.valid.poke(false.B)
-    while (tl.d.valid.peek().litValue == 0) clock.step()
-    val data = tl.d.bits.data.peek().litValue
-    tl.d.ready.poke(true.B)
-    clock.step()
-    tl.d.ready.poke(false.B)
-    data
-  }
 
   "GPIO Output Control" in {
     simulate(new GPIO(p, gp)) { dut =>
@@ -68,8 +37,8 @@ class GPIOSpec extends AnyFreeSpec with ChiselSim {
       assert(dut.io.gpio_en_o.peek().litValue == 0xff)
 
       // Read back
-      assert(tlRead(dut.io.tl, dut.clock, 0x04.U) == 0xa5)
-      assert(tlRead(dut.io.tl, dut.clock, 0x08.U) == 0xff)
+      assert(tlReadData(dut.io.tl, dut.clock, 0x04.U) == 0xa5)
+      assert(tlReadData(dut.io.tl, dut.clock, 0x08.U) == 0xff)
     }
   }
 
@@ -84,7 +53,7 @@ class GPIOSpec extends AnyFreeSpec with ChiselSim {
       dut.clock.step()
 
       // Read input register
-      assert(tlRead(dut.io.tl, dut.clock, 0x00.U) == 0x5a)
+      assert(tlReadData(dut.io.tl, dut.clock, 0x00.U) == 0x5a)
     }
   }
 }

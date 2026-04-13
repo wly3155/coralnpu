@@ -12,7 +12,6 @@ filesets:
       - lowrisc:prim:rom_adv
       - lowrisc:prim_generic:rom
       - lowrisc:tlul:adapter_sram
-      - coralnpuv2:ip:sram:0.1
       - coralnpuv2:ip:coralnpu_tlul:0.1
       - coralnpuv2:ip:i2c_master:0.1
       - vsi:ip:ispyocto:0.1

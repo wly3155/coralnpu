@@ -147,7 +147,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     val itcmSubEntryWidth = 8
     val itcmWidth = p.axi2DataBits
     val itcmEntries = itcmSizeBytes / (itcmWidth / 8)
-    val itcm = Module(new TCM128(itcmSizeBytes, itcmSubEntryWidth))
+    val itcm = Module(new TCM128(itcmSizeBytes, itcmSubEntryWidth, memoryRegions(0).memStart))
     dontTouch(itcm.io)
     val itcmWrapper = Module(new SRAM(p, log2Ceil(itcmEntries)))
     itcm.io.addr := itcmWrapper.io.sram.address
@@ -189,7 +189,7 @@ class CoreAxi(p: Parameters, coreModuleName: String) extends RawModule {
     val dtcmWidth = p.axi2DataBits
     val dtcmEntries = dtcmSizeBytes / (dtcmWidth / 8)
     val dtcmSubEntryWidth = 8
-    val dtcm = Module(new TCM128(dtcmSizeBytes, dtcmSubEntryWidth))
+    val dtcm = Module(new TCM128(dtcmSizeBytes, dtcmSubEntryWidth, memoryRegions(1).memStart))
     dontTouch(dtcm.io)
     val dtcmWrapper = Module(new SRAM(p, log2Ceil(dtcmEntries)))
     dtcm.io.addr := dtcmWrapper.io.sram.address

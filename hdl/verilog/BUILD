@@ -17,9 +17,8 @@ load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 exports_files(
     srcs = [
         "ClockGate.sv",
-        "Sram_12ffcp_128x128.v",
-        "Sram_512x128.v",
-        "Sram_2048x128.v",
+        "Sram.v",
+        "sram_backdoor.core",
         "Sram_1rw_256x256.v",
         "Sram_1rwm_256x288.v",
         "RstSync.sv",
@@ -51,8 +50,8 @@ verilog_library(
 )
 
 verilog_library(
-    name = "Sram_12ffcp_128x128",
-    srcs = ["Sram_12ffcp_128x128.v"],
+    name = "Sram",
+    srcs = ["Sram.v"],
     visibility = ["//visibility:public"],
 )
 
@@ -60,4 +59,21 @@ verilog_library(
     name = "sram_1rw_256x288",
     srcs = ["Sram_1rwm_256x288.v"],
     visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "dpi_files",
+    srcs = [
+        "sram_backdoor.cc",
+        "sram_backdoor.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "sram_backdoor",
+    srcs = ["sram_backdoor.cc"],
+    hdrs = ["sram_backdoor.h"],
+    visibility = ["//visibility:public"],
+    deps = ["@verilator//:svdpi"],
 )

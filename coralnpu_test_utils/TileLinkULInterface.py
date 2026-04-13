@@ -266,8 +266,10 @@ class TileLinkULInterface:
                              sink=0,
                              data=0,
                              error=0,
-                             width=32):
+                             width=None):
         """Send a response from the device."""
+        if width is None:
+            width = self.width
         txn = {
             "opcode": opcode,
             "param": param,

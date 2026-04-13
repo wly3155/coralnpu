@@ -14,6 +14,8 @@
 
 #include <thread>
 
+#include "absl/flags/parse.h"
+#include "absl/log/initialize.h"
 #include "tests/verilator_sim/coralnpu/core_mini_axi_tb.h"
 
 /* clang-format off */
@@ -22,8 +24,15 @@
 /* clang-format on */
 
 extern "C" int sc_main(int argc, char** argv) {
+  absl::InitializeLog();
+  auto args = absl::ParseCommandLine(argc, argv);
+  int v_argc = args.size();
+  char** v_argv = &args[0];
+  Verilated::commandArgs(v_argc, v_argv);
+
   CoreMiniAxi_tb tb("CoreMiniAxi_tb", 1000000, /* random= */ false,
                     /*debug_axi=*/true, /*instr_trace=*/false,
+                    /*backdoor_load=*/false,
                     /*wfi_cb=*/std::nullopt, std::nullopt);
 
   std::thread sc_main_thread([&tb]() { tb.start(); });
