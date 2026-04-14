@@ -114,10 +114,11 @@ class SpiMasterSpec extends AnyFreeSpec with ChiselSim {
       dut.reset.poke(false.B)
 
       // Configure DIV=3: SCLK period = (DIV+1)*2 = 8 cycles
-      tlWrite(dut.io.tl, dut.clock, 0x04.U, 0x0301.U) // ENABLE=1, DIV=3
+      // Standard Mode 0 (CPOL=0) results in sclk_reg=0 at idle
+      tlWrite(dut.io.tl, dut.clock, 0x04.U, 0x0301.U) // ENABLE=1, DIV=3, CPOL=0
       tlWrite(dut.io.tl, dut.clock, 0x08.U, 0xaa.U)
 
-      // Wait for first edge
+      // Wait for first edge (0 -> 1 for standard CPOL=0)
       while (dut.io.spi.sclk.peek().litValue == 0) dut.clock.step()
       var steps = 0
       // Measure duration of '1' phase
@@ -341,6 +342,38 @@ class SpiMasterSpec extends AnyFreeSpec with ChiselSim {
 
       val rxdata = tlReadData(dut.io.tl, dut.clock, 0x0c.U)
       assert(rxdata == 0x88, s"Expected 0x88, got 0x${rxdata.toString(16)}")
+    }
+  }
+
+  "SpiMaster Multi-Mode Verification" in {
+    // Test all 4 SPI modes (CPOL=0/1, CPHA=0/1)
+    for (mode <- 0 until 4) {
+      val cpol     = (mode >> 1) & 1
+      val cpha     = mode & 1
+      val ctrl_val = (cpol << 1) | (cpha << 2) | 1 // ENABLE=1
+
+      simulate(new SpiMasterCtrl(p)) { dut =>
+        dut.reset.poke(true.B)
+        dut.clock.step()
+        dut.reset.poke(false.B)
+
+        tlWrite(dut.io.tl, dut.clock, 0x04.U, ctrl_val.U)
+        tlWrite(dut.io.tl, dut.clock, 0x08.U, 0xa5.U)
+
+        while (dut.io.spi.csb.peek().litValue == 1) dut.clock.step()
+
+        // Wait enough time for the transfer to complete
+        for (_ <- 0 until 500) {
+          dut.io.spi.miso.poke(dut.io.spi.mosi.peek())
+          dut.clock.step()
+        }
+
+        val rxdata = tlReadData(dut.io.tl, dut.clock, 0x0c.U)
+        assert(
+          rxdata == 0xa5,
+          s"Mode $mode (CPOL=$cpol, CPHA=$cpha) failed: expected 0xa5, got 0x${rxdata.toString(16)}"
+        )
+      }
     }
   }
 

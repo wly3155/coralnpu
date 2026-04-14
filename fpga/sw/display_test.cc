@@ -25,8 +25,8 @@ static uint16_t text_buffer[TEXT_W * TEXT_H];
 
 int main() {
     uint32_t spi_base = spi_get_master_base_addr();
-    // Enable=1, CPOL=1, CPHA=0 -> 0x0003
-    spi_set_control(spi_base, SPI_CTRL_ENABLE | SPI_CTRL_CPOL);
+    // Enable=1, CPOL=0, CPHA=0 -> 0x0001
+    spi_set_control(spi_base, SPI_CTRL_ENABLE);
     spi_set_csid(spi_base, 0);
     spi_set_csmode(spi_base, 0); // Auto
 

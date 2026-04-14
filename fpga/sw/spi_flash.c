@@ -49,9 +49,8 @@ void udelay(uint32_t us) {
 }
 
 void spi_flash_init(void) {
-  // Div=20, CPOL=0 (but set CPOL=1 due to hw bug), CPHA=0, Enable=1
-  spi_set_control(flash_base(),
-                  SPI_CTRL_DIV(20) | SPI_CTRL_CPOL | SPI_CTRL_ENABLE);
+  // Div=20, CPOL=0, CPHA=0, Enable=1
+  spi_set_control(flash_base(), SPI_CTRL_DIV(20) | SPI_CTRL_ENABLE);
   // CSMODE=1 (manual CS control) for multi-byte transactions
   spi_set_csmode(flash_base(), 1);
   // CSID[0]=0 → CS deasserted (high) in manual mode

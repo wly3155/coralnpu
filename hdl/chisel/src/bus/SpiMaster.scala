@@ -57,8 +57,8 @@ class SpiMasterCtrl(p: Parameters) extends Module {
 
   // Control bitfields
   val ctrl_div    = reg_control(15, 8)
-  val ctrl_hdtx   = reg_control(4)  // Half-duplex write: ignore RX data, no RX FIFO push
-  val ctrl_hdrx   = reg_control(3)  // Half-duplex read: auto-TX 0x00 when RX FIFO has space
+  val ctrl_hdtx   = reg_control(4) // Half-duplex write: ignore RX data, no RX FIFO push
+  val ctrl_hdrx   = reg_control(3) // Half-duplex read: auto-TX 0x00 when RX FIFO has space
   val ctrl_cpha   = reg_control(2)
   val ctrl_cpol   = reg_control(1)
   val ctrl_enable = reg_control(0)
@@ -74,7 +74,8 @@ class SpiMasterCtrl(p: Parameters) extends Module {
   val state     = RegInit(SpiState.sIdle)
   val bit_count = RegInit(0.U(3.W))
   val clk_count = RegInit(0.U(8.W))
-  val shift_reg = Reg(UInt(8.W))
+  val tx_reg    = Reg(UInt(8.W))
+  val rx_reg    = Reg(UInt(8.W))
   val sclk_reg  = RegInit(false.B)
   val csb_reg   = RegInit(true.B)
 
@@ -92,7 +93,7 @@ class SpiMasterCtrl(p: Parameters) extends Module {
   // SPI Pins Driving Logic
   io.spi.sclk          := sclk_reg
   io.spi.csb           := csb_reg
-  io.spi.mosi          := shift_reg(7)
+  io.spi.mosi          := tx_reg(7)
   tx_fifo.io.deq.ready := false.B
   rx_fifo.io.enq.valid := false.B
   rx_fifo.io.enq.bits  := 0.U
@@ -130,15 +131,15 @@ class SpiMasterCtrl(p: Parameters) extends Module {
         when(tx_fifo.io.deq.valid) {
           // Normal mode: dequeue from TX FIFO
           tx_fifo.io.deq.ready := true.B
-          shift_reg            := tx_fifo.io.deq.bits
+          tx_reg               := tx_fifo.io.deq.bits
           state                := SpiState.sSetup
           when(!manual_cs) { csb_reg := false.B }
           bit_count := 7.U
-        } .elsewhen(ctrl_hdrx && rx_fifo.io.enq.ready) {
+        }.elsewhen(ctrl_hdrx && rx_fifo.io.enq.ready) {
           // Half-duplex read mode: auto-generate TX=0x00 transfers
           // as long as RX FIFO has space, no TXDATA write needed
-          shift_reg := 0.U
-          state     := SpiState.sSetup
+          tx_reg := 0.U
+          state  := SpiState.sSetup
           when(!manual_cs) { csb_reg := false.B }
           bit_count := 7.U
         }
@@ -146,9 +147,10 @@ class SpiMasterCtrl(p: Parameters) extends Module {
 
       is(SpiState.sSetup) {
         // Initial setup period before the first clock edge
+        sclk_reg := ctrl_cpol
         when(tick) {
           state    := SpiState.sShift
-          sclk_reg := !ctrl_cpol ^ ctrl_cpha
+          sclk_reg := !ctrl_cpol
         }
       }
 
@@ -157,19 +159,20 @@ class SpiMasterCtrl(p: Parameters) extends Module {
         when(tick) {
           phase := ~phase
           when(phase === 0.U) {
-            // First half of bit period finished
-            sclk_reg := ctrl_cpol ^ ctrl_cpha
+            // End of Leading edge phase, Start of Trailing edge phase
+            sclk_reg := ctrl_cpol
           }.otherwise {
-            // Second half of bit period finished
+            // End of Trailing edge phase, Start next Leading edge phase or finish
             when(bit_count === 0.U) {
               // Wait for space in RX FIFO before finalizing transaction,
               // unless we are in HDTX mode which ignores RX data.
               when(rx_fifo.io.enq.ready || ctrl_hdtx) {
-                state := SpiState.sFinish
+                state    := SpiState.sFinish
+                sclk_reg := ctrl_cpol
               }
             }.otherwise {
               bit_count := bit_count - 1.U
-              sclk_reg  := !ctrl_cpol ^ ctrl_cpha
+              sclk_reg  := !ctrl_cpol
             }
           }
         }
@@ -177,25 +180,39 @@ class SpiMasterCtrl(p: Parameters) extends Module {
 
       is(SpiState.sFinish) {
         // Finalize byte transfer and return received data
+        sclk_reg := ctrl_cpol
         when(tick) {
           state := SpiState.sIdle
           when(!manual_cs) { csb_reg := true.B }
           // Only push to RX FIFO if not in HDTX mode
           when(!ctrl_hdtx) {
             rx_fifo.io.enq.valid := true.B
-            rx_fifo.io.enq.bits  := shift_reg
+            rx_fifo.io.enq.bits  := rx_reg
           }
         }
       }
     }
   }
 
-  // MISO Sampling Logic: Captured on the appropriate SCLK edge per CPOL/CPHA.
-  when(state === SpiState.sShift && tick) {
-    // Phase 1.U is the first half-cycle bit period (after sSetup).
-    // Sampling occurs on the leading edge (CPHA=0) or trailing edge (CPHA=1).
-    when(phase === 1.U ^ ctrl_cpha) {
-      shift_reg := Cat(shift_reg(6, 0), io.spi.miso)
+  // MISO Sampling and MOSI Shifting Logic
+  // Using the value of 'phase' BEFORE it is toggled by 'tick' in sShift.
+  // Leading edge: tick when phase is 0. Trailing edge: tick when phase is 1.
+  when(tick) {
+    when(state === SpiState.sShift || state === SpiState.sSetup) {
+      // Sampling Edge: CPHA=0 -> Leading edge (phase=0), CPHA=1 -> Trailing edge (phase=1)
+      when(phase === ctrl_cpha) {
+        rx_reg := Cat(rx_reg(6, 0), io.spi.miso)
+      }
+
+      // Shifting Edge: CPHA=0 -> Trailing edge (phase=1), CPHA=1 -> Leading edge (phase=0)
+      // Special case: for CPHA=1, we don't shift on the very first leading edge (in sSetup or start of sShift).
+      when(phase === !ctrl_cpha) {
+        val is_first_leading =
+          (state === SpiState.sSetup || (state === SpiState.sShift && bit_count === 7.U && phase === 0.U))
+        when(!(ctrl_cpha === 1.U && is_first_leading)) {
+          tx_reg := Cat(tx_reg(6, 0), 0.U(1.W))
+        }
+      }
     }
   }
 
@@ -252,9 +269,6 @@ class SpiMasterCtrl(p: Parameters) extends Module {
       switch(addr_offset) {
         is(STATUS) {
           // Bit 2: TX Full, Bit 1: RX Empty, Bit 0: Busy
-          // Include tx_fifo.io.deq.valid in busy so that immediately after
-          // a TXDATA write the status already reports busy, preventing the
-          // firmware from reading RXDATA before the transfer has started.
           tl_d_data := Cat(
             0.U(29.W),
             state =/= SpiState.sIdle || tx_fifo.io.deq.valid,

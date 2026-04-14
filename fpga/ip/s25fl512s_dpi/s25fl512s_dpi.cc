@@ -496,29 +496,12 @@ void s25fl512s_dpi_tick(S25fl512sState* ctx, unsigned char sck,
     ctx->bit_count_in = 0;
     ctx->bit_count_out = 0;
     ctx->shift_in = 0;
+    ctx->pending_byte_valid = false;
+    ctx->miso_bit = 0;
   }
 
-  // SCK rising edge: output MISO, then process any deferred received byte.
-  // Processing is deferred from the falling edge so the last MISO bit of the
-  // current output byte is driven correctly before shift_out is overwritten.
+  // SCK rising edge: capture MOSI (SPI Mode 0: Sample on Leading/Rising Edge)
   if (!csb && !ctx->sck_prev && sck) {
-    // First, drive MISO from current shift_out (before any overwrite)
-    if (ctx->state == STATE_DATA_READ || ctx->state == STATE_READ_STATUS ||
-        ctx->state == STATE_READ_ID || ctx->state == STATE_READ_SFDP) {
-      ctx->miso_bit = (ctx->shift_out >> 7) & 1;
-      ctx->shift_out <<= 1;
-      ctx->bit_count_out++;
-    }
-
-    // Then, process any pending received byte
-    if (ctx->pending_byte_valid) {
-      flash_receive_byte(ctx, ctx->pending_byte);
-      ctx->pending_byte_valid = false;
-    }
-  }
-
-  // SCK falling edge: capture MOSI, defer byte processing to next rising edge
-  if (!csb && ctx->sck_prev && !sck) {
     ctx->shift_in = (ctx->shift_in << 1) | (mosi & 1);
     ctx->bit_count_in++;
 
@@ -527,6 +510,26 @@ void s25fl512s_dpi_tick(S25fl512sState* ctx, unsigned char sck,
       ctx->pending_byte_valid = true;
       ctx->bit_count_in = 0;
       ctx->shift_in = 0;
+    }
+  }
+
+  // SCK falling edge: shift MISO and process bytes (SPI Mode 0: Shift on
+  // Trailing/Falling Edge)
+  if (!csb && ctx->sck_prev && !sck) {
+    // First, process any pending received byte
+    if (ctx->pending_byte_valid) {
+      flash_receive_byte(ctx, ctx->pending_byte);
+      ctx->pending_byte_valid = false;
+    }
+
+    // Then, update MISO for the next bit
+    if (ctx->state == STATE_DATA_READ || ctx->state == STATE_READ_STATUS ||
+        ctx->state == STATE_READ_ID || ctx->state == STATE_READ_SFDP) {
+      ctx->miso_bit = (ctx->shift_out >> 7) & 1;
+      ctx->shift_out <<= 1;
+      ctx->bit_count_out++;
+    } else {
+      ctx->miso_bit = 0;
     }
   }
 

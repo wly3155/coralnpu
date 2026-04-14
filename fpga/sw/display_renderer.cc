@@ -43,8 +43,8 @@ bool DisplayRenderer::Init() {
   uart_puts("Renderer Init\r\n");
 #endif
   uint32_t spi_base = spi_get_master_base_addr();
-  // Enable=1, CPOL=1, HDTX=1 -> 0x0013
-  spi_set_control(spi_base, SPI_CTRL_ENABLE | SPI_CTRL_CPOL | SPI_CTRL_HDTX);
+  // Enable=1, CPOL=0, HDTX=1 -> 0x0011
+  spi_set_control(spi_base, SPI_CTRL_ENABLE | SPI_CTRL_HDTX);
   spi_set_csid(spi_base, 0);
   spi_set_csmode(spi_base, 0);
 
