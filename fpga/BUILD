@@ -13,31 +13,31 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:common_settings.bzl", "string_list_flag")
+load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
+load("@internal_check//:status.bzl", internal_exists = "FOLDER_EXISTS")
 load("@lowrisc_opentitan_gh//rules:fusesoc.bzl", "fusesoc_build")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
 load("//rules:coralnpu_v2_sim_test.bzl", "coralnpu_v2_sim_test")
-load("//rules:utils.bzl", "cc_embed_data")
-load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
-load("@internal_check//:status.bzl", internal_exists = "FOLDER_EXISTS")
+load("//rules:utils.bzl", "cc_embed_data", "template_rule")
 
 package(default_visibility = ["//visibility:public"])
 
 _CLOCK_FREQUENCY_MHZ = "50"
+
 _ISP_CLOCK_FREQUENCY_MHZ = "10"
+
 _SPIM_CLOCK_FREQUENCY_MHZ = "100"
-
-
 
 filegroup(
     name = "rtl_files_common",
     srcs = glob(["**/*.sv"]) + glob(["**/*.core"]) + [
-        "//fpga/ip/ispyocto:rtl_files",
-        "//fpga/ip/spi_dpi_master:rtl_files",
+        "//fpga/ip/coralnpu_tlul:rtl_files",
         "//fpga/ip/display_dpi:rtl_files",
         "//fpga/ip/gpio_dpi:rtl_files",
-        "//fpga/ip/s25fl512s_dpi:rtl_files",
         "//fpga/ip/i2c_master:rtl_files",
-        "//fpga/ip/coralnpu_tlul:rtl_files",
+        "//fpga/ip/ispyocto:rtl_files",
+        "//fpga/ip/s25fl512s_dpi:rtl_files",
+        "//fpga/ip/spi_dpi_master:rtl_files",
         "//fpga/ip/sram:rtl_files",
         "//fpga/rtl:rtl_files",
     ],
@@ -84,6 +84,7 @@ string_list_flag(
     name = "verilator_options_default",
     build_setting_default = VERILATOR_OPTIONS_COMMON,
 )
+
 string_list_flag(
     name = "verilator_options_highmem",
     build_setting_default = [
@@ -155,12 +156,12 @@ coralnpu_v2_binary(
 cc_library(
     name = "display_hal",
     srcs = ["sw/display_hal.c"],
-    alwayslink = 1,
     deps = [
         ":gpio",
         ":spi",
         "//third_party/waveshare_display",
     ],
+    alwayslink = 1,
 )
 
 cc_library(
@@ -241,18 +242,18 @@ coralnpu_v2_sim_test(
 coralnpu_v2_sim_test(
     name = "trivial_pass_highmem_sim_test",
     srcs = ["sw/trivial_pass_test.cc"],
-    deps = [":uart"],
     highmem = True,
+    deps = [":uart"],
 )
 
 coralnpu_v2_sim_test(
     name = "dma_sim_test",
     srcs = ["sw/dma_test.cc"],
+    sim_timeout = 120,
     deps = [
         ":dma",
         ":uart",
     ],
-    sim_timeout = 120,
 )
 
 coralnpu_v2_binary(
@@ -273,17 +274,16 @@ coralnpu_v2_binary(
 py_binary(
     name = "flash_tool_sim_test",
     srcs = ["sw/flash_tool_sim_test.py"],
-    main = "sw/flash_tool_sim_test.py",
-
     args = [
         "$(location :flash_tool.elf)",
         "--sim_timeout",
         "600",
     ],
     data = [
-        ":flash_tool.elf",
         ":copy_chip_verilator_highmem_binary",
+        ":flash_tool.elf",
     ],
+    main = "sw/flash_tool_sim_test.py",
     deps = [
         ":flash_tool_lib",
         "//utils/coralnpu_soc_loader:spi_driver",
@@ -309,10 +309,10 @@ py_test(
 py_binary(
     name = "flash_tool_ftdi",
     srcs = ["sw/flash_tool_ftdi.py"],
-    main = "sw/flash_tool_ftdi.py",
     data = [
         ":flash_tool.elf",
     ],
+    main = "sw/flash_tool_ftdi.py",
     deps = [
         ":flash_tool_lib",
         "//coralnpu_test_utils:ftdi_spi_master_lib",
@@ -325,13 +325,13 @@ py_binary(
 coralnpu_v2_sim_test(
     name = "spi_flash_sim_test",
     srcs = ["sw/spi_flash_test.cc"],
+    sim_timeout = 240,
     deps = [
         ":gpio",
         ":spi",
         ":spi_flash",
         ":uart",
     ],
-    sim_timeout = 240,
 )
 
 coralnpu_v2_binary(
@@ -375,22 +375,20 @@ filegroup(
     output_group = "bin_file",
 )
 
-CORALNPU_SOC_CORES_COMMON = [
-    ":coralnpu_soc.core",
-    ":coralnpu_soc_pkg.core",
-    ":racl_pkg.core",
-    "@lowrisc_opentitan_gh//hw:check_tool_requirements.core",
-]
+_MEM_VARIANTS = {
+    "default": {
+        "chisel_core": "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
+        "chisel_rtl": "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
+        "verilator_options": ":verilator_options_default",
+    },
+    "highmem": {
+        "chisel_core": "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
+        "chisel_rtl": "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
+        "verilator_options": ":verilator_options_highmem",
+    },
+}
 
-CORALNPU_SOC_CORES_DEFAULT = CORALNPU_SOC_CORES_COMMON + [
-    "//fpga/ip/coralnpu_chisel_subsystem_default:coralnpu_chisel_subsystem_default.core",
-]
-
-CORALNPU_SOC_CORES_HIGHMEM = CORALNPU_SOC_CORES_COMMON + [
-    "//fpga/ip/coralnpu_chisel_subsystem_highmem:coralnpu_chisel_subsystem_highmem.core",
-]
-
-CORALNPU_SOC_SRCS = [
+CORALNPU_SOC_SRCS_COMMON = [
     ":rtl_files_common",
     "@lowrisc_opentitan_gh//hw/dv/sv:dv_macros",
     "@lowrisc_opentitan_gh//hw/dv:verilator_files",
@@ -414,34 +412,52 @@ CORALNPU_SOC_SRCS = [
     "main.cc",
 ]
 
-fusesoc_build(
-    name = "build_chip_verilator",
-    srcs = CORALNPU_SOC_SRCS + [
-        "//fpga/ip/spi_dpi_master:dpi_files",
-        "//fpga/ip/display_dpi:dpi_files",
-        "//fpga/ip/gpio_dpi:dpi_files",
-        "//fpga/ip/s25fl512s_dpi:dpi_files",
-        "@lowrisc_opentitan_gh//hw:dpi_files",
-        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
-    ],
-    cores = CORALNPU_SOC_CORES_DEFAULT + [
-        ":chip_verilator.core",
-        "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
-        "//fpga/ip/display_dpi:display_dpi.core",
-        "//fpga/ip/gpio_dpi:gpio_dpi.core",
-        "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
-        "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
-        "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
-        "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi.core",
-        "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi_sv.core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-        "//fpga/ip/ispyocto:ispyocto_core",
-    ],
+CORALNPU_SOC_CORES_COMMON = [
+    ":coralnpu_soc.core",
+    ":coralnpu_soc_pkg.core",
+    ":racl_pkg.core",
+    "@lowrisc_opentitan_gh//hw:check_tool_requirements.core",
+]
+
+VERILATOR_COMMON_SRCS = CORALNPU_SOC_SRCS_COMMON + [
+    "//fpga/ip/spi_dpi_master:dpi_files",
+    "//fpga/ip/display_dpi:dpi_files",
+    "//fpga/ip/gpio_dpi:dpi_files",
+    "//fpga/ip/s25fl512s_dpi:dpi_files",
+    "@lowrisc_opentitan_gh//hw:dpi_files",
+]
+
+VERILATOR_COMMON_CORES = [
+    ":chip_verilator.core",
+    "//fpga/ip/i2c_master:i2c_master.core",
+    "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
+    "//fpga/ip/display_dpi:display_dpi.core",
+    "//fpga/ip/gpio_dpi:gpio_dpi.core",
+    "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
+    "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
+    "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
+    "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi.core",
+    "@lowrisc_opentitan_gh//hw/dv:dpi/jtagdpi/jtagdpi_sv.core",
+    "//fpga/ip/ispyocto:tlul2ahblite_files",
+    "//fpga/ip/ispyocto:ispyocto_core",
+]
+
+_VERILATOR_NAME_MAP = {
+    "build_chip_verilator" + ("_highmem" if name == "highmem" else ""): {
+        "cores": CORALNPU_SOC_CORES_COMMON + VERILATOR_COMMON_CORES + [cfg["chisel_core"]],
+        "srcs": VERILATOR_COMMON_SRCS + [cfg["chisel_rtl"]],
+        "verilator_options": cfg["verilator_options"],
+    }
+    for name, cfg in _MEM_VARIANTS.items()
+}
+
+template_rule(
+    fusesoc_build,
+    _VERILATOR_NAME_MAP,
     flags = [
         "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
         "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
-        "--SpimClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ, # Verilator uses clk_i for spim
+        "--SpimClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,  # Verilator uses clk_i for spim
     ],
     make_options = ":make_options",
     output_groups = {
@@ -449,53 +465,15 @@ fusesoc_build(
     },
     systems = ["com.google.coralnpu:fpga:chip_verilator:0.1"],
     target = "sim",
-    verilator_options = ":verilator_options_default",
 )
 
-fusesoc_build(
-    name = "build_chip_verilator_highmem",
-    srcs = CORALNPU_SOC_SRCS + [
-        "//fpga/ip/spi_dpi_master:dpi_files",
-        "//fpga/ip/display_dpi:dpi_files",
-        "//fpga/ip/gpio_dpi:gpio_dpi.core",
-        "//fpga/ip/gpio_dpi:dpi_files",
-        "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
-        "//fpga/ip/s25fl512s_dpi:dpi_files",
-        "@lowrisc_opentitan_gh//hw:dpi_files",
-        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
-    ],
-    cores = CORALNPU_SOC_CORES_HIGHMEM + [
-        ":chip_verilator.core",
-        "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/spi_dpi_master:spi_dpi_master.core",
-        "//fpga/ip/gpio_dpi:gpio_dpi.core",
-        "//fpga/ip/s25fl512s_dpi:s25fl512s_dpi.core",
-        "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi.core",
-        "@lowrisc_opentitan_gh//hw/dv:dpi/uartdpi/uartdpi_sv.core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-        "//fpga/ip/ispyocto:ispyocto_core",
-    ],
-    flags = [
-        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
-        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
-        "--SpimClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ, # Verilator uses clk_i for spim
-    ],
-    make_options = ":make_options",
-    output_groups = {
-        "binary": ["com.google.coralnpu_fpga_chip_verilator_0.1/sim-verilator/Vchip_verilator"],
-    },
-    systems = ["com.google.coralnpu:fpga:chip_verilator:0.1"],
-    target = "sim",
-    verilator_options = ":verilator_options_highmem",
-)
-
-_PREFIX = "../../../../../../../../.."
 DDR_CORES = [
     "//internal/fpga/ip/ddr4:ddr4.core",
     "//internal/fpga/ip/ddr4_phy:ddr4_phy.core",
 ] if internal_exists else [
     "//fpga/ip/ddr4_stub:ddr4_stub.core",
 ]
+
 DDR_SRCS = [
     "//internal/fpga/ip/ddr4:elf_files",
     "//internal/fpga/ip/ddr4:rtl_files",
@@ -512,106 +490,43 @@ VIVADO_HOOKS = [
     "pblock_u_isp.tcl",
 ]
 
-fusesoc_build(
-    name = "build_chip_nexus_bitstream",
-    srcs = CORALNPU_SOC_SRCS + [
-        "pins_nexus.xdc",
-        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
-    ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES_COMMON + [
-        ":chip_nexus.core",
-        "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/ispyocto:ispyocto_core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-    ] + DDR_CORES,
-    flags = [
-        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
-        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
-        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
-    ],
-    output_groups = {
-        "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
-    },
-    systems = ["com.google.coralnpu:fpga:chip_nexus:0.1"],
-    target = "synth",
-    tags = ["manual"],
-)
+NEXUS_COMMON_SRCS = CORALNPU_SOC_SRCS_COMMON + [
+    "pins_nexus.xdc",
+] + VIVADO_HOOKS + DDR_SRCS
 
-fusesoc_build(
-    name = "build_chip_nexus_synth_only",
-    srcs = CORALNPU_SOC_SRCS + [
-        "pins_nexus.xdc",
-        "//fpga/ip/coralnpu_chisel_subsystem_default:rtl_files",
-    ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES_COMMON + [
-        ":chip_nexus.core",
-        "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/ispyocto:ispyocto_core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-    ] + DDR_CORES,
-    flags = [
-        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
-        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
-        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
-        "--pnr=none",
-    ],
-    output_groups = {
-        "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
-    },
-    systems = ["com.google.coralnpu:fpga:chip_nexus:0.1"],
-    target = "synth",
-    tags = ["manual"],
-)
+NEXUS_COMMON_CORES = [
+    ":chip_nexus.core",
+    "//fpga/ip/i2c_master:i2c_master.core",
+    "//fpga/ip/ispyocto:ispyocto_core",
+    "//fpga/ip/ispyocto:tlul2ahblite_files",
+] + DDR_CORES
 
-fusesoc_build(
-    name = "build_chip_nexus_bitstream_highmem",
-    srcs = CORALNPU_SOC_SRCS + [
-        "pins_nexus.xdc",
-        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
-    ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES_HIGHMEM + [
-        ":chip_nexus.core",
-        "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/ispyocto:ispyocto_core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-    ] + DDR_CORES,
-    flags = [
-        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
-        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
-        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
-    ],
-    output_groups = {
-        "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
-    },
-    systems = ["com.google.coralnpu:fpga:chip_nexus:0.1"],
-    target = "synth",
-    tags = ["manual"],
-)
+_NEXUS_NAME_MAP = {
+    "build_chip_nexus_" + build_type + ("_" + name if name != "default" else ""): {
+        "cores": CORALNPU_SOC_CORES_COMMON + NEXUS_COMMON_CORES + [cfg["chisel_core"]],
+        "flags": [
+            "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
+            "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
+            "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
+        ] + (["--pnr=none"] if build_type == "synth_only" else []),
+        "srcs": NEXUS_COMMON_SRCS + [cfg["chisel_rtl"]],
+    }
+    for name, cfg in _MEM_VARIANTS.items()
+    for build_type in [
+        "bitstream",
+        "synth_only",
+    ]
+}
 
-fusesoc_build(
-    name = "build_chip_nexus_synth_only_highmem",
-    srcs = CORALNPU_SOC_SRCS + [
-        "pins_nexus.xdc",
-        "//fpga/ip/coralnpu_chisel_subsystem_highmem:rtl_files",
-    ] + VIVADO_HOOKS + DDR_SRCS,
-    cores = CORALNPU_SOC_CORES_HIGHMEM + [
-        ":chip_nexus.core",
-        "//fpga/ip/i2c_master:i2c_master.core",
-        "//fpga/ip/ispyocto:ispyocto_core",
-        "//fpga/ip/ispyocto:tlul2ahblite_files",
-    ] + DDR_CORES,
-    flags = [
-        "--ClockFrequencyMhz=" + _CLOCK_FREQUENCY_MHZ,
-        "--IspClockFrequencyMhz=" + _ISP_CLOCK_FREQUENCY_MHZ,
-        "--SpimClockFrequencyMhz=" + _SPIM_CLOCK_FREQUENCY_MHZ,
-        "--pnr=none",
-    ],
+template_rule(
+    fusesoc_build,
+    _NEXUS_NAME_MAP,
     output_groups = {
         "all": ["com.google.coralnpu_fpga_chip_nexus_0.1/"],
     },
     systems = ["com.google.coralnpu:fpga:chip_nexus:0.1"],
-    target = "synth",
     tags = ["manual"],
+    target = "synth",
 )
 
 filegroup(
@@ -644,11 +559,13 @@ genrule(
 py_test(
     name = "check_pins_test",
     srcs = ["check_pins.py"],
-    main = "check_pins.py",
     args = [
         "--xdc",
         "$(location pins_nexus.xdc)",
-    ] + (["--xdc", "$(location //internal/fpga/ip/ddr4:pins_ddr.xdc)"] if internal_exists else []) + [
+    ] + ([
+        "--xdc",
+        "$(location //internal/fpga/ip/ddr4:pins_ddr.xdc)",
+    ] if internal_exists else []) + [
         "--sv",
         "$(location //fpga/rtl:chip_nexus.sv)",
     ],
@@ -656,6 +573,7 @@ py_test(
         "pins_nexus.xdc",
         "//fpga/rtl:chip_nexus.sv",
     ] + (["//internal/fpga/ip/ddr4:pins_ddr.xdc"] if internal_exists else []),
+    main = "check_pins.py",
 )
 
 # Rules to available ispyocto and axi2sramcrs in the sandbox
@@ -665,4 +583,3 @@ genrule(
     outs = ["ispyocto_unpacked.done"],
     cmd = "mkdir -p ispyocto_unpacked && cp -r $(locations @ispyocto//:ispyocto_rtl_files) ispyocto_unpacked/ && touch $@",
 )
-
