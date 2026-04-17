@@ -50,7 +50,6 @@ fusesoc_build(
         "//fpga/ip/coralnpu_tlul:rtl_files",
         "//fpga:coralnpu_soc_pkg.core",
         "//fpga:racl_pkg.core",
-        "//fpga/lib:core_files",
         "@lowrisc_opentitan_gh//hw:check_tool_requirements.core",
     ],
     output_groups = {

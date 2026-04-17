@@ -140,35 +140,25 @@ class TLUL2Axi[A_USER <: Data with TLUL_A_User_InstrType, D_USER <: Data](p_tl: 
   val write_response = Wire(Decoupled(new TileLink_D_ChannelBase(p_tl_remapped, userDGen)))
 
   // AXI Read Response -> TileLink AccessAckData
-  val read_response_intg = Module(new ResponseIntegrityGen(p_tl_remapped))
-  val read_resp_raw = Wire(new TileLink_D_ChannelBase(p_tl_remapped, userDGen))
-  read_resp_raw.opcode := TLULOpcodesD.AccessAckData.asUInt
-  read_resp_raw.param := 0.U
-  read_resp_raw.size := read_tx_info_q.io.deq.bits.size
-  read_resp_raw.source := io.axi.read.data.bits.id.asUInt
-  read_resp_raw.sink := 0.U
-  read_resp_raw.data := io.axi.read.data.bits.data
-  read_resp_raw.error := io.axi.read.data.bits.resp =/= 0.U
-  read_resp_raw.user := 0.U.asTypeOf(read_response.bits.user)
-
-  read_response_intg.io.d_i := read_resp_raw
-  read_response.bits := read_response_intg.io.d_o
+  read_response.bits.opcode := TLULOpcodesD.AccessAckData.asUInt
+  read_response.bits.param := 0.U
+  read_response.bits.size := read_tx_info_q.io.deq.bits.size
+  read_response.bits.source := io.axi.read.data.bits.id.asUInt
+  read_response.bits.sink := 0.U
+  read_response.bits.data := io.axi.read.data.bits.data
+  read_response.bits.error := io.axi.read.data.bits.resp =/= 0.U
+  read_response.bits.user := 0.U.asTypeOf(read_response.bits.user)
   read_response.valid := io.axi.read.data.valid && read_tx_info_q.io.deq.valid
 
   // AXI Write Response -> TileLink AccessAck
-  val write_response_intg = Module(new ResponseIntegrityGen(p_tl_remapped))
-  val write_resp_raw = Wire(new TileLink_D_ChannelBase(p_tl_remapped, userDGen))
-  write_resp_raw.opcode := TLULOpcodesD.AccessAck.asUInt
-  write_resp_raw.param := 0.U
-  write_resp_raw.size := write_tx_info_q.io.deq.bits.size
-  write_resp_raw.source := io.axi.write.resp.bits.id.asUInt
-  write_resp_raw.sink := 0.U
-  write_resp_raw.data := 0.U
-  write_resp_raw.error := io.axi.write.resp.bits.resp =/= 0.U
-  write_resp_raw.user := 0.U.asTypeOf(write_response.bits.user)
-
-  write_response_intg.io.d_i := write_resp_raw
-  write_response.bits := write_response_intg.io.d_o
+  write_response.bits.opcode := TLULOpcodesD.AccessAck.asUInt
+  write_response.bits.param := 0.U
+  write_response.bits.size := write_tx_info_q.io.deq.bits.size
+  write_response.bits.source := io.axi.write.resp.bits.id.asUInt
+  write_response.bits.sink := 0.U
+  write_response.bits.data := 0.U
+  write_response.bits.error := io.axi.write.resp.bits.resp =/= 0.U
+  write_response.bits.user := 0.U.asTypeOf(write_response.bits.user)
   write_response.valid := io.axi.write.resp.valid && write_tx_info_q.io.deq.valid
 
   d_channel_arb.io.in(0) <> read_response

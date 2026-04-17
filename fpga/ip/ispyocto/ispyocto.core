@@ -187,7 +187,6 @@ filesets:
     depend:
       - lowrisc:tlul:headers
       - lowrisc:tlul:trans_intg
-      - lowrisc:prim:secded
       - lowrisc:prim:subreg
       - com.google.coralnpu:fpga:coralnpu_soc_pkg:0.1
     files:

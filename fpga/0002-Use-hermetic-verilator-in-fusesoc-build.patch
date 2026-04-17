@@ -31,7 +31,7 @@ diff --git a/rules/fusesoc.bzl b/rules/fusesoc.bzl
 index 17e8d74..ff23c34 100755
 --- a/rules/fusesoc.bzl
 +++ b/rules/fusesoc.bzl
-@@ -82,25 +82,122 @@ def _fusesoc_build_impl(ctx):
+@@ -82,25 +82,125 @@ def _fusesoc_build_impl(ctx):
      args.add_all(ctx.attr.systems)
      args.add_all(flags)
  
@@ -135,11 +135,13 @@ index 17e8d74..ff23c34 100755
 +        # can find everything (verilated.h from source, verilated.mk from genrule).
 +        setup_cmd = " ".join([
 +            "VERILATOR_ROOT=$(pwd)/{merged_root}".format(merged_root = merged_root),
-+            "&&", "mkdir", "-p", "$VERILATOR_ROOT/include",
++            "&&", "mkdir", "-p", "$VERILATOR_ROOT/include", "$VERILATOR_ROOT/bin",
 +            "&&", "cp", "-as", "$(pwd)/{src}/include/.".format(src = verilator_src_root), "$VERILATOR_ROOT/include/",
 +            "&&", "cp", "-asf", "$(pwd)/{gen}/include/.".format(gen = verilator_gen_root), "$VERILATOR_ROOT/include/",
++            "&&", "cp", "-as", "$(pwd)/{src}/bin/.".format(src = verilator_src_root), "$VERILATOR_ROOT/bin/",
 +            "&&", "export", "VERILATOR_ROOT",
 +            "&&", "export", "VERILATOR=$(pwd)/{wrapper}".format(wrapper = verilator_wrapper.path),
++            "&&", "export", "VERILATOR_PYTHON3=$(pwd)/{wrapper}".format(wrapper = python_wrappers[1].path),
 +            "&&", "export", "PATH=$(pwd)/{wrapper_dir}:$PATH".format(wrapper_dir = verilator_wrapper.dirname),
 +            "&&",
 +        ])

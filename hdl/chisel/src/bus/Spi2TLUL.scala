@@ -52,8 +52,7 @@ class Spi2TLUL(p: Parameters) extends Module {
   raw_a.user            := 0.U.asTypeOf(raw_a.user)
   raw_a.user.instr_type := MuBi4.False.asUInt
 
-  // Compute cmd_intg and data_intg so downstream integrity checks pass
-  io.tl.a.bits := RequestIntegrityGen(tlul_p, raw_a)
+  io.tl.a.bits := raw_a
 
   io.tl.a.valid      := v2.io.q_tl_a.valid
   v2.io.q_tl_a.ready := io.tl.a.ready

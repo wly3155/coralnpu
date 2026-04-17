@@ -425,10 +425,7 @@ class DmaEngine(hostParams: Parameters, deviceParams: Parameters) extends Module
   host_a_bits.user := 0.U.asTypeOf(host_a_bits.user)
   host_a_bits.user.instr_type := MuBi4.False.asUInt
 
-  // Host Port Integrity Generation
-  val host_intg_gen = Module(new RequestIntegrityGen(hostTlulP))
-  host_intg_gen.io.a_i := host_a_bits
-  host_a_internal.bits := host_intg_gen.io.a_o
+  host_a_internal.bits := host_a_bits
 
   // Host A Queue
   io.tl_host.a <> Queue(host_a_internal, 1)
@@ -460,11 +457,7 @@ class DmaEngine(hostParams: Parameters, deviceParams: Parameters) extends Module
   dev_d_internal.bits.error  := dev_d_reg.bits.error
   dev_d_internal.bits.sink   := 0.U
   dev_d_internal.bits.param  := 0.U
-
-  // Device Port Integrity
-  val dev_intg_gen = Module(new ResponseIntegrityGen(deviceTlulP))
-  dev_intg_gen.io.d_i      := dev_d_internal.bits
-  dev_d_internal.bits.user := dev_intg_gen.io.d_o.user
+  dev_d_internal.bits.user   := 0.U.asTypeOf(dev_d_internal.bits.user)
 
   // Device D Queue
   io.tl_device.d <> Queue(dev_d_internal, 1)

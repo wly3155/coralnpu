@@ -165,18 +165,7 @@ class Axi2TLUL[A_USER <: Data with TLUL_A_User_InstrType, D_USER <: Data](p: Par
   arb.io.in(0) <> read_stream
   arb.io.in(1) <> write_stream
 
-  val is_opentitan = userAGen() match {
-    case _: OpenTitanTileLink_A_User => true
-    case _ => false
-  }
-
-  if (is_opentitan) {
-    val a_intg = Module(new RequestIntegrityGen(tlul_p))
-    a_intg.io.a_i := arb.io.out.bits.asTypeOf(new OpenTitanTileLink.A_Channel(tlul_p))
-    io.tl_a.bits := a_intg.io.a_o.asTypeOf(io.tl_a.bits)
-  } else {
-    io.tl_a.bits := arb.io.out.bits
-  }
+  io.tl_a.bits := arb.io.out.bits
   io.tl_a.valid := arb.io.out.valid
   arb.io.out.ready := io.tl_a.ready
 

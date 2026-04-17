@@ -341,16 +341,11 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
     val axibm1 = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
       Module(new Axi2TLUL(ispAxiParams, () => new OpenTitanTileLink_A_User, () => new OpenTitanTileLink_D_User))
     }
-    val axi2tlul_tlul_p = new TLULParameters(ispAxiParams)
-    val axibm1_req_intg_gen = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
-      Module(new RequestIntegrityGen(axi2tlul_tlul_p))
-    }
     axibm1.io.axi <> io.ispyocto_m1_axi
     xbar.io.hosts(m1HostName).a.valid := axibm1.io.tl_a.valid
     axibm1.io.tl_a.ready := xbar.io.hosts(m1HostName).a.ready
-    axibm1_req_intg_gen.io.a_i := axibm1.io.tl_a.bits
-    axibm1_req_intg_gen.io.a_i.user.instr_type := MuBi4.False.asUInt
-    xbar.io.hosts(m1HostName).a.bits := axibm1_req_intg_gen.io.a_o
+    xbar.io.hosts(m1HostName).a.bits := axibm1.io.tl_a.bits
+    xbar.io.hosts(m1HostName).a.bits.user.instr_type := MuBi4.False.asUInt
     axibm1.io.tl_d <> xbar.io.hosts(m1HostName).d
 
     // 3. AXI Master 2 -> TLUL Host
@@ -360,15 +355,11 @@ class CoralNPUChiselSubsystem(val hostParams: Seq[bus.TLULParameters], val devic
     val axibm2 = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
       Module(new Axi2TLUL(ispAxiParams, () => new OpenTitanTileLink_A_User, () => new OpenTitanTileLink_D_User))
     }
-    val axibm2_req_intg_gen = withClockAndReset(ispAsyncPorts.clock, ispAsyncPorts.reset) {
-      Module(new RequestIntegrityGen(axi2tlul_tlul_p))
-    }
     axibm2.io.axi <> io.ispyocto_m2_axi
     xbar.io.hosts(m2HostName).a.valid := axibm2.io.tl_a.valid
     axibm2.io.tl_a.ready := xbar.io.hosts(m2HostName).a.ready
-    axibm2_req_intg_gen.io.a_i := axibm2.io.tl_a.bits
-    axibm2_req_intg_gen.io.a_i.user.instr_type := MuBi4.False.asUInt
-    xbar.io.hosts(m2HostName).a.bits := axibm2_req_intg_gen.io.a_o
+    xbar.io.hosts(m2HostName).a.bits := axibm2.io.tl_a.bits
+    xbar.io.hosts(m2HostName).a.bits.user.instr_type := MuBi4.False.asUInt
     axibm2.io.tl_d <> xbar.io.hosts(m2HostName).d
   }
 }

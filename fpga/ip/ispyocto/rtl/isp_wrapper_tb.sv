@@ -304,31 +304,6 @@ module isp_wrapper_tb;
     forever #5 clk = ~clk;
   end
 
-  // ECC Functions (Copied from i2c_master_pkg.sv reference)
-  function automatic logic [6:0] secded_inv_39_32_enc(logic [31:0] data);
-    logic [6:0] ecc;
-    ecc[0] = ^(data & 32'h2606BD25);
-    ecc[1] = ^(data & 32'hDEBA8050);
-    ecc[2] = ^(data & 32'h413D89AA);
-    ecc[3] = ^(data & 32'h31234ED1);
-    ecc[4] = ^(data & 32'hC2C1323B);
-    ecc[5] = ^(data & 32'h2DCC624C);
-    ecc[6] = ^(data & 32'h98505586);
-    return ecc ^ 7'h2A;
-  endfunction
-
-  function automatic logic [6:0] secded_inv_64_57_enc(logic [56:0] data);
-    logic [6:0] ecc;
-    ecc[0] = ^(data & 57'h0103FFF800007FFF);
-    ecc[1] = ^(data & 57'h017C1FF801FF801F);
-    ecc[2] = ^(data & 57'h01BDE1F87E0781E1);
-    ecc[3] = ^(data & 57'h01DEEE3B8E388E22);
-    ecc[4] = ^(data & 57'h01EF76CDB2C93244);
-    ecc[5] = ^(data & 57'h01F7BB56D5525488);
-    ecc[6] = ^(data & 57'h01FBDDA769A46910);
-    return ecc ^ 7'h54;
-  endfunction
-
   // Helper task for TileLink-UL Write
   task automatic tl_write(logic [31:0] addr, logic [31:0] data);
     tl_h2d = '0;
@@ -340,10 +315,9 @@ module isp_wrapper_tb;
     tl_h2d.a_size = 2;  // Word size (2^2 = 4 bytes)
     tl_h2d.a_source = 0;
 
-    // User bits for integrity (if enabled)
     tl_h2d.a_user.instr_type = prim_mubi_pkg::mubi4_t'(4'h9);
-    tl_h2d.a_user.cmd_intg = secded_inv_64_57_enc({14'h0, 4'h9, addr, 3'(PutFullData), 4'hF});
-    tl_h2d.a_user.data_intg = secded_inv_39_32_enc(data);
+    tl_h2d.a_user.cmd_intg = '0;
+    tl_h2d.a_user.data_intg = '0;
 
     // Wait for ready
     while (!tl_d2h.a_ready) @(posedge clk);
@@ -372,8 +346,8 @@ module isp_wrapper_tb;
     tl_h2d.a_source = 0;
 
     tl_h2d.a_user.instr_type = prim_mubi_pkg::mubi4_t'(4'h9);
-    tl_h2d.a_user.cmd_intg = secded_inv_64_57_enc({14'h0, 4'h9, addr, 3'(Get), 4'hF});
-    tl_h2d.a_user.data_intg = secded_inv_39_32_enc(32'h0);  // Data 0 for Read Request
+    tl_h2d.a_user.cmd_intg = '0;
+    tl_h2d.a_user.data_intg = '0;
 
     while (!tl_d2h.a_ready) @(posedge clk);
     @(posedge clk);

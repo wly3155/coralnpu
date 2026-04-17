@@ -268,3 +268,62 @@ class ResponseIntegrityCheck(p: TLULParameters) extends Module {
   io.fault := (expected_rsp_intg =/= io.d_i.user.rsp_intg) ||
               (expected_data_intg =/= io.d_i.user.data_intg)
 }
+
+/**
+  * Helpers for wrapping TL-UL ports with integrity at a crossbar boundary.
+  * The xbar owns integrity gen/check so peripherals can produce and consume
+  * clean TL-UL. Instantiate inside the correct clock domain via
+  * `withClockAndReset` at the call site.
+  */
+object PortIntegrity {
+  /**
+    * Wraps a host-facing TL-UL port: generates A-channel integrity on ingress
+    * (host -> xbar) and silently checks D-channel integrity on egress. Returns
+    * the xbar-side wrapped interface, which carries valid integrity on both
+    * channels.
+    */
+  def wrapHost(
+      portName: String,
+      external: OpenTitanTileLink.Host2Device,
+      p: TLULParameters,
+  ): OpenTitanTileLink.Host2Device = {
+    val wrapped = Wire(new OpenTitanTileLink.Host2Device(p))
+    val aGen = Module(new RequestIntegrityGen(p)).suggestName(s"${portName}_a_intg_gen")
+    val dChk = Module(new ResponseIntegrityCheck(p)).suggestName(s"${portName}_d_intg_chk")
+    aGen.io.a_i := external.a.bits
+    wrapped.a.valid := external.a.valid
+    wrapped.a.bits  := aGen.io.a_o
+    external.a.ready := wrapped.a.ready
+    external.d.valid := wrapped.d.valid
+    external.d.bits  := wrapped.d.bits
+    wrapped.d.ready := external.d.ready
+    dChk.io.d_i := wrapped.d.bits
+    dontTouch(dChk.io.fault)
+    wrapped
+  }
+
+  /**
+    * Wraps a device-facing TL-UL port: silently checks A-channel integrity on
+    * egress (xbar -> device) and generates D-channel integrity on ingress.
+    * `internal` is the xbar-side interface (carrying integrity); `external` is
+    * the clean device-side port.
+    */
+  def wrapDevice(
+      portName: String,
+      internal: OpenTitanTileLink.Host2Device,
+      external: OpenTitanTileLink.Host2Device,
+      p: TLULParameters,
+  ): Unit = {
+    val aChk = Module(new RequestIntegrityCheck(p)).suggestName(s"${portName}_a_intg_chk")
+    val dGen = Module(new ResponseIntegrityGen(p)).suggestName(s"${portName}_d_intg_gen")
+    aChk.io.a_i := internal.a.bits
+    dontTouch(aChk.io.fault)
+    external.a.valid := internal.a.valid
+    external.a.bits  := internal.a.bits
+    internal.a.ready := external.a.ready
+    dGen.io.d_i := external.d.bits
+    internal.d.valid := external.d.valid
+    internal.d.bits  := dGen.io.d_o
+    external.d.ready := internal.d.ready
+  }
+}

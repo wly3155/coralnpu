@@ -30,7 +30,6 @@ filesets:
   files_tb:
     depend:
       - coralnpuv2:ip:hm01b0_model:0.1
-      - com.google.coralnpu:fpga:tl_test_pkg
     files:
       - i2c_slave_model.sv
       - i2c_master_tb.sv

@@ -55,14 +55,16 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     val d_data_reg = RegInit(VecInit(Seq.fill(numHostSources)(VecInit(Seq.fill(ratio)(0.U(deviceWidth.W))))))
     val d_resp_reg = RegInit(VecInit(Seq.fill(numHostSources)(0.U.asTypeOf(new OpenTitanTileLink.D_Channel(host_p)))))
     val d_valid_reg = RegInit(0.U(numHostSources.W))
-    val d_fault_reg = RegInit(0.U(numHostSources.W))
     val beats_received = RegInit(VecInit(Seq.fill(numHostSources)(0.U(ratio.W))))
 
     val host_source_idx = io.tl_d.d.bits.source >> log2Ceil(ratio)
     val beat_idx = io.tl_d.d.bits.source(log2Ceil(ratio)-1, 0)
 
+    // Informational check — integrity enforcement lives at the xbar boundary;
+    // this bridge just re-encodes because width conversion reshapes the data.
     val d_check = Module(new ResponseIntegrityCheck(device_p))
     d_check.io.d_i := io.tl_d.d.bits
+    dontTouch(d_check.io.fault)
 
     val active_host_source = req_info_q.io.deq.bits.source
     val next_beats_received = beats_received(host_source_idx) | (1.U << beat_idx)
@@ -97,16 +99,7 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     })
     d_valid_reg := d_valid_bits.asUInt
 
-    val d_fault_bits = VecInit((0 until numHostSources).map { s =>
-      val next_fault = Mux(beats_received(host_source_idx) === 0.U, d_check.io.fault, d_fault_reg(s) || d_check.io.fault)
-      MuxCase(d_fault_reg(s), Seq(
-        (io.tl_d.d.fire && s.U === host_source_idx) -> next_fault,
-        (io.tl_h.d.fire && s.U === active_host_source) -> false.B
-      ))
-    })
-    d_fault_reg := d_fault_bits.asUInt
-
-    val aggregated_data = VecInit(d_data_reg(active_host_source).zipWithIndex.map { case (d, i) => 
+    val aggregated_data = VecInit(d_data_reg(active_host_source).zipWithIndex.map { case (d, i) =>
       Mux(io.tl_d.d.fire && host_source_idx === active_host_source && i.U === beat_idx, io.tl_d.d.bits.data, d)
     })
     val full_data = Cat(aggregated_data.reverse)
@@ -118,7 +111,7 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     wide_resp_wire.source := active_host_source
     wide_resp_wire.sink   := d_resp_reg(active_host_source).sink
     wide_resp_wire.data   := full_data
-    wide_resp_wire.error  := d_resp_reg(active_host_source).error || d_fault_reg(active_host_source)
+    wide_resp_wire.error  := d_resp_reg(active_host_source).error
     wide_resp_wire.user   := d_resp_reg(active_host_source).user
 
     val d_gen = Module(new ResponseIntegrityGen(host_p))
@@ -143,9 +136,11 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     // ------------------------------------------------------------------------
     // Request Path (A Channel): Split wide request into multiple narrow ones
     // ------------------------------------------------------------------------
+    // Informational check; enforcement is at the xbar boundary.
     val a_check = Module(new RequestIntegrityCheck(host_p))
     a_check.io.a_i := io.tl_h.a.bits
     io.fault_a_o := a_check.io.fault
+    dontTouch(a_check.io.fault)
 
     val is_write = io.tl_h.a.bits.opcode === TLULOpcodesA.PutFullData.asUInt ||
                    io.tl_h.a.bits.opcode === TLULOpcodesA.PutPartialData.asUInt
@@ -197,8 +192,8 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     }
 
     req_fifo.io.in.bits := beats
-    req_fifo.io.in.valid := io.tl_h.a.valid && !a_check.io.fault && req_info_q.io.enq.ready
-    io.tl_h.a.ready := req_fifo.io.in.ready && !a_check.io.fault && req_info_q.io.enq.ready
+    req_fifo.io.in.valid := io.tl_h.a.valid && req_info_q.io.enq.ready
+    io.tl_h.a.ready := req_fifo.io.in.ready && req_info_q.io.enq.ready
     io.tl_d.a <> req_fifo.io.out
 
     val total_beats = PopCount(beats.map(_.valid))
@@ -226,9 +221,11 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
       addr_lsb_regs(s) := Mux(io.tl_h.a.fire && source_match, req_addr_lsb, addr_lsb_regs(s))
     }
 
+    // Informational check; enforcement is at the xbar boundary.
     val a_check = Module(new RequestIntegrityCheck(host_p))
     a_check.io.a_i := io.tl_h.a.bits
     io.fault_a_o := a_check.io.fault
+    dontTouch(a_check.io.fault)
 
     val a_gen = Module(new RequestIntegrityGen(device_p))
     val wide_req = Wire(new OpenTitanTileLink.A_Channel(device_p))
@@ -255,13 +252,15 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     wide_req.data    := (io.tl_h.a.bits.data.asUInt << (steering_shift << 3.U)).asUInt
     a_gen.io.a_i := wide_req
 
-    io.tl_d.a.valid := io.tl_h.a.valid && !a_check.io.fault
+    io.tl_d.a.valid := io.tl_h.a.valid
     io.tl_d.a.bits := a_gen.io.a_o
-    io.tl_h.a.ready := io.tl_d.a.ready && !a_check.io.fault
+    io.tl_h.a.ready := io.tl_d.a.ready
 
+    // Informational check; enforcement is at the xbar boundary.
     val d_check = Module(new ResponseIntegrityCheck(device_p))
     d_check.io.d_i := io.tl_d.d.bits
     io.fault_d_o := d_check.io.fault
+    dontTouch(d_check.io.fault)
 
     val d_gen = Module(new ResponseIntegrityGen(host_p))
     val narrow_resp = Wire(new OpenTitanTileLink.D_Channel(host_p))
@@ -280,7 +279,7 @@ class TlulWidthBridge(val host_p: TLULParameters, val device_p: TLULParameters) 
     // Shifting back: Only shift back the bits NEW to this bridge.
     val resp_steering_shift = (resp_addr_lsb >> host_align_bits) << host_align_bits
     narrow_resp.data   := (io.tl_d.d.bits.data >> (resp_steering_shift << 3.U)).asUInt
-    narrow_resp.error  := io.tl_d.d.bits.error || d_check.io.fault
+    narrow_resp.error  := io.tl_d.d.bits.error
     narrow_resp.user.rsp_intg := io.tl_d.d.bits.user.rsp_intg
     narrow_resp.user.data_intg := io.tl_d.d.bits.user.data_intg
 

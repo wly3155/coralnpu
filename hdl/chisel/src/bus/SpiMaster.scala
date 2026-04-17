@@ -306,11 +306,7 @@ class SpiMasterCtrl(p: Parameters) extends Module {
   tl_d.bits.error  := tl_d_error
   tl_d.bits.sink   := 0.U
   tl_d.bits.param  := 0.U
-
-  // Generate response integrity bits
-  val intg_gen = Module(new ResponseIntegrityGen(tlul_p))
-  intg_gen.io.d_i := tl_d.bits
-  tl_d.bits.user  := intg_gen.io.d_o.user
+  tl_d.bits.user   := 0.U.asTypeOf(tl_d.bits.user)
 }
 
 /** Top-level SPI Master module with Asynchronous Clock Domain Crossing.

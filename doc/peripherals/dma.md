@@ -188,7 +188,7 @@ Single 128-bit TL-UL master port. Generates:
 - **Descriptor Get**: opcode=4, size=4 (16 bytes), address=`desc_addr` /
   `desc_addr+16`
 
-Source ID always 0 (single outstanding). Integrity via `RequestIntegrityGen`.
+Source ID always 0 (single outstanding).
 
 The host A channel is shared between descriptor fetch, poll reads, data reads,
 and data writes. The FSM drives a mux selecting the appropriate
@@ -200,7 +200,6 @@ Follows the GPIO pattern (`hdl/chisel/src/bus/GPIO.scala`):
 
 - `tl_a.ready := !tl_d_valid`
 - On `tl_a.fire`: decode `address[11:0]`, read/write CSRs
-- Response with `ResponseIntegrityGen`
 - Start bit triggers state machine kick
 
 ## Crossbar Integration

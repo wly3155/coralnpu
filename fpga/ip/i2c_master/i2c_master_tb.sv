@@ -16,7 +16,6 @@ module i2c_master_tb;
   import i2c_master_pkg::*;
   import tlul_pkg::*;
   import coralnpu_tlul_pkg_32::*;
-  import tl_test_pkg::*;
 
   typedef struct packed {
     logic [15:0] addr;
@@ -95,9 +94,8 @@ module i2c_master_tb;
     tl_h2d.a_mask = 4'hF;
     tl_h2d.a_size = 2;
     tl_h2d.a_user.instr_type = prim_mubi_pkg::mubi4_t'(4'h6);  // MuBi4False
-    tl_h2d.a_user.cmd_intg =
-        tl_test_pkg::secded_inv_64_57_enc({14'h0, 4'h6, addr, 3'(PutFullData), 4'hF});
-    tl_h2d.a_user.data_intg = tl_test_pkg::secded_inv_39_32_enc(data);
+    tl_h2d.a_user.cmd_intg = '0;
+    tl_h2d.a_user.data_intg = '0;
     while (!tl_d2h.a_ready) @(posedge clk);
     @(posedge clk);
     tl_h2d.a_valid = 0;
@@ -116,8 +114,8 @@ module i2c_master_tb;
     tl_h2d.a_mask = 4'hF;
     tl_h2d.a_size = 2;
     tl_h2d.a_user.instr_type = prim_mubi_pkg::mubi4_t'(4'h6);  // MuBi4False
-    tl_h2d.a_user.cmd_intg = tl_test_pkg::secded_inv_64_57_enc({14'h0, 4'h6, addr, 3'(Get), 4'hF});
-    tl_h2d.a_user.data_intg = tl_test_pkg::secded_inv_39_32_enc(32'h0);
+    tl_h2d.a_user.cmd_intg = '0;
+    tl_h2d.a_user.data_intg = '0;
     while (!tl_d2h.a_ready) @(posedge clk);
     @(posedge clk);
     tl_h2d.a_valid = 0;

@@ -106,7 +106,19 @@ class CoralNPUXbar(val hostParams: Seq[bus.TLULParameters], val deviceParams: Se
     // A. Standardize Host Interfaces
     val hostInterfaces = cfg.hosts(enableTestHarness).map { host =>
       val hostId = hostMap(host.name)
-      var currentIface: bus.OpenTitanTileLink.Host2Device = io.hosts(host.name)
+
+      // Step 0: Integrity at the host port boundary (native width, host clock
+      // domain). The xbar generates A-integrity on ingress and silently checks
+      // D-integrity on egress, so hosts can produce/consume clean TL-UL.
+      val wrappedHost = if (host.clockDomain != "main") {
+        val domainPorts = io.async_ports_hosts(host.clockDomain).asInstanceOf[ClockResetBundle]
+        withClockAndReset(domainPorts.clock, domainPorts.reset) {
+          bus.PortIntegrity.wrapHost(host.name, io.hosts(host.name), hostParams(hostId))
+        }
+      } else {
+        bus.PortIntegrity.wrapHost(host.name, io.hosts(host.name), hostParams(hostId))
+      }
+      var currentIface: bus.OpenTitanTileLink.Host2Device = wrappedHost
 
       // Step 1: Clock Domain Crossing (if necessary)
       // Host-side FIFOs are at the host's native width. The FIFO output is in the main clock domain.
@@ -169,8 +181,18 @@ class CoralNPUXbar(val hostParams: Seq[bus.TLULParameters], val deviceParams: Se
         currentIface = bridge.io.tl_d
       }
 
-      // Connect the end of the conversion chain to the actual device IO port.
-      io.devices(device.name) <> currentIface
+      // Step 3: Integrity at the device port boundary (native device width,
+      // device clock domain). The xbar silently checks A-integrity on egress
+      // and generates D-integrity on ingress, so devices can produce/consume
+      // clean TL-UL.
+      if (device.clockDomain != "main") {
+        val domainPorts = io.async_ports_devices(device.clockDomain).asInstanceOf[ClockResetBundle]
+        withClockAndReset(domainPorts.clock, domainPorts.reset) {
+          bus.PortIntegrity.wrapDevice(device.name, currentIface, io.devices(device.name), deviceParams(deviceId))
+        }
+      } else {
+        bus.PortIntegrity.wrapDevice(device.name, currentIface, io.devices(device.name), deviceParams(deviceId))
+      }
 
       device.name -> standardizedIface
     }.toMap
