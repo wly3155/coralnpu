@@ -46,6 +46,12 @@ template_rule(
             "itcm_size_kbytes": 512,
             "dtcm_size_kbytes": 512,
         },
+        "rvv_float_matmul": {
+            "srcs": ["rvv_float_matmul.cc"],
+        },
+        "rvv_float_matmul_assembly": {
+            "srcs": ["rvv_float_matmul_assembly.cc"],
+        },
     },
 )
 
@@ -53,6 +59,8 @@ filegroup(
     name = "rvv_mlop_tests",
     srcs = [
         ":rvv_matmul_assembly.elf",
-        ":rvv_matmul.elf"
+        ":rvv_matmul.elf",
+        ":rvv_float_matmul_assembly.elf",
+        ":rvv_float_matmul.elf",
     ],
 )
