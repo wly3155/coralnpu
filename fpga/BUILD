@@ -189,6 +189,8 @@ cc_library(
     srcs = ["sw/spi_flash.c"],
     hdrs = ["sw/spi_flash.h"],
     deps = [
+        ":clk",
+        ":dma",
         ":gpio",
         ":spi",
     ],
