@@ -32,14 +32,8 @@ float result_output[kLhsRows * kRhsCols]
 
 void MatMulF(size_t lhs_rows, size_t inner, size_t rhs_cols, const float* lhs,
              const float* rhs, float* result) {
-  const size_t vlenb = __riscv_vlenb();
-
-  // Create zero register for vfredusum
-  // (vmv.v.i v0, 0 sets all bits to 0, which is exactly +0.0f in IEEE 754)
-  asm volatile("vsetvli zero, %0, e32, m4, ta, ma;"
-               "vmv.v.i v0, 0;"
-               :
-               : "r"(vlenb));
+  // Use an intrinsic to initialize the reduction zero scalar.
+  vfloat32m1_t vzero = __riscv_vfmv_v_f_f32m1(0.0f, 1);
 
   for (size_t r = 0; r < lhs_rows; r++) {
     const float* lhs_data = lhs + (r * inner);
@@ -47,39 +41,40 @@ void MatMulF(size_t lhs_rows, size_t inner, size_t rhs_cols, const float* lhs,
     for (size_t c = 0; c < rhs_cols; c++) {
       const float* rhs_data = rhs + (c * inner);
 
-      // Reset accumulators
-      asm volatile("vsetvli zero, %0, e32, m4, ta, ma" : : "r"(vlenb));
-      asm volatile("vmv.v.i v8, 0");
+      // Reset accumulator using intrinsic.
+      vfloat32m4_t vacc = __riscv_vfmv_v_f_f32m4(
+          0.0f, __riscv_vsetvlmax_e32m4());
 
       // Inner dot product loop
       size_t k = 0;
-      size_t vl = vlenb;
       while (k < inner) {
-        if (inner - k < vl) {
-          vl = inner - k;
-        }
-        asm volatile(
-            "vsetvli zero, %[vl], e32, m4, ta, ma \n\t"
-            "vle32.v  v12, (%[lhs_ptr]) \n\t"
-            "vle32.v  v16, (%[rhs_ptr]) \n\t"
-            "vfmul.vv v20, v12, v16 \n\t"
-            "vfredusum.vs v8, v20, v8 \n\t"
-            : // No C++ outputs
+        size_t vl = __riscv_vsetvl_e32m4(inner - k);
+        asm(
+            "vsetvli zero, %[vl], e32, m4, tu, ma \n\t"
+            "vle32.v  v12, %[lhs_ptr] \n\t"
+            "vle32.v  v16, %[rhs_ptr] \n\t"
+            "vfmacc.vv %[vacc], v12, v16 \n\t"
+            : [vacc] "+vd" (vacc)
             : [vl] "r"(vl),
-              [lhs_ptr] "r"(lhs_data + k),
-              [rhs_ptr] "r"(rhs_data + k)
-            : "v12", "v16", "v20" // Tell the compiler we trashed these temporaries
+              [lhs_ptr] "A" (*(const float (*)[vl])(lhs_data + k)),
+              [rhs_ptr] "A" (*(const float (*)[vl])(rhs_data + k))
+            : "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "vtype",
+              "vl"
         );
 
         k += vl;
       }
 
-      // Store
-      asm volatile("vsetivli zero, 1, e32, m1, ta, ma;"
-                   "vse32.v v8, (%0);"
-                   :
-                   : "r"(result_row + c)
-                   : "memory"
+      // Reduction and Store
+      asm(
+          "vsetvli zero, zero, e32, m4, ta, ma \n\t"
+          "vfredusum.vs v12, %[vacc], %[vzero] \n\t"
+          "vsetivli zero, 1, e32, m1, ta, ma \n\t"
+          "vse32.v v12, %[res_ptr] \n\t"
+          : [vacc] "+vd" (vacc),
+            [res_ptr] "=A" (*(result_row + c))
+          : [vzero] "vd" (vzero)
+          : "vtype", "vl", "v12"
       );
     }
   }

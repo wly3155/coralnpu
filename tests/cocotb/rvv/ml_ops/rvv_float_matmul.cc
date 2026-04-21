@@ -33,21 +33,30 @@ float result_output[kLhsRows * kRhsCols]
 // LHS is row-major, RHS is col-major.
 void MatMulF(size_t lhs_rows, size_t inner, size_t rhs_cols, const float* lhs,
              const float* rhs, float* result) {
+  size_t vlmax = __riscv_vsetvlmax_e32m1();
+
   for (size_t r = 0; r < lhs_rows; ++r) {
-    const float* lhs_data = lhs + (r * inner);
     float* result_row = result + (r * rhs_cols);
     for (size_t c = 0; c < rhs_cols; ++c) {
+      const float* lhs_data = lhs + (r * inner);
       const float* rhs_data = rhs + (c * inner);
-      vfloat32m1_t vacc = __riscv_vfmv_s_f_f32m1(0.0f, 1);
-      size_t k = 0;
-      while (k < inner) {
-        size_t vl = __riscv_vsetvl_e32m1(inner - k);
-        vfloat32m1_t vlhs_data = __riscv_vle32_v_f32m1(lhs_data + k, vl);
-        vfloat32m1_t vrhs_data = __riscv_vle32_v_f32m1(rhs_data + k, vl);
-        vfloat32m1_t vmul = __riscv_vfmul_vv_f32m1(vlhs_data, vrhs_data, vl);
-        vacc = __riscv_vfredusum_vs_f32m1_f32m1(vmul, vacc, vl);
-        k += vl;
+
+      vfloat32m1_t vzero = __riscv_vfmv_v_f_f32m1(0.0f, vlmax);
+      vfloat32m1_t vacc = __riscv_vfmv_v_f_f32m1(0.0f, vlmax);
+
+      size_t k = inner;
+      while (k) {
+        size_t vl = __riscv_vsetvl_e32m1(k);
+        vfloat32m1_t vlhs_data = __riscv_vle32_v_f32m1(lhs_data, vl);
+        lhs_data += vl;
+        vfloat32m1_t vrhs_data = __riscv_vle32_v_f32m1(rhs_data, vl);
+        rhs_data += vl;
+
+        vacc = __riscv_vfmacc_vv_f32m1_tu(vacc, vlhs_data, vrhs_data, vl);
+        k -= vl;
       }
+
+      vacc = __riscv_vfredusum_vs_f32m1_f32m1(vacc, vzero, vlmax);
       __riscv_vse32_v_f32m1(result_row + c, vacc, 1);
     }
   }
