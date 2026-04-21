@@ -255,6 +255,10 @@ class RetirementBuffer(p: Parameters, mini: Boolean = false) extends Module {
 
   for (i <- 0 until bufferSize) {
     val bufferEntry = instBuffer.io.dataOut(i)
+    // Check if this entry is an operation that doesn't require a register write, but is not a store.
+    val nonWritingInstr = bufferEntry.idx === noWriteRegIdx
+    val storeInstr = bufferEntry.idx === storeRegIdx
+
     // Check which incoming (scalar,float) write port matches this entry's needed address.
     val scalarWriteIdxMap = io.writeDataScalar.map(
         x => x.valid && (x.bits.addr === bufferEntry.idx))
@@ -263,13 +267,10 @@ class RetirementBuffer(p: Parameters, mini: Boolean = false) extends Module {
             bufferEntry.idx))).getOrElse(Seq(false.B))
     val vectorWriteIdxMap = io.writeDataVector.map(y => y.map(
         x => x.valid && (
-            (bufferEntry.isVector && (x.bits.uop_pc === bufferEntry.addr)) ||
+            (bufferEntry.isVector && !storeInstr && (x.bits.uop_pc === bufferEntry.addr)) ||
             (!bufferEntry.isVector && ((x.bits.addr +& p.rvvRegfileBaseAddr.U) === bufferEntry.idx))
         )
     )).getOrElse(Seq(false.B))
-    // Check if this entry is an operation that doesn't require a register write, but is not a store.
-    val nonWritingInstr = bufferEntry.idx === noWriteRegIdx
-    val storeInstr = bufferEntry.idx === storeRegIdx
     // Check if this entry is the faulting instruction
     val faultingInstr = io.fault.valid && (bufferEntry.addr === faultPc)
     // The entry is active if it's validly enqueued.

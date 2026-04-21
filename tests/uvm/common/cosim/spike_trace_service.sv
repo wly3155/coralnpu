@@ -118,15 +118,23 @@ class spike_trace_service extends uvm_object;
        if (token.len() >= 2 && (token.substr(0,0) == "x" || token.substr(0,0) == "f" || token.substr(0,0) == "v")) begin
           string reg_type = token.substr(0,0);
           string idx_str = token.substr(1);
-          int reg_idx = idx_str.atoi();
+          int reg_idx;
           string val_str;
-
-          // Verify it's a register by checking if idx_str is numeric
           bit is_numeric = 1;
+
           for (int j=0; j<idx_str.len(); j++) if (idx_str[j] < "0" || idx_str[j] > "9") is_numeric = 0;
 
           if (is_numeric) begin
+             reg_idx = idx_str.atoi();
              val_str = pop_token(remainder);
+             // Skip underscores in vector values if present
+             for (int j=0; j<val_str.len(); j++) begin
+                if (val_str[j] == "_") begin
+                   val_str = {val_str.substr(0, j-1), val_str.substr(j+1, val_str.len()-1)};
+                   j--;
+                end
+             end
+
              if (val_str.len() >= 3 && val_str.substr(0,1) == "0x") begin
                 spike_instr_txn_t write_txn = base_txn;
                 write_txn.rd = reg_idx;
@@ -144,6 +152,10 @@ class spike_trace_service extends uvm_object;
                 num_writes++;
              end
           end
+       end else if (token == "mem") begin
+          // Skip address and value for memory writes
+          void'(pop_token(remainder)); // addr
+          void'(pop_token(remainder)); // val
        end
     end
 

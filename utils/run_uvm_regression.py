@@ -38,6 +38,9 @@ DENYLIST = [
     # Checks mcycle
     "//tests/cocotb/tutorial/counters:inst_cycle_counter_example",
     "//tests/cocotb/coralnpu_isa:perf_counters",
+    # Peripherals
+    "//tests/cocotb:timer_interrupt_test",
+    "//tests/cocotb:plic_test",
     # RVV exceptions, not supported by MPACT (yet)
     "//tests/cocotb/rvv:vill_test",
     "//tests/cocotb:vector_store",
@@ -50,6 +53,9 @@ DENYLIST = [
     "//tests/cocotb/rvv:vmsbf_test",
     "//tests/cocotb/rvv/load_store:load_unit_masked",
     "//tests/cocotb/rvv/load_store:store_unit_masked",
+    # Enable when MPACT enables Zve32f
+    "//tests/cocotb/rvv/ml_ops:rvv_float_matmul",
+    "//tests/cocotb/rvv/ml_ops:rvv_float_matmul_assembly",
 ]
 
 # List of targets to exclude from Spike co-simulation (e.g. tests requiring external IRQs)
@@ -59,7 +65,9 @@ SPIKE_DENYLIST = [
     "//tests/cocotb/rvv:rvv_add",
     "//tests/cocotb/rvv:rvv_load",
     "//tests/cocotb/rvv:vstart_store",
+    "//tests/cocotb:loop",
     "//tests/cocotb:registers",
+    "//tests/cocotb:software_interrupt_test",
     "//tests/cocotb:stress_test",
     "//tests/cocotb:wfi_slot_0",
     "//tests/cocotb:wfi_slot_1",
@@ -71,6 +79,7 @@ SPIKE_DENYLIST = [
 TIMEOUT_MAP = {
     "//tests/cocotb/rvv/ml_ops:rvv_matmul": 100000000,
     "//tests/cocotb/rvv/ml_ops:rvv_matmul_assembly": 100000000,
+    "//examples:coralnpu_v2_rvv_add_intrinsic": 200000,
 }
 
 # Spike simulation parameters
@@ -79,7 +88,7 @@ SPIKE_MEMORY_REGIONS = [
     (0x10000, 0x8000),  # DTCM
     (0x20000000, 0x400000),  # DRAM
 ]
-SPIKE_ISA = "rv32imf_zve32x_zvl128b_zicsr_zifencei_zbb"
+SPIKE_ISA = "rv32imf_zve32f_zvl128b_zicsr_zifencei_zbb_zfbfmin_zvfbfa"
 
 
 def get_spike_memory_map_str() -> str:
@@ -659,8 +668,13 @@ def run_full_regression(tests_to_run: List[Tuple[str, str]], spike_bin: str,
     shutil.make_archive(zip_filename, 'zip', output_dir)
     logging.info(f"Artifact created: {os.path.abspath(zip_filename + '.zip')}")
 
-    if status == "FAIL":
+    any_failed = any(r["Status"] != "PASS" for r in results)
+    if any_failed:
+        num_failed = sum(1 for r in results if r["Status"] != "PASS")
+        logging.error(f"Regression FAILED: {num_failed} tests failed.")
         sys.exit(1)
+
+    logging.info("Regression PASSED.")
 
 
 def main():
