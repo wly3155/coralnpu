@@ -93,5 +93,4 @@ targets:
           - '-CFLAGS "-DTOPLEVEL_NAME=chip_verilator -std=c++17 -Wall -DVM_TRACE_FMT_FST"'
           - '-LDFLAGS "-lelf -lutil"'
           - '-Wall'
-          - '--threads 16'
           - '-Wno-fatal'

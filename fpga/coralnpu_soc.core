@@ -106,7 +106,6 @@ targets:
           - '-CFLAGS "-DTOPLEVEL_NAME=coralnpu_soc -std=c++17 -Wall -DVM_TRACE_FMT_FST"'
           - '-LDFLAGS "-lelf"'
           - '-Wall'
-          - '--threads 16'
           - '-Wno-fatal'
 
   synth:

@@ -14,15 +14,22 @@
 
 """Convenience wrapper for Verilator driven cocotb."""
 
+load("@coralnpu_host_cpus//:defs.bzl", "MAKE_JOBS")
 load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
 load("@rules_hdl//cocotb:cocotb.bzl", "cocotb_test")
 load("@rules_python//python:defs.bzl", "py_library")
 
-# Max number of CPU to use when building the verilated simulator
-_verilator_make_parallelism = 8
+# Number of CPUs reserved per Verilate action in Bazel's local scheduler.
+# Sourced from `nproc` at workspace-fetch time so we don't oversubscribe
+# small hosts (a hardcoded 8 was blocking 6-core boxes from scheduling
+# more than one action at a time).
+_verilator_make_parallelism = MAKE_JOBS
 
 def _verilator_resource_estimator(os, input_size):
-    return {"cpu": _verilator_make_parallelism, "memory": 4096}
+    # Cap the scheduler reservation at 4 so multiple actions can still run
+    # in parallel on larger hosts; the `make -j` inside the action is free
+    # to use more threads if the scheduler hands them over.
+    return {"cpu": min(_verilator_make_parallelism, 4), "memory": 4096}
 
 def _verilator_cocotb_model_impl(ctx):
     """Implementation of the verilator_cocotb_model rule."""

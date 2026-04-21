@@ -26,6 +26,9 @@ load(
     "tflite_repos",
     "mpact_repos",
 )
+load("//rules:host_cpus.bzl", "host_cpus")
+
+host_cpus(name = "coralnpu_host_cpus")
 
 http_archive(
     name = "rules_cc",

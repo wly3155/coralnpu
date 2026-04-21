@@ -14,6 +14,7 @@
 
 load("@bazel_skylib//rules:common_settings.bzl", "string_list_flag")
 load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
+load("@coralnpu_host_cpus//:defs.bzl", "MAKE_JOBS", "VERILATOR_THREADS")
 load("@internal_check//:status.bzl", internal_exists = "FOLDER_EXISTS")
 load("@lowrisc_opentitan_gh//rules:fusesoc.bzl", "fusesoc_build")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
@@ -78,6 +79,11 @@ VERILATOR_OPTIONS_COMMON = [
     # allows verilator to ignore timing code in rtl
     # eg: "out <= #1 RESET_STATE;"
     "--no-timing",
+    # Runtime Verilator sim thread count. Populated at workspace-fetch time
+    # from `nproc` (capped at 8, since past that Verilator typically hits
+    # scheduling overhead). Override at build time with
+    # `--//fpga:verilator_options_default=...` or your own string_list_flag.
+    "--threads {}".format(VERILATOR_THREADS),
 ]
 
 string_list_flag(
@@ -92,10 +98,12 @@ string_list_flag(
     ] + VERILATOR_OPTIONS_COMMON,
 )
 
+# `make -j` for Verilator's C++ compile. Detected from `nproc` at
+# workspace-fetch time; override with `--//fpga:make_options=-jN`.
 string_list_flag(
     name = "make_options",
     build_setting_default = [
-        "-j16",
+        "-j{}".format(MAKE_JOBS),
     ],
 )
 

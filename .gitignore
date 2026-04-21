@@ -1,4 +1,5 @@
 bazel-*
+.bazelrc.user
 # Robot
 log.html
 report.html

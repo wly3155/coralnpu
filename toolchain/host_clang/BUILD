@@ -43,16 +43,14 @@ cc_toolchain_config(
     ],
     compiler = "clang",
     cpu = "k8",
-    # We still need standard includes, reusing local_config_cc's might be risky if it's GCC specific,
-    # but Clang usually plays nice with GCC headers.
+    # These are used as trusted prefix paths by Bazel's sandbox validator:
+    # Bazel accepts any #include that resolves under one of these dirs.
+    # The compiler itself finds headers via its own discovery — we just
+    # need to cover the roots that host GCC / Clang actually use.
     cxx_builtin_include_directories = [
-        "/usr/include/c++/14",
-        "/usr/include/x86_64-linux-gnu/c++/14",
-        "/usr/include/c++/14/backward",
-        "/usr/lib/llvm-19/lib/clang/19/include",
-        "/usr/local/include",
-        "/usr/include/x86_64-linux-gnu",
         "/usr/include",
+        "/usr/local/include",
+        "/usr/lib",
     ],
     cxx_flags = ["-std=c++17"],
     dbg_compile_flags = ["-g"],

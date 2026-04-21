@@ -82,3 +82,6 @@ build --linkopt=-fuse-ld=bfd
 # Disable LLD-specific "start-lib" optimization (incompatible with BFD)
 build --host_features=-supports_start_end_lib
 build --features=-supports_start_end_lib
+
+# Import user config, if it exists (gitignored).
+try-import %workspace%/.bazelrc.user
