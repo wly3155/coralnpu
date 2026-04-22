@@ -655,6 +655,7 @@ template_rule(
         # RVV
         "-DTB_SUPPORT",
         "-DVLEN_128",
+        "-DZVE32F_ON",
         "-Wno-WIDTH",
         "-Wno-CASEINCOMPLETE",
         "-Wno-LATCH",
