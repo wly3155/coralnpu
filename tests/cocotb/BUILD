@@ -293,7 +293,9 @@ RVV_LOAD_STORE_TESTCASES = [
 # BEGIN_TESTCASES_FOR_rvv_arithmetic_cocotb_test
 RVV_ARITHMETIC_TESTCASES = [
     "arithmetic_m1_vanilla_ops",
+    "float32_arithmetic_m1_vanilla_ops",
     "reduction_m1_vanilla_ops",
+    "float32_reduction_m1_vanilla_ops",
     "reduction_m1_failure_ops",
     "widen_math_ops_test_impl",
     "vnclip_test",

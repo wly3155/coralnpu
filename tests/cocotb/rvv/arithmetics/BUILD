@@ -31,6 +31,19 @@ REDUCTION_OPS = [
     "redmax",
 ]
 
+FLOAT_MATH_OPS = [
+    "fadd",
+    "fsub",
+    "fmul",
+    "fdiv",
+]
+
+FLOAT_REDUCTION_OPS = [
+    "fredusum",
+    "fredmin",
+    "fredmax",
+]
+
 # tuple format DTYPE (sew, sign, dtype, vl)
 DTYPES = [
     ("8", "i", "int8", "16"),
@@ -39,6 +52,10 @@ DTYPES = [
     ("8", "u", "uint8", "16"),
     ("16", "u", "uint16", "8"),
     ("32", "u", "uint32", "4"),
+]
+
+FLOAT_DTYPES = [
+    ("32", "f", "float", "4"),
 ]
 
 WIDEN_DTYPES = [
@@ -52,6 +69,12 @@ MATH_OP_TYPE_PAIRS = [
     for (sew, sign, dtype, vl) in DTYPES
 ]
 
+FLOAT_MATH_OP_TYPE_PAIRS = [
+    (op, sew, sign, dtype, vl)
+    for op in FLOAT_MATH_OPS
+    for (sew, sign, dtype, vl) in FLOAT_DTYPES
+]
+
 MATH_WIDEN_OP_TYPE_PAIRS = [
     (op, sign, in_dtype, out_dtype, in_sew, out_sew, vl_step, num_test_values)
     for op in MATH_OPS[:3]
@@ -62,6 +85,12 @@ REDUCTION_OP_TYPE_PAIRS = [
     (op, sew, sign, dtype, vl)
     for op in REDUCTION_OPS
     for (sew, sign, dtype, vl) in DTYPES
+]
+
+FLOAT_REDUCTION_OP_TYPE_PAIRS = [
+    (op, sew, sign, dtype, vl)
+    for op in FLOAT_REDUCTION_OPS
+    for (sew, sign, dtype, vl) in FLOAT_DTYPES
 ]
 
 # Division has different op code for signed and usigned
@@ -77,7 +106,7 @@ template_rule(
             "in_data_size": "16",
             "out_data_size": "16",
         }
-        for (op, sew, sign, dtype, vl) in MATH_OP_TYPE_PAIRS
+        for (op, sew, sign, dtype, vl) in MATH_OP_TYPE_PAIRS + FLOAT_MATH_OP_TYPE_PAIRS
     },
 )
 
@@ -94,7 +123,7 @@ template_rule(
             "in_data_size": "16",
             "out_data_size": "16",
         }
-        for (op, sew, sign, dtype, vl) in REDUCTION_OP_TYPE_PAIRS
+        for (op, sew, sign, dtype, vl) in REDUCTION_OP_TYPE_PAIRS + FLOAT_REDUCTION_OP_TYPE_PAIRS
     },
 )
 
@@ -121,7 +150,7 @@ template_rule(
         "rvv_{}_{}_m1".format(op, dtype): {
             "srcs": ["template_{}_{}_m1".format(op, dtype)],
         }
-        for (op, _, _, dtype, _) in MATH_OP_TYPE_PAIRS + REDUCTION_OP_TYPE_PAIRS
+        for (op, _, _, dtype, _) in MATH_OP_TYPE_PAIRS + REDUCTION_OP_TYPE_PAIRS + FLOAT_MATH_OP_TYPE_PAIRS + FLOAT_REDUCTION_OP_TYPE_PAIRS
     },
 )
 
@@ -154,18 +183,22 @@ template_rule(
 )
 
 SAME_TYPE_BINARY_VX_CASES = [
-    ("vadd_vx_test", "Vadd", []),
-    ("vsadd_vx_test", "Vsadd", []),
-    ("vsub_vx_test", "Vsub", []),
-    ("vssub_vx_test", "Vssub", []),
-    ("vrsub_vx_test", "Vrsub", []),
-    ("vmul_vx_test", "Vmul", []),
-    ("vmulh_vx_test", "Vmulh", []),
-    ("vmin_vx_test", "Vmin", []),
-    ("vmax_vx_test", "Vmax", []),
-    ("vand_vx_test", "Vand", []),
-    ("vor_vx_test", "Vor", []),
-    ("vxor_vx_test", "Vxor", []),
+    ("vadd_vx_test", "Vadd", ["TEST_INT"]),
+    ("vsadd_vx_test", "Vsadd", ["TEST_INT"]),
+    ("vsub_vx_test", "Vsub", ["TEST_INT"]),
+    ("vssub_vx_test", "Vssub", ["TEST_INT"]),
+    ("vrsub_vx_test", "Vrsub", ["TEST_INT"]),
+    ("vmul_vx_test", "Vmul", ["TEST_INT"]),
+    ("vmulh_vx_test", "Vmulh", ["TEST_INT"]),
+    ("vmin_vx_test", "Vmin", ["TEST_INT"]),
+    ("vmax_vx_test", "Vmax", ["TEST_INT"]),
+    ("vand_vx_test", "Vand", ["TEST_INT"]),
+    ("vor_vx_test", "Vor", ["TEST_INT"]),
+    ("vxor_vx_test", "Vxor", ["TEST_INT"]),
+    ("vfadd_vf_test", "Vfadd", ["TEST_FLOAT"]),
+    ("vfsub_vf_test", "Vfsub", ["TEST_FLOAT"]),
+    ("vfmul_vf_test", "Vfmul", ["TEST_FLOAT"]),
+    ("vfdiv_vf_test", "Vfdiv", ["TEST_FLOAT"]),
 ]
 
 [
@@ -186,10 +219,10 @@ filegroup(
 )
 
 MIXED_SIGN_SAME_WIDTH_BINARY_CASES = [
-    ("Vsll", []),
-    ("Vsra", ["SIGNED_ONLY"]),
-    ("Vsrl", ["UNSIGNED_ONLY"]),
-    ("Vmulhsu", ["SIGNED_ONLY"]),
+    ("Vsll", ["TEST_INT"]),
+    ("Vsra", ["SIGNED_ONLY", "TEST_INT"]),
+    ("Vsrl", ["UNSIGNED_ONLY", "TEST_INT"]),
+    ("Vmulhsu", ["SIGNED_ONLY", "TEST_INT"]),
 ]
 
 [
@@ -218,7 +251,7 @@ filegroup(
     name = "rvv_arith_tests",
     srcs = [
         ":rvv_{}_{}_m1.elf".format(op, dtype)
-        for (op, _, _, dtype, _) in MATH_OP_TYPE_PAIRS + REDUCTION_OP_TYPE_PAIRS
+        for (op, _, _, dtype, _) in MATH_OP_TYPE_PAIRS + REDUCTION_OP_TYPE_PAIRS + FLOAT_MATH_OP_TYPE_PAIRS + FLOAT_REDUCTION_OP_TYPE_PAIRS
     ] + [
         "rvv_widen_{}_{}_{}".format(op, in_dtype, out_dtype)
         for (op, _, in_dtype, out_dtype, _, _, _, _) in MATH_WIDEN_OP_TYPE_PAIRS

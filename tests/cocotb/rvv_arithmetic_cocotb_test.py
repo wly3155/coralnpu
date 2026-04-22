@@ -28,31 +28,32 @@ STR_TO_NP_TYPE = {
     "uint8": np.uint8,
     "uint16": np.uint16,
     "uint32": np.uint32,
+    "float": np.float32,
 }
 
 
 def _get_math_result(x: np.array, y: np.array, symbol: str, dtype=None):
-    if symbol == 'add':
+    if symbol == 'add' or symbol == 'fadd':
         return np.add(x, y, dtype=dtype)
-    elif symbol == 'sub':
+    elif symbol == 'sub' or symbol == 'fsub':
         return np.subtract(x, y, dtype=dtype)
-    elif symbol == 'mul':
+    elif symbol == 'mul' or symbol == 'fmul':
         return np.multiply(x, y, dtype=dtype)
-    elif symbol == 'div':
+    elif symbol == 'div' or symbol == 'fdiv':
         orig_settings = np.seterr(divide='ignore')
         divide_output = np.divide(x, y, dtype=dtype)
         np.seterr(**orig_settings)
         return divide_output
-    elif symbol == 'redsum':
+    elif symbol == 'redsum' or symbol == 'fredusum':
         return y[0] + np.add.reduce(x)
-    elif symbol == 'redmin':
+    elif symbol == 'redmin' or symbol == 'fredmin':
         return np.min(np.concatenate((x, y)))
-    elif symbol == 'redmax':
+    elif symbol == 'redmax' or symbol == 'fredmax':
         return np.max(np.concatenate((x, y)))
     raise ValueError(f"Unsupported math symbol: {symbol}")
 
 
-async def arithmetic_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
+async def arithmetic_m1_vanilla_ops_test(dut, dtypes, math_ops: list,
                                          num_bytes: int):
     """RVV arithmetic test template.
 
@@ -78,16 +79,21 @@ async def arithmetic_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
             math_op, dtype = pattern_extract.match(elf_name).groups()
             np_type = STR_TO_NP_TYPE[dtype]
             num_test_values = int(num_bytes / np.dtype(np_type).itemsize)
-            min_value = np.iinfo(np_type).min
-            max_value = np.iinfo(np_type).max + 1  # One above.
-            input_1 = np.random.randint(min_value,
-                                        max_value,
-                                        num_test_values,
-                                        dtype=np_type)
-            input_2 = np.random.randint(min_value,
-                                        max_value,
-                                        num_test_values,
-                                        dtype=np_type)
+            if np.issubdtype(np_type, np.integer):
+                min_value = np.iinfo(np_type).min
+                max_value = np.iinfo(np_type).max + 1  # One above.
+                input_1 = np.random.randint(min_value,
+                                            max_value,
+                                            num_test_values,
+                                            dtype=np_type)
+                input_2 = np.random.randint(min_value,
+                                            max_value,
+                                            num_test_values,
+                                            dtype=np_type)
+            else:
+                input_1 = np.random.uniform(-10, 10, num_test_values).astype(np_type)
+                input_2 = np.random.uniform(-10, 10, num_test_values).astype(np_type)
+
             expected_output = np.asarray(_get_math_result(
                 input_1, input_2, math_op),
                                          dtype=np_type)
@@ -98,7 +104,7 @@ async def arithmetic_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
                     if divisor == 0 and dtype[:3] == "int":
                         expected_output[idx] = -1
                     elif divisor == 0 and dtype[:4] == "uint":
-                        expected_output[idx] = max_value - 1
+                        expected_output[idx] = np.iinfo(np_type).max
 
             await fixture.write('in_buf_1', input_1)
             await fixture.write('in_buf_2', input_2)
@@ -116,7 +122,10 @@ async def arithmetic_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
                 'actual': actual_output,
             })
 
-            assert (actual_output == expected_output).all(), debug_msg
+            if np.issubdtype(np_type, np.integer):
+                assert (actual_output == expected_output).all(), debug_msg
+            else:
+                assert np.allclose(actual_output, expected_output, rtol=1e-5, atol=1e-8), debug_msg
 
 
 @cocotb.test()
@@ -128,7 +137,16 @@ async def arithmetic_m1_vanilla_ops(dut):
         num_bytes=16)
 
 
-async def reduction_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
+@cocotb.test()
+async def float32_arithmetic_m1_vanilla_ops(dut):
+    await arithmetic_m1_vanilla_ops_test(
+        dut=dut,
+        dtypes=["float"],
+        math_ops=["fadd", "fsub", "fmul", "fdiv"],
+        num_bytes=16)
+
+
+async def reduction_m1_vanilla_ops_test(dut, dtypes, math_ops: list,
                                         num_bytes: int):
     """RVV reduction test template.
 
@@ -155,13 +173,18 @@ async def reduction_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
             np_type = STR_TO_NP_TYPE[dtype]
             itemsize = np.dtype(np_type).itemsize
             num_test_values = int(num_bytes / np.dtype(np_type).itemsize)
-            min_value = np.iinfo(np_type).min
-            max_value = np.iinfo(np_type).max + 1  # One above.
-            input_1 = np.random.randint(min_value,
-                                        max_value,
-                                        num_test_values,
-                                        dtype=np_type)
-            input_2 = np.random.randint(min_value, max_value, 1, dtype=np_type)
+            if np.issubdtype(np_type, np.integer):
+                min_value = np.iinfo(np_type).min
+                max_value = np.iinfo(np_type).max + 1  # One above.
+                input_1 = np.random.randint(min_value,
+                                            max_value,
+                                            num_test_values,
+                                            dtype=np_type)
+                input_2 = np.random.randint(min_value, max_value, 1, dtype=np_type)
+            else:
+                input_1 = np.random.uniform(-10, 10, num_test_values).astype(np_type)
+                input_2 = np.random.uniform(-10, 10, 1).astype(np_type)
+
             expected_output = np.asarray(_get_math_result(
                 input_1, input_2, math_op),
                                          dtype=np_type)
@@ -169,7 +192,18 @@ async def reduction_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
             await fixture.write('in_buf_1', input_1)
             await fixture.write('scalar_input', input_2)
             await fixture.write('out_buf', np.zeros(1, dtype=np_type))
-            await fixture.run_to_halt()
+            try:
+                await fixture.run_to_halt(timeout_cycles=1000000)
+            except AssertionError as e:
+                # If it failed to halt, check if it faulted
+                try:
+                    faulted = (await fixture.read('faulted', 4)).view(np.uint32)[0]
+                    mcause = (await fixture.read('mcause', 4)).view(np.uint32)[0]
+                    if faulted:
+                        raise RuntimeError(f"Test faulted with mcause 0x{mcause:x}")
+                except Exception:
+                    pass
+                raise e
 
             actual_output = (await fixture.read('out_buf',
                                                 itemsize)).view(np_type)
@@ -179,7 +213,10 @@ async def reduction_m1_vanilla_ops_test(dut, dtypes, math_ops: str,
                 'expected': expected_output,
                 'actual': actual_output,
             })
-            assert (actual_output == expected_output).all(), debug_msg
+            if np.issubdtype(np_type, np.integer):
+                assert (actual_output == expected_output).all(), debug_msg
+            else:
+                assert np.allclose(actual_output, expected_output, rtol=1e-5, atol=1e-8), debug_msg
 
 
 @cocotb.test()
@@ -188,6 +225,15 @@ async def reduction_m1_vanilla_ops(dut):
         dut=dut,
         dtypes=["int8", "int16", "int32", "uint8", "uint16", "uint32"],
         math_ops=["redsum", "redmin", "redmax"],
+        num_bytes=16)
+
+
+@cocotb.test()
+async def float32_reduction_m1_vanilla_ops(dut):
+    await reduction_m1_vanilla_ops_test(
+        dut=dut,
+        dtypes=["float"],
+        math_ops=["fredusum", "fredmin", "fredmax"],
         num_bytes=16)
 
 

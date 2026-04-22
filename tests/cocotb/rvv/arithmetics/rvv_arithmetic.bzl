@@ -19,10 +19,22 @@ def rvv_widen_arithmetic_test(**kwargs):
     )
 
 def rvv_arithmetic_template_impl(ctx):
+    sign = ctx.attr.sign
+    sew = ctx.attr.sew
+    dtype = ctx.attr.dtype
+    op_suffix = "{sign}{sew}m1".format(sign = sign, sew = sew)
+    scalar_type = dtype if dtype == "float" else (dtype + "_t")
+    vec_type = "v{sign}{sew}m1_t".format(
+        sign = "int" if sign == "i" else ("uint" if sign == "u" else "float"),
+        sew = sew,
+    )
     ctx.actions.expand_template(
         template = ctx.file._template,
         output = ctx.outputs.source_file,
         substitutions = {
+            "{SCALAR_TYPE}": scalar_type,
+            "{VEC_TYPE}": vec_type,
+            "{OP_SUFFIX}": op_suffix,
             "{DTYPE}": ctx.attr.dtype,
             "{IN_DATA_SIZE}": ctx.attr.in_data_size,
             "{OUT_DATA_SIZE}": ctx.attr.out_data_size,
@@ -34,10 +46,35 @@ def rvv_arithmetic_template_impl(ctx):
     )
 
 def rvv_reduction_template_impl(ctx):
+    sign = ctx.attr.sign
+    sew = ctx.attr.sew
+    dtype = ctx.attr.dtype
+    op_suffix = "{sign}{sew}m1".format(sign = sign, sew = sew)
+    scalar_type = dtype if dtype == "float" else (dtype + "_t")
+    vec_type = "v{sign}{sew}m1_t".format(
+        sign = "int" if sign == "i" else ("uint" if sign == "u" else "float"),
+        sew = sew,
+    )
+    s_mv_v_fn = "__riscv_v{mv}mv_v_{s}_{suffix}".format(
+        mv = "f" if sign == "f" else "",
+        s = "f" if sign == "f" else "x",
+        suffix = op_suffix,
+    )
+    v_mv_s_fn = "__riscv_v{mv}mv_{s}_s_{suffix}_{s_short}".format(
+        mv = "f" if sign == "f" else "",
+        s = "f" if sign == "f" else "x",
+        suffix = op_suffix,
+        s_short = "f32" if (sign == "f" and sew == "32") else op_suffix.split("m")[0],
+    )
     ctx.actions.expand_template(
         template = ctx.file._template,
         output = ctx.outputs.source_file,
         substitutions = {
+            "{SCALAR_TYPE}": scalar_type,
+            "{VEC_TYPE}": vec_type,
+            "{OP_SUFFIX}": op_suffix,
+            "{S_MV_V_FN}": s_mv_v_fn,
+            "{V_MV_S_FN}": v_mv_s_fn,
             "{DTYPE}": ctx.attr.dtype,
             "{IN_DATA_SIZE}": ctx.attr.in_data_size,
             "{OUT_DATA_SIZE}": ctx.attr.out_data_size,

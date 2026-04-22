@@ -70,6 +70,12 @@ template<> struct ScalarWidenTraits<int8_t> { using Type = int16_t; };
 template<> struct ScalarWidenTraits<int16_t> { using Type = int32_t; };
 template<typename T> using WidenType = typename ScalarWidenTraits<T>::Type;
 
+template <typename T>
+struct ScalarFloatTraits {};
+
+template<> struct ScalarFloatTraits<float> { using Type = float; };
+// For later extension: template<> struct ScalarFloatTraits<float16_t> { using Type = float; };
+
 enum SameTypeBinaryOp {
   VADD,
   VSADD,
@@ -83,11 +89,21 @@ enum SameTypeBinaryOp {
   VAND,
   VOR,
   VXOR,
+  VFADD,
+  VFSUB,
+  VFMUL,
+  VFDIV,
+  VFMIN,
+  VFMAX,
+  VFSGNJ,
+  VFSGNJN,
+  VFSGNJX,
 };
 """
 
 BITCOUNTS = [8, 16, 32]
 SIGNED = [False, True]
+FLOAT_BITCOUNTS = [32]
 LMULS = ["MF4", "MF2", "M1", "M2", "M4", "M8"]
 
 def all_bitcount_lmuls():
@@ -112,6 +128,9 @@ def all_bitcount_lmuls():
 def all_signed_bitcounts_lmuls():
     return itertools.product(SIGNED, all_bitcount_lmuls())
 
+def all_float_bitcounts_lmuls():
+    return [(bit_count, lmul) for (bit_count, lmul) in all_bitcount_lmuls() if bit_count in FLOAT_BITCOUNTS]
+
 SAME_TYPE_BINARY_OPS = [
     "VADD",
     "VSADD",
@@ -125,6 +144,18 @@ SAME_TYPE_BINARY_OPS = [
     "VAND",
     "VOR",
     "VXOR",
+]
+
+SAME_TYPE_FLOAT_BINARY_OPS = [
+    "VFADD",
+    "VFSUB",
+    "VFMUL",
+    "VFDIV",
+    "VFMIN",
+    "VFMAX",
+    "VFSGNJ",
+    "VFSGNJN",
+    "VFSGNJX",
 ]
 
 def same_type_binary_op_trait(bit_count, signed, lmul):
@@ -157,6 +188,32 @@ template<> struct SameTypeBinaryOpTraits<{scalar_type}_t, Lmul::{lmul}> {{
   static constexpr auto vor_vx = __riscv_vor_vx_{base_type};
   static constexpr auto vxor_vv = __riscv_vxor_vv_{base_type};
   static constexpr auto vxor_vx = __riscv_vxor_vx_{base_type};
+}};
+"""
+
+def same_type_float_binary_op_trait(bit_count, lmul):
+    scalar_type = "float" # assuming float32 for now
+    base_type = f"f{bit_count}{lmul.lower()}"
+    return f"""
+template<> struct SameTypeBinaryOpTraits<{scalar_type}, Lmul::{lmul}> {{
+  static constexpr auto vfadd_vv = __riscv_vfadd_vv_{base_type};
+  static constexpr auto vfadd_vf = __riscv_vfadd_vf_{base_type};
+  static constexpr auto vfsub_vv = __riscv_vfsub_vv_{base_type};
+  static constexpr auto vfsub_vf = __riscv_vfsub_vf_{base_type};
+  static constexpr auto vfmul_vv = __riscv_vfmul_vv_{base_type};
+  static constexpr auto vfmul_vf = __riscv_vfmul_vf_{base_type};
+  static constexpr auto vfdiv_vv = __riscv_vfdiv_vv_{base_type};
+  static constexpr auto vfdiv_vf = __riscv_vfdiv_vf_{base_type};
+  static constexpr auto vfmin_vv = __riscv_vfmin_vv_{base_type};
+  static constexpr auto vfmin_vf = __riscv_vfmin_vf_{base_type};
+  static constexpr auto vfmax_vv = __riscv_vfmax_vv_{base_type};
+  static constexpr auto vfmax_vf = __riscv_vfmax_vf_{base_type};
+  static constexpr auto vfsgnj_vv = __riscv_vfsgnj_vv_{base_type};
+  static constexpr auto vfsgnj_vf = __riscv_vfsgnj_vf_{base_type};
+  static constexpr auto vfsgnjn_vv = __riscv_vfsgnjn_vv_{base_type};
+  static constexpr auto vfsgnjn_vf = __riscv_vfsgnjn_vf_{base_type};
+  static constexpr auto vfsgnjx_vv = __riscv_vfsgnjx_vv_{base_type};
+  static constexpr auto vfsgnjx_vf = __riscv_vfsgnjx_vf_{base_type};
 }};
 """
 
@@ -202,6 +259,10 @@ def main():
         scalar_type = f"{unsigned}int{bit_count}" # {u}int32
         vector_type = f"v{scalar_type}{lmul.lower()}_t"
         header.append(f"template<> struct RvvTypeTraits<{scalar_type}_t, Lmul::{lmul}> {{ using type = {vector_type}; }};")
+    for bit_count, lmul in all_float_bitcounts_lmuls():
+        scalar_type = "float" # assuming float32
+        vector_type = f"vfloat{bit_count}{lmul.lower()}_t"
+        header.append(f"template<> struct RvvTypeTraits<{scalar_type}, Lmul::{lmul}> {{ using type = {vector_type}; }};")
     header.append("template<typename T, Lmul lmul>\nusing RvvType = typename RvvTypeTraits<T, lmul>::type;\n")
 
     # Generate loads
@@ -212,6 +273,10 @@ def main():
         scalar_type = f"{unsigned}int{bit_count}" # {u}int32
         load_fn = f"__riscv_vle{bit_count}_v_{ui}{bit_count}{lmul.lower()}"
         header.append(f"template<> struct VleTraits<{scalar_type}_t, Lmul::{lmul}> {{ static constexpr auto fn = {load_fn}; }};")
+    for bit_count, lmul in all_float_bitcounts_lmuls():
+        scalar_type = "float"
+        load_fn = f"__riscv_vle{bit_count}_v_f{bit_count}{lmul.lower()}"
+        header.append(f"template<> struct VleTraits<{scalar_type}, Lmul::{lmul}> {{ static constexpr auto fn = {load_fn}; }};")
     header.append("template<typename T, Lmul lmul> RvvType<T, lmul> Vle(const T* ptr, size_t vl){ return VleTraits<T, lmul>::fn(ptr, vl); }\n")
 
     # Generate stores
@@ -222,12 +287,18 @@ def main():
         scalar_type = f"{unsigned}int{bit_count}" # {u}int32
         store_fn = f"__riscv_vse{bit_count}_v_{ui}{bit_count}{lmul.lower()}"
         header.append(f"template<> struct VseTraits<{scalar_type}_t, Lmul::{lmul}> {{ static constexpr auto fn = {store_fn}; }};")
+    for bit_count, lmul in all_float_bitcounts_lmuls():
+        scalar_type = "float"
+        store_fn = f"__riscv_vse{bit_count}_v_f{bit_count}{lmul.lower()}"
+        header.append(f"template<> struct VseTraits<{scalar_type}, Lmul::{lmul}> {{ static constexpr auto fn = {store_fn}; }};")
     header.append("template<typename T, Lmul lmul> void Vse(T* ptr, RvvType<T, lmul> v, size_t vl) { VseTraits<T, lmul>::fn(ptr, v, vl); }\n")
 
     # Generate binary ops with same sign and width
     header.append("template<typename T, Lmul lmul> struct SameTypeBinaryOpTraits {};")
     for signed, (bit_count, lmul) in all_signed_bitcounts_lmuls():
         header.append(same_type_binary_op_trait(bit_count, signed, lmul))
+    for bit_count, lmul in all_float_bitcounts_lmuls():
+        header.append(same_type_float_binary_op_trait(bit_count, lmul))
     for binary_op in SAME_TYPE_BINARY_OPS:
         if binary_op != "VRSUB":
             header.append(f"""
@@ -240,6 +311,17 @@ template<typename T, Lmul lmul> RvvType<T, lmul>
 {camel_case(binary_op)}(RvvType<T, lmul> vs1, T xs2, size_t vl) {{
   return SameTypeBinaryOpTraits<T, lmul>::{binary_op.lower()}_vx(vs1, xs2, vl);
 }}""")
+    for binary_op in SAME_TYPE_FLOAT_BINARY_OPS:
+        header.append(f"""
+template<typename T, Lmul lmul> RvvType<T, lmul>
+{camel_case(binary_op)}(RvvType<T, lmul> vs1, RvvType<T, lmul> vs2, size_t vl) {{
+  return SameTypeBinaryOpTraits<T, lmul>::{binary_op.lower()}_vv(vs1, vs2, vl);
+}}
+template<typename T, Lmul lmul> RvvType<T, lmul>
+{camel_case(binary_op)}(RvvType<T, lmul> vs1, T fs2, size_t vl) {{
+  return SameTypeBinaryOpTraits<T, lmul>::{binary_op.lower()}_vf(vs1, fs2, vl);
+}}""")
+
 
     # Generate binary ops with different sign, same width
     header.append("template<typename T, Lmul lmul> struct MixedSignSameWidthTypeBinaryOpTraits {};")

@@ -56,6 +56,17 @@ DENYLIST = [
     # Enable when MPACT enables Zve32f
     "//tests/cocotb/rvv/ml_ops:rvv_float_matmul",
     "//tests/cocotb/rvv/ml_ops:rvv_float_matmul_assembly",
+    "//tests/cocotb/rvv/arithmetics:rvv_fadd_float_m1",
+    "//tests/cocotb/rvv/arithmetics:rvv_fdiv_float_m1",
+    "//tests/cocotb/rvv/arithmetics:rvv_fmul_float_m1",
+    "//tests/cocotb/rvv/arithmetics:rvv_fredmax_float_m1",
+    "//tests/cocotb/rvv/arithmetics:rvv_fredmin_float_m1",
+    "//tests/cocotb/rvv/arithmetics:rvv_fredusum_float_m1",
+    "//tests/cocotb/rvv/arithmetics:rvv_fsub_float_m1",
+    "//tests/cocotb/rvv/arithmetics:vfadd_vf_test",
+    "//tests/cocotb/rvv/arithmetics:vfdiv_vf_test",
+    "//tests/cocotb/rvv/arithmetics:vfmul_vf_test",
+    "//tests/cocotb/rvv/arithmetics:vfsub_vf_test",
 ]
 
 # List of targets to exclude from Spike co-simulation (e.g. tests requiring external IRQs)
