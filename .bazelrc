@@ -28,14 +28,14 @@ run --repo_env BAZEL_JVM_FETCH_SOURCES=false
 test --repo_env BAZEL_JVM_FETCH_SOURCES=false
 
 # Skip VCS by default as most workstations will not have licenses.
-build --build_tag_filters="-vcs,-synthesis"
+build --build_tag_filters="-vcs,-synthesis,-power"
 build --action_env=VCS_HOME
 build --action_env=VC_STATIC_HOME
 build --action_env=VERDI_HOME
 build --action_env=LM_LICENSE_FILE
 build --action_env=XILINXD_LICENSE_FILE
-test --build_tag_filters="-vcs,-synthesis"
-test --test_tag_filters="-vcs,-synthesis"
+test --build_tag_filters="-vcs,-synthesis,-power"
+test --test_tag_filters="-vcs,-synthesis,-power"
 test --action_env=VCS_HOME
 test --action_env=VC_STATIC_HOME
 test --action_env=VERDI_HOME
@@ -60,6 +60,13 @@ test:synthesis --build_tag_filters="synthesis"
 test:synthesis --test_tag_filters="synthesis"
 run:synthesis --build_tag_filters="synthesis"
 run:synthesis --test_tag_filters="synthesis"
+
+# Add config to enable power targets.
+build:power --build_tag_filters="power"
+test:power --build_tag_filters="power"
+test:power --test_tag_filters="power"
+run:power --build_tag_filters="power"
+run:power --test_tag_filters="power"
 
 # Set preprocessor defines for tflite-micro.
 build --copt=-DTF_LITE_USE_GLOBAL_CMATH_FUNCTIONS
