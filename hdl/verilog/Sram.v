@@ -166,7 +166,7 @@ module Sram #(
         .BC2(1'b0)
     );
   end else if (NUM_ENTRIES == 512) begin
-    sasdulssd8LOW1p512x128m4b2w0c0p0d0l0rm3sdrw01 u_sram (
+    sasdulssd8LOW1p512x128m4b1w0c0p0d0l0rm3sdrw01 u_sram (
         .Q(rdata),
         .ADR(addr),
         .D(wdata),
