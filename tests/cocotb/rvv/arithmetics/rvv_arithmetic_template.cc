@@ -17,16 +17,30 @@
 #include <riscv_vector.h>
 
 
-{SCALAR_TYPE} in_buf_1[{IN_DATA_SIZE}] __attribute__((section(".data"))) __attribute__((aligned(16)));
-{SCALAR_TYPE} in_buf_2[{IN_DATA_SIZE}] __attribute__((section(".data"))) __attribute__((aligned(16)));
-{SCALAR_TYPE} out_buf[{OUT_DATA_SIZE}] __attribute__((section(".data"))) __attribute__((aligned(16)));
+{DEFINES}
 
-void {MATH_OP}_{OP_SUFFIX}(const {SCALAR_TYPE}* in_buf_1, const {SCALAR_TYPE}* in_buf_2, {SCALAR_TYPE}* out_buf){
+{SCALAR_TYPE} in_buf_1[{IN_DATA_SIZE}] __attribute__((section(".data")))
+    __attribute__((aligned(16)));
+{SCALAR_TYPE} in_buf_2[{IN_DATA_SIZE}] __attribute__((section(".data")))
+    __attribute__((aligned(16)));
+{SCALAR_TYPE} out_buf[{OUT_DATA_SIZE}] __attribute__((section(".data")))
+    __attribute__((aligned(16)));
 
-    {VEC_TYPE} input_v1 = __riscv_vle{SEW}_v_{OP_SUFFIX}(in_buf_1, {NUM_OPERANDS});
-    {VEC_TYPE} input_v2 = __riscv_vle{SEW}_v_{OP_SUFFIX}(in_buf_2, {NUM_OPERANDS});
-    {VEC_TYPE} {MATH_OP}_result = __riscv_v{MATH_OP}_vv_{OP_SUFFIX}(input_v1, input_v2, {NUM_OPERANDS});
-    __riscv_vse{SEW}_v_{OP_SUFFIX}(out_buf, {MATH_OP}_result, {NUM_OPERANDS});
+void {MATH_OP}_{OP_SUFFIX}(const {SCALAR_TYPE}* in_buf_1,
+                            const {SCALAR_TYPE}* in_buf_2,
+                            {SCALAR_TYPE}* out_buf) {
+  {VEC_TYPE} input_v1 = __riscv_vle{SEW}_v_{OP_SUFFIX}(in_buf_1, {NUM_OPERANDS});
+  {VEC_TYPE_V2} input_v2 = __riscv_vle{SEW}_v_{OP_SUFFIX_V2}(
+      reinterpret_cast<const {SCALAR_TYPE_V2}*>(in_buf_2), {NUM_OPERANDS});
+#if defined(TEST_TERNARY)
+  {VEC_TYPE} vd_orig = __riscv_vle{SEW}_v_{OP_SUFFIX}(out_buf, {NUM_OPERANDS});
+  {VEC_TYPE} {MATH_OP}_result =
+      __riscv_v{MATH_OP}_vv_{OP_SUFFIX}(vd_orig, input_v1, input_v2, {NUM_OPERANDS});
+#else
+  {VEC_TYPE} {MATH_OP}_result = __riscv_v{MATH_OP}_vv_{OP_SUFFIX}(
+      input_v1, input_v2 {EXTRA_ARGS}, {NUM_OPERANDS});
+#endif
+  __riscv_vse{SEW}_v_{OP_SUFFIX}(out_buf, {MATH_OP}_result, {NUM_OPERANDS});
 }
 
 

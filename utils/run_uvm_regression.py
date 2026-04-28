@@ -53,6 +53,7 @@ DENYLIST = [
     "//tests/cocotb/rvv:vmsbf_test",
     "//tests/cocotb/rvv/load_store:load_unit_masked",
     "//tests/cocotb/rvv/load_store:store_unit_masked",
+    "//tests/cocotb/rvv/arithmetics:vmsge_vx_test",
     # Enable when MPACT enables Zve32f
     "//tests/cocotb/rvv/ml_ops:rvv_float_matmul",
     "//tests/cocotb/rvv/ml_ops:rvv_float_matmul_assembly",

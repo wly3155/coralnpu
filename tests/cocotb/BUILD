@@ -302,6 +302,14 @@ RVV_ARITHMETIC_TESTCASES = [
     "vnclipu_test",
     "vnsra_test",
     "vnsrl_test",
+    "ternary_op_vx",
+    "comparison_op_vx",
+    "comparison_op_vv",
+    "carry_op_vx",
+    "merge_op_vv",
+    "widen_wide_math_ops_test",
+    "extension_op_test",
+    "immediate_op_test",
     ("binary_op_vx", "large"),
 ]
 # END_TESTCASES_FOR_rvv_arithmetic_cocotb_test

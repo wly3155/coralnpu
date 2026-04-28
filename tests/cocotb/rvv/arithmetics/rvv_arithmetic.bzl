@@ -28,13 +28,25 @@ def rvv_arithmetic_template_impl(ctx):
         sign = "int" if sign == "i" else ("uint" if sign == "u" else "float"),
         sew = sew,
     )
+    is_shift = ctx.attr.math_op in ["sll", "srl", "sra", "ssra", "ssrl"]
+    v2_sign = "uint" if is_shift else ("int" if sign == "i" else ("uint" if sign == "u" else "float"))
+    v2_sign_char = "u" if is_shift else sign
+    vec_type_v2 = "v{sign}{sew}m1_t".format(
+        sign = v2_sign,
+        sew = sew,
+    )
+    op_suffix_v2 = "{sign}{sew}m1".format(sign = v2_sign_char, sew = sew)
+    scalar_type_v2 = "uint{sew}_t".format(sew = sew) if is_shift else scalar_type
     ctx.actions.expand_template(
         template = ctx.file._template,
         output = ctx.outputs.source_file,
         substitutions = {
             "{SCALAR_TYPE}": scalar_type,
+            "{SCALAR_TYPE_V2}": scalar_type_v2,
             "{VEC_TYPE}": vec_type,
+            "{VEC_TYPE_V2}": vec_type_v2,
             "{OP_SUFFIX}": op_suffix,
+            "{OP_SUFFIX_V2}": op_suffix_v2,
             "{DTYPE}": ctx.attr.dtype,
             "{IN_DATA_SIZE}": ctx.attr.in_data_size,
             "{OUT_DATA_SIZE}": ctx.attr.out_data_size,
@@ -42,6 +54,8 @@ def rvv_arithmetic_template_impl(ctx):
             "{NUM_OPERANDS}": ctx.attr.num_operands,
             "{SEW}": ctx.attr.sew,
             "{SIGN}": ctx.attr.sign,
+            "{EXTRA_ARGS}": ctx.attr.extra_args,
+            "{DEFINES}": ctx.attr.defines,
         },
     )
 
@@ -111,6 +125,8 @@ rvv_arithmetic_template = rule(
         "num_operands": attr.string(mandatory = True),
         "sew": attr.string(mandatory = True),
         "sign": attr.string(mandatory = True),
+        "extra_args": attr.string(default = ""),
+        "defines": attr.string(default = ""),
         "_template": attr.label(
             default = ":rvv_arithmetic_template.cc",
             allow_single_file = True,
