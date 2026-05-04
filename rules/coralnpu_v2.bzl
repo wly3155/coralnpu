@@ -109,6 +109,12 @@ def _coralnpu_v2_binary_impl(ctx):
         user_compile_flags = ctx.attr.copts,
         defines = ctx.attr.defines,
     )
+
+    # Declare the linker map file as an output so Bazel manages its path.
+    # The generate_linker_map feature in cc_toolchain_config.bzl uses
+    # %{output_execpath}.map which expands to <name>.elf.map because
+    # cc_common.link() name is "{}.elf".
+    out_map = ctx.actions.declare_file("{}.elf.map".format(ctx.label.name))
     linking_outputs = cc_common.link(
         name = "{}.elf".format(ctx.label.name),
         actions = ctx.actions,
@@ -120,7 +126,23 @@ def _coralnpu_v2_binary_impl(ctx):
             "-Wl,-T,{}".format(ctx.file.linker_script.path),
         ],
         additional_inputs = depset([ctx.file.linker_script] + ctx.files.linker_script_includes),
+        additional_outputs = [out_map],
         output_type = "executable",
+    )
+
+    out_asm = ctx.actions.declare_file("{}.asm".format(ctx.label.name))
+    objdump_tool = cc_toolchain.objdump_executable
+
+    ctx.actions.run_shell(
+        outputs = [out_asm],
+        inputs = [linking_outputs.executable] + cc_toolchain.all_files.to_list(),
+        command = '"{}" -dS "{}" > "{}"'.format(
+            objdump_tool,
+            linking_outputs.executable.path,
+            out_asm.path,
+        ),
+        mnemonic = "ObjDump",
+        progress_message = "Generating asm for {}".format(ctx.label.name),
     )
 
     out_bin = ctx.actions.declare_file("{}.bin".format(ctx.label.name))
@@ -178,11 +200,13 @@ def _coralnpu_v2_binary_impl(ctx):
             mnemonic = "SrecCat",
         )
 
-    all_outputs = [linking_outputs.executable, out_bin]
+    all_outputs = [linking_outputs.executable, out_bin, out_map, out_asm]
     output_groups = {
         "all_files": depset(all_outputs),
         "elf_file": depset([linking_outputs.executable]),
         "bin_file": depset([out_bin]),
+        "map_file": depset([out_map]),
+        "asm_file": depset([out_asm]),
     }
     if out_vmem:
         all_outputs.append(out_vmem)
@@ -323,5 +347,19 @@ def coralnpu_v2_binary(
         name = "{}.bin".format(name),
         srcs = [name],
         output_group = "bin_file",
+        tags = tags,
+    )
+
+    native.filegroup(
+        name = "{}.map".format(name),
+        srcs = [name],
+        output_group = "map_file",
+        tags = tags,
+    )
+
+    native.filegroup(
+        name = "{}.asm".format(name),
+        srcs = [name],
+        output_group = "asm_file",
         tags = tags,
     )
